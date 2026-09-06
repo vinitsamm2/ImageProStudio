@@ -206,6 +206,47 @@ export default function ImageResizerView({
     format: activeFormatDef.mime
   });
 
+  // Accurate Live Measured Output Size (probes exact canvas encoding bytes in background)
+  const [measuredSize, setMeasuredSize] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (!file || !source) {
+      setMeasuredSize(null);
+      return;
+    }
+    let active = true;
+    const timer = setTimeout(async () => {
+      try {
+        const targetW = Math.max(1, Math.round(targetPx.width));
+        const targetH = Math.max(1, Math.round(targetPx.height));
+        const blob = await resizeImage(
+          file,
+          targetW,
+          targetH,
+          activeFormatDef.mime,
+          quality / 100
+        );
+        if (active && blob) {
+          setMeasuredSize(blob.size);
+        }
+      } catch {
+        // fallback to formula
+      }
+    }, 150);
+    return () => {
+      active = false;
+      clearTimeout(timer);
+    };
+  }, [file, source, targetPx.width, targetPx.height, quality, format]);
+
+  const effectiveBytes = measuredSize ?? sizeEstimate.bytes;
+  const isExact = measuredSize !== null;
+  const effectiveChangePercent =
+    file && file.size > 0
+      ? Math.round(((effectiveBytes - file.size) / file.size) * 100)
+      : sizeEstimate.changePercent;
+  const effectiveIsReduction = file ? effectiveBytes <= file.size : true;
+
   const runResize = async () => {
     if (!file) return notify("Upload or paste an image first.", "error");
     setBusy(true);
@@ -677,9 +718,16 @@ export default function ImageResizerView({
                     </span>
                   </div>
                   <div className="flex items-center justify-between text-slate-800 dark:text-slate-100">
-                    <span className="font-sans font-bold">Estimated Output Size:</span>
-                    <span className="font-extrabold text-sm text-cyan-600 dark:text-cyan-400">
-                      ~{formatBytes(sizeEstimate.bytes)}
+                    <span className="font-sans font-bold">
+                      {isExact ? "Accurate Output Size:" : "Estimated Output Size:"}
+                    </span>
+                    <span className="font-extrabold text-sm text-cyan-600 dark:text-cyan-400 flex items-center gap-1.5">
+                      <span>{isExact ? formatBytes(effectiveBytes) : `~${formatBytes(effectiveBytes)}`}</span>
+                      {isExact && (
+                        <span className="rounded-full bg-emerald-500/15 px-1.5 py-0.2 text-[9px] font-sans font-bold text-emerald-600 dark:text-emerald-400">
+                          Live Accurate
+                        </span>
+                      )}
                     </span>
                   </div>
                   <div className="flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400 pt-0.5 border-t border-slate-200/50 dark:border-slate-800/50">
@@ -730,7 +778,7 @@ export default function ImageResizerView({
               {busy
                 ? "Resizing Image..."
                 : file
-                ? `Download Resized (~${formatBytes(sizeEstimate.bytes)} • ${Math.round(targetPx.width)}×${Math.round(targetPx.height)}px)`
+                ? `Download Resized (${isExact ? formatBytes(effectiveBytes) : `~${formatBytes(effectiveBytes)}`} • ${Math.round(targetPx.width)}×${Math.round(targetPx.height)}px)`
                 : `Download Resized Image`}
             </button>
 

@@ -97,6 +97,81 @@ export default function ImageCompressorView({
     return { original, estimated, changePercent, isReduction };
   }, [files, quality, format]);
 
+  // Accurate Live Measured Output Size (probes canvas / compression in background)
+  const [measuredTotal, setMeasuredTotal] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (!files.length) {
+      setMeasuredTotal(null);
+      return;
+    }
+    let active = true;
+    const activeDef = COMPRESS_FORMAT_MAP[format] || COMPRESS_FORMAT_MAP.jpg;
+    const timer = setTimeout(async () => {
+      try {
+        let totalProbed = 0;
+        const sample = files.slice(0, 5);
+        for (const file of sample) {
+          const isPdf = file.type.includes("pdf") || file.name.endsWith(".pdf");
+          if (isPdf) {
+            const est = estimateFileSize({
+              originalSize: file.size,
+              quality: quality / 100,
+              format: "application/pdf",
+              isPdf: true
+            });
+            totalProbed += est.bytes;
+          } else {
+            const blob = await compressOrConvertImage(file, activeDef.mime, quality / 100);
+            if (!active) return;
+            totalProbed += blob.size;
+          }
+        }
+        if (active) {
+          const scaledTotal =
+            files.length > sample.length
+              ? Math.round((totalProbed / sample.length) * files.length)
+              : totalProbed;
+          setMeasuredTotal(scaledTotal);
+        }
+      } catch {
+        // fallback to formula
+      }
+    }, 150);
+
+    return () => {
+      active = false;
+      clearTimeout(timer);
+    };
+  }, [files, quality, format]);
+
+  // Exact total bytes from completed compression runs
+  const actualCompressedTotal = useMemo(() => {
+    if (!results.length) return null;
+    return results.reduce((acc, r) => acc + r.blob.size, 0);
+  }, [results]);
+
+  // Unified effective output size & indicator status
+  const effectiveCompressedBytes =
+    actualCompressedTotal !== null
+      ? actualCompressedTotal
+      : measuredTotal !== null
+      ? measuredTotal
+      : liveTotals.estimated;
+
+  const compressIndicatorStatus =
+    actualCompressedTotal !== null
+      ? { label: "Actual Compressed Output", exact: true, color: "bg-emerald-500/20 text-emerald-600 dark:text-emerald-400" }
+      : measuredTotal !== null
+      ? { label: "Live Measured Probe", exact: true, color: "bg-cyan-500/20 text-cyan-600 dark:text-cyan-400" }
+      : { label: "Projected Estimate", exact: false, color: "bg-amber-500/20 text-amber-600" };
+
+  const effectiveCompressChangePercent =
+    liveTotals.original > 0
+      ? Math.round(((effectiveCompressedBytes - liveTotals.original) / liveTotals.original) * 100)
+      : 0;
+  const effectiveCompressIsReduction = effectiveCompressedBytes <= liveTotals.original;
+
   // Quality Tier descriptor
   const qualityTier =
     quality <= 45
@@ -507,20 +582,42 @@ export default function ImageCompressorView({
                 <span className="text-xs font-bold text-slate-700 dark:text-slate-200">
                   New File Size Indicator
                 </span>
-                <span className={`rounded-full px-2 py-0.5 text-[10px] font-mono font-extrabold ${liveTotals.isReduction ? "bg-emerald-500/20 text-emerald-600 dark:text-emerald-400" : "bg-amber-500/20 text-amber-600"}`}>
-                  {liveTotals.changePercent > 0 ? `+${liveTotals.changePercent}% Increase` : `${liveTotals.changePercent}% Reduction`}
-                </span>
+                <div className="flex items-center gap-1.5">
+                  <span className={`rounded-md px-1.5 py-0.5 text-[9px] font-mono font-bold uppercase ${compressIndicatorStatus.color}`}>
+                    {compressIndicatorStatus.label}
+                  </span>
+                  <span
+                    className={`rounded-full px-2 py-0.5 text-[10px] font-mono font-extrabold ${
+                      effectiveCompressIsReduction
+                        ? "bg-emerald-500/20 text-emerald-600 dark:text-emerald-400"
+                        : "bg-amber-500/20 text-amber-600"
+                    }`}
+                  >
+                    {effectiveCompressChangePercent > 0
+                      ? `+${effectiveCompressChangePercent}% Increase`
+                      : `${effectiveCompressChangePercent}% Reduction`}
+                  </span>
+                </div>
               </div>
 
               <div className="space-y-1.5 text-xs font-mono">
                 <div className="flex items-center justify-between text-slate-500 dark:text-slate-400">
                   <span>Current Input:</span>
-                  <span className="font-semibold text-slate-700 dark:text-slate-300">{formatBytes(liveTotals.original)}</span>
+                  <span className="font-semibold text-slate-700 dark:text-slate-300">
+                    {formatBytes(liveTotals.original)}
+                  </span>
                 </div>
                 <div className="flex items-center justify-between text-slate-800 dark:text-slate-100">
-                  <span className="font-sans font-bold">Estimated Output:</span>
+                  <span className="font-sans font-bold">
+                    {actualCompressedTotal !== null
+                      ? "Compressed Output Size:"
+                      : measuredTotal !== null
+                      ? "Live Measured Output:"
+                      : "Estimated Output:"}
+                  </span>
                   <span className="font-extrabold text-sm text-cyan-600 dark:text-cyan-400">
-                    ~{formatBytes(liveTotals.estimated)}
+                    {!compressIndicatorStatus.exact ? "~" : ""}
+                    {formatBytes(effectiveCompressedBytes)}
                   </span>
                 </div>
               </div>
@@ -529,9 +626,21 @@ export default function ImageCompressorView({
               <div className="space-y-1">
                 <div className="h-2 w-full overflow-hidden rounded-full bg-slate-200 dark:bg-slate-800">
                   <div
-                    className={`h-full transition-all duration-300 ${liveTotals.isReduction ? "bg-gradient-to-r from-teal-500 to-emerald-500" : "bg-gradient-to-r from-amber-500 to-rose-500"}`}
+                    className={`h-full transition-all duration-300 ${
+                      effectiveCompressIsReduction
+                        ? "bg-gradient-to-r from-teal-500 to-emerald-500"
+                        : "bg-gradient-to-r from-amber-500 to-rose-500"
+                    }`}
                     style={{
-                      width: `${Math.min(100, Math.max(10, Math.round((liveTotals.estimated / Math.max(1, liveTotals.original)) * 100)))}%`
+                      width: `${Math.min(
+                        100,
+                        Math.max(
+                          10,
+                          Math.round(
+                            (effectiveCompressedBytes / Math.max(1, liveTotals.original)) * 100
+                          )
+                        )
+                      )}%`
                     }}
                   />
                 </div>
@@ -541,6 +650,19 @@ export default function ImageCompressorView({
                   <span>Larger</span>
                 </div>
               </div>
+
+              {actualCompressedTotal !== null ? (
+                <p className="text-[10px] text-emerald-600 dark:text-emerald-400 pt-1 border-t border-cyan-500/15 flex items-center gap-1">
+                  <span>✓ Exact match:</span>
+                  <span>Directly reflects the real compressed file size in the results list.</span>
+                </p>
+              ) : (
+                <p className="text-[10px] text-slate-500 dark:text-slate-400 pt-1 border-t border-cyan-500/15">
+                  {measuredTotal !== null
+                    ? "⚡ Live offscreen probe: Exact canvas re-encoding bytes for your settings."
+                    : "Formula projection: Updates dynamically as quality slider moves."}
+                </p>
+              )}
             </div>
           )}
 

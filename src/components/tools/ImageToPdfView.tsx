@@ -84,6 +84,13 @@ export default function ImageToPdfView({
     });
   }, [totalInputBytes, quality]);
 
+  const effectivePdfBytes = lastGenerated ? lastGenerated.blob.size : sizeEstimate.bytes;
+  const effectivePdfReduction = effectivePdfBytes <= totalInputBytes;
+  const effectivePdfChange =
+    totalInputBytes > 0
+      ? Math.round(((effectivePdfBytes - totalInputBytes) / totalInputBytes) * 100)
+      : 0;
+
   const move = (from: number, to: number) => {
     if (to < 0 || to >= images.length) return;
     setImages((curr) => {
@@ -462,17 +469,28 @@ export default function ImageToPdfView({
                     <Sparkles size={13} className="text-cyan-500" />
                     <span>New File Size Indicator</span>
                   </span>
-                  <span
-                    className={`rounded-full px-2 py-0.5 text-[10px] font-mono font-extrabold ${
-                      sizeEstimate.isReduction
-                        ? "bg-emerald-500/20 text-emerald-600 dark:text-emerald-400"
-                        : "bg-amber-500/20 text-amber-600"
-                    }`}
-                  >
-                    {sizeEstimate.changePercent > 0
-                      ? `+${sizeEstimate.changePercent}% Increase`
-                      : `${sizeEstimate.changePercent}% Reduction`}
-                  </span>
+                  <div className="flex items-center gap-1.5">
+                    <span
+                      className={`rounded-md px-1.5 py-0.5 text-[9px] font-mono font-bold uppercase ${
+                        lastGenerated
+                          ? "bg-emerald-500/20 text-emerald-600 dark:text-emerald-400"
+                          : "bg-amber-500/20 text-amber-600"
+                      }`}
+                    >
+                      {lastGenerated ? "Actual Generated PDF" : "Projected Estimate"}
+                    </span>
+                    <span
+                      className={`rounded-full px-2 py-0.5 text-[10px] font-mono font-extrabold ${
+                        effectivePdfReduction
+                          ? "bg-emerald-500/20 text-emerald-600 dark:text-emerald-400"
+                          : "bg-amber-500/20 text-amber-600"
+                      }`}
+                    >
+                      {effectivePdfChange > 0
+                        ? `+${effectivePdfChange}% Increase`
+                        : `${effectivePdfChange}% Reduction`}
+                    </span>
+                  </div>
                 </div>
 
                 <div className="space-y-1.5 text-xs font-mono">
@@ -483,9 +501,12 @@ export default function ImageToPdfView({
                     </span>
                   </div>
                   <div className="flex items-center justify-between text-slate-800 dark:text-slate-100">
-                    <span className="font-sans font-bold">Estimated Output PDF:</span>
+                    <span className="font-sans font-bold">
+                      {lastGenerated ? "Generated PDF Size:" : "Estimated Output PDF:"}
+                    </span>
                     <span className="font-extrabold text-sm text-cyan-600 dark:text-cyan-400">
-                      ~{formatBytes(sizeEstimate.bytes)}
+                      {!lastGenerated ? "~" : ""}
+                      {formatBytes(effectivePdfBytes)}
                     </span>
                   </div>
                   <div className="flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400 pt-0.5 border-t border-slate-200/50 dark:border-slate-800/50">
@@ -501,7 +522,7 @@ export default function ImageToPdfView({
                   <div className="h-2 w-full overflow-hidden rounded-full bg-slate-200 dark:bg-slate-800">
                     <div
                       className={`h-full transition-all duration-300 ${
-                        sizeEstimate.isReduction
+                        effectivePdfReduction
                           ? "bg-gradient-to-r from-teal-500 to-emerald-500"
                           : "bg-gradient-to-r from-amber-500 to-rose-500"
                       }`}
@@ -511,7 +532,7 @@ export default function ImageToPdfView({
                           Math.max(
                             10,
                             Math.round(
-                              (sizeEstimate.bytes / Math.max(1, totalInputBytes)) * 100
+                              (effectivePdfBytes / Math.max(1, totalInputBytes)) * 100
                             )
                           )
                         )}%`
@@ -524,6 +545,17 @@ export default function ImageToPdfView({
                     <span>Larger</span>
                   </div>
                 </div>
+
+                {lastGenerated ? (
+                  <p className="text-[10px] text-emerald-600 dark:text-emerald-400 pt-1 border-t border-cyan-500/15 flex items-center gap-1">
+                    <span>✓ Exact match:</span>
+                    <span>Directly reflects the real generated PDF file.</span>
+                  </p>
+                ) : (
+                  <p className="text-[10px] text-slate-500 dark:text-slate-400 pt-1 border-t border-cyan-500/15">
+                    Real-time PDF size projection based on embedded image compression.
+                  </p>
+                )}
               </div>
             )}
 

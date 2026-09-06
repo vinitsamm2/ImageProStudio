@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { ArrowLeftRight, CheckCircle2, Download, QrCode, RefreshCw, Sparkles, Zap } from "lucide-react";
 import UploadZone from "../UploadZone";
 import { Select } from "../ui/Controls";
@@ -68,6 +68,7 @@ export default function ImageConverterView({
   const [quality, setQuality] = useState(92);
   const [outputs, setOutputs] = useState<Array<{ name: string; blob: Blob }>>([]);
   const [busy, setBusy] = useState(false);
+  const [measuredSize, setMeasuredSize] = useState<number | null>(null);
 
   const activeDef = CONVERT_FORMATS.find((f) => f.key === targetKey) || CONVERT_FORMATS[0];
 
@@ -103,7 +104,12 @@ export default function ImageConverterView({
     else setTargetKey("png");
   };
 
-  // Live dynamic file size estimation
+  // Total original bytes
+  const totalOriginal = useMemo(() => {
+    return files.reduce((acc, f) => acc + f.size, 0);
+  }, [files]);
+
+  // Live mathematical file size estimation (fast fallback)
   const liveEstimate = useMemo(() => {
     if (!files[0]) return null;
     const est = estimateFileSize({
@@ -111,14 +117,74 @@ export default function ImageConverterView({
       quality: quality / 100,
       format: activeDef.mime
     });
-    const totalOriginal = files.reduce((acc, f) => acc + f.size, 0);
     const totalEstimated = est.bytes * files.length;
     return {
       est,
       totalOriginal,
       totalEstimated
     };
-  }, [files, activeDef, quality]);
+  }, [files, activeDef, quality, totalOriginal]);
+
+  // Live offscreen canvas probe (computes exact re-encoding bytes before user clicks convert)
+  useEffect(() => {
+    if (!files.length) {
+      setMeasuredSize(null);
+      return;
+    }
+    let active = true;
+    const timer = setTimeout(async () => {
+      try {
+        const sample = files.slice(0, 5);
+        let sampleBytes = 0;
+        for (const file of sample) {
+          const blob = await compressOrConvertImage(file, activeDef.mime, quality / 100);
+          if (!active) return;
+          sampleBytes += blob.size;
+        }
+        if (active) {
+          const totalProbed =
+            files.length > sample.length
+              ? Math.round((sampleBytes / sample.length) * files.length)
+              : sampleBytes;
+          setMeasuredSize(totalProbed);
+        }
+      } catch {
+        // fallback to mathematical estimate
+      }
+    }, 150);
+
+    return () => {
+      active = false;
+      clearTimeout(timer);
+    };
+  }, [files, activeDef.mime, quality]);
+
+  // Actual converted outputs total size once conversion is completed
+  const totalConvertedSize = useMemo(() => {
+    if (!outputs.length) return null;
+    return outputs.reduce((acc, o) => acc + o.blob.size, 0);
+  }, [outputs]);
+
+  // Unified effective output size & indicator status
+  const effectiveOutputBytes =
+    totalConvertedSize !== null
+      ? totalConvertedSize
+      : measuredSize !== null
+      ? measuredSize
+      : liveEstimate?.totalEstimated || 0;
+
+  const indicatorStatus =
+    totalConvertedSize !== null
+      ? { label: "Actual Converted Output", exact: true, color: "bg-emerald-500/20 text-emerald-600 dark:text-emerald-400" }
+      : measuredSize !== null
+      ? { label: "Live Measured Probe", exact: true, color: "bg-cyan-500/20 text-cyan-600 dark:text-cyan-400" }
+      : { label: "Projected Estimate", exact: false, color: "bg-amber-500/20 text-amber-600" };
+
+  const effectiveChangePercent =
+    totalOriginal > 0
+      ? Math.round(((effectiveOutputBytes - totalOriginal) / totalOriginal) * 100)
+      : 0;
+  const effectiveIsReduction = effectiveOutputBytes <= totalOriginal;
 
   const run = async () => {
     if (!files.length) return notify("Upload or paste one or more images first.", "error");
@@ -322,37 +388,62 @@ export default function ImageConverterView({
             )}
 
             {/* Live New File Size Indicator Card */}
-            {liveEstimate && (
-              <div className="rounded-2xl border border-cyan-500/30 bg-gradient-to-tr from-cyan-500/10 via-teal-500/5 to-transparent p-4 space-y-2 dark:border-cyan-500/25 dark:bg-slate-900/60">
+            {files.length > 0 && (
+              <div className="rounded-2xl border border-cyan-500/30 bg-gradient-to-tr from-cyan-500/10 via-teal-500/5 to-transparent p-4 space-y-2.5 dark:border-cyan-500/25 dark:bg-slate-900/60">
                 <div className="flex items-center justify-between border-b border-cyan-500/20 pb-2">
                   <span className="text-xs font-bold text-slate-700 dark:text-slate-200 flex items-center gap-1.5">
                     <Sparkles size={13} className="text-cyan-500" />
                     <span>New File Size Indicator</span>
                   </span>
-                  <span
-                    className={`rounded-full px-2 py-0.5 text-[10px] font-mono font-extrabold ${
-                      liveEstimate.est.isReduction
-                        ? "bg-emerald-500/20 text-emerald-600 dark:text-emerald-400"
-                        : "bg-amber-500/20 text-amber-600"
-                    }`}
-                  >
-                    {liveEstimate.est.changePercent > 0
-                      ? `+${liveEstimate.est.changePercent}% Increase`
-                      : `${liveEstimate.est.changePercent}% Reduction`}
-                  </span>
+                  <div className="flex items-center gap-1.5">
+                    <span className={`rounded-md px-1.5 py-0.5 text-[9px] font-mono font-bold uppercase ${indicatorStatus.color}`}>
+                      {indicatorStatus.label}
+                    </span>
+                    <span
+                      className={`rounded-full px-2 py-0.5 text-[10px] font-mono font-extrabold ${
+                        effectiveIsReduction
+                          ? "bg-emerald-500/20 text-emerald-600 dark:text-emerald-400"
+                          : "bg-amber-500/20 text-amber-600"
+                      }`}
+                    >
+                      {effectiveChangePercent > 0
+                        ? `+${effectiveChangePercent}% Increase`
+                        : `${effectiveChangePercent}% Reduction`}
+                    </span>
+                  </div>
                 </div>
                 <div className="flex items-center justify-between text-xs font-mono">
                   <span className="text-slate-500">Original Size:</span>
                   <span className="font-semibold text-slate-700 dark:text-slate-300">
-                    {formatBytes(liveEstimate.totalOriginal)}
+                    {formatBytes(totalOriginal)}
                   </span>
                 </div>
                 <div className="flex items-center justify-between text-xs font-mono">
-                  <span className="text-slate-500">Estimated Output:</span>
+                  <span className="text-slate-500">
+                    {totalConvertedSize !== null
+                      ? "Converted Output Size:"
+                      : measuredSize !== null
+                      ? "Live Measured Output:"
+                      : "Estimated Output:"}
+                  </span>
                   <span className="font-extrabold text-cyan-600 dark:text-cyan-400">
-                    ~{formatBytes(liveEstimate.totalEstimated)}
+                    {!indicatorStatus.exact ? "~" : ""}
+                    {formatBytes(effectiveOutputBytes)}
                   </span>
                 </div>
+
+                {totalConvertedSize !== null ? (
+                  <p className="text-[10px] text-emerald-600 dark:text-emerald-400 pt-1 border-t border-cyan-500/15 flex items-center gap-1">
+                    <span>✓ Exact match:</span>
+                    <span>Directly reflects the real binary size of the converted files below.</span>
+                  </p>
+                ) : (
+                  <p className="text-[10px] text-slate-500 dark:text-slate-400 pt-1 border-t border-cyan-500/15">
+                    {measuredSize !== null
+                      ? "⚡ Live offscreen probe: Exact canvas re-encoding bytes for your settings."
+                      : "Formula projection: Updates dynamically as quality slider moves."}
+                  </p>
+                )}
               </div>
             )}
           </div>

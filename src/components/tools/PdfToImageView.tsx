@@ -239,6 +239,9 @@ export default function PdfToImageView({
 
   const estimatedTotalBytes = estimatedPerPage.bytes * pageCount;
 
+  const actualOutputsTotal = outputs.length > 0 ? outputs.reduce((acc, o) => acc + o.blob.size, 0) : null;
+  const actualPerPage = actualOutputsTotal !== null ? Math.round(actualOutputsTotal / outputs.length) : null;
+
   const run = async () => {
     if (!info) return notify("Upload a PDF first.", "error");
     const pages = parsePageRanges(ranges, info.pages);
@@ -729,30 +732,43 @@ export default function PdfToImageView({
                   <Sparkles size={13} className="text-cyan-500" />
                   <span>New File Size Indicator</span>
                 </span>
-                <span
-                  className={`rounded-full px-2 py-0.5 text-[10px] font-mono font-extrabold ${
-                    estimatedPerPage.isReduction
-                      ? "bg-emerald-500/20 text-emerald-600 dark:text-emerald-400"
-                      : "bg-amber-500/20 text-amber-600"
-                  }`}
-                >
-                  {estimatedPerPage.changePercent > 0
-                    ? `+${estimatedPerPage.changePercent}% Scale`
-                    : `${estimatedPerPage.changePercent}% Compact`}
-                </span>
+                <div className="flex items-center gap-1.5">
+                  <span
+                    className={`rounded-md px-1.5 py-0.5 text-[9px] font-mono font-bold uppercase ${
+                      actualOutputsTotal !== null
+                        ? "bg-emerald-500/20 text-emerald-600 dark:text-emerald-400"
+                        : "bg-amber-500/20 text-amber-600"
+                    }`}
+                  >
+                    {actualOutputsTotal !== null ? "Actual Converted Output" : "Projected Estimate"}
+                  </span>
+                  <span
+                    className={`rounded-full px-2 py-0.5 text-[10px] font-mono font-extrabold ${
+                      estimatedPerPage.isReduction
+                        ? "bg-emerald-500/20 text-emerald-600 dark:text-emerald-400"
+                        : "bg-amber-500/20 text-amber-600"
+                    }`}
+                  >
+                    {estimatedPerPage.changePercent > 0
+                      ? `+${estimatedPerPage.changePercent}% Scale`
+                      : `${estimatedPerPage.changePercent}% Compact`}
+                  </span>
+                </div>
               </div>
 
               <div className="space-y-1.5 text-xs font-mono">
                 <div className="flex items-center justify-between text-slate-500 dark:text-slate-400">
-                  <span>Estimated Size / Page:</span>
+                  <span>{actualPerPage !== null ? "Rendered Size / Page:" : "Estimated Size / Page:"}</span>
                   <span className="font-extrabold text-sm text-cyan-600 dark:text-cyan-400">
-                    ~{formatBytes(estimatedPerPage.bytes)}
+                    {actualPerPage !== null ? "" : "~"}{formatBytes(actualPerPage ?? estimatedPerPage.bytes)}
                   </span>
                 </div>
                 <div className="flex items-center justify-between text-slate-800 dark:text-slate-200">
-                  <span className="font-sans font-semibold">Total for {pageCount} page(s):</span>
+                  <span className="font-sans font-semibold">
+                    {actualOutputsTotal !== null ? `Total for ${outputs.length} rendered file(s):` : `Total for ${pageCount} page(s):`}
+                  </span>
                   <span className="font-extrabold font-mono text-slate-900 dark:text-slate-100">
-                    ~{formatBytes(estimatedTotalBytes)}
+                    {actualOutputsTotal !== null ? "" : "~"}{formatBytes(actualOutputsTotal ?? estimatedTotalBytes)}
                   </span>
                 </div>
                 <div className="flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400 pt-0.5 border-t border-slate-200/50 dark:border-slate-800/50">
@@ -762,6 +778,17 @@ export default function PdfToImageView({
                   </span>
                 </div>
               </div>
+
+              {actualOutputsTotal !== null ? (
+                <p className="text-[10px] text-emerald-600 dark:text-emerald-400 pt-1 border-t border-cyan-500/15 flex items-center gap-1">
+                  <span>✓ Exact match:</span>
+                  <span>Directly reflects the real rendered image files below.</span>
+                </p>
+              ) : (
+                <p className="text-[10px] text-slate-500 dark:text-slate-400 pt-1 border-t border-cyan-500/15">
+                  Real-time size projection based on target DPI and format encoding.
+                </p>
+              )}
 
               {/* Visual bar */}
               <div className="space-y-1">

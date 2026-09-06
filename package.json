@@ -13,6 +13,7 @@
     "preview": "vite preview --host localhost"
   },
   "dependencies": {
+    "@vercel/speed-insights": "^2.0.0",
     "@vitejs/plugin-react": "^5.0.2",
     "framer-motion": "^12.23.12",
     "jszip": "^3.10.1",
