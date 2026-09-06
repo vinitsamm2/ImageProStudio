@@ -3,20 +3,9 @@ import { PDFDocument, rgb, degrees, StandardFonts } from "pdf-lib";
 import { getDocument, GlobalWorkerOptions } from "pdfjs-dist";
 import workerUrl from "pdfjs-dist/build/pdf.worker.mjs?url";
 
-// Bullet-proof worker initialization in Vite
+// Standard worker initialization in Vite
 if (typeof window !== "undefined") {
-  try {
-    GlobalWorkerOptions.workerPort = new Worker(
-      new URL("pdfjs-dist/build/pdf.worker.mjs", import.meta.url),
-      { type: "module" }
-    );
-  } catch {
-    try {
-      GlobalWorkerOptions.workerSrc = workerUrl;
-    } catch {
-      // Fallback
-    }
-  }
+  GlobalWorkerOptions.workerSrc = workerUrl;
 }
 
 export type Unit = "px" | "mm" | "cm" | "in";

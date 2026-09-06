@@ -138,6 +138,8 @@ export default defineConfig({
   build: {
     target: "es2020",
     chunkSizeWarningLimit: 3500,
+    reportCompressedSize: false,
+    sourcemap: false,
     rollupOptions: {
       output: {
         manualChunks: {

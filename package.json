@@ -12,7 +12,7 @@
   },
   "scripts": {
     "dev": "vite --host localhost",
-    "build": "tsc && vite build",
+    "build": "node --max-old-space-size=4096 ./node_modules/typescript/bin/tsc && node --max-old-space-size=4096 ./node_modules/vite/bin/vite.js build",
     "preview": "vite preview --host localhost"
   },
   "dependencies": {
