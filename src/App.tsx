@@ -24,7 +24,7 @@ import PdfSignView from "./components/tools/PdfSignView";
 import PdfCompressorView from "./components/tools/PdfCompressorView";
 import ShareQrModal, { ShareableFile } from "./components/ShareQrModal";
 import MobileDownloadView from "./components/MobileDownloadView";
-import { SpeedInsights } from "@vercel/speed-insights/next";
+import { SpeedInsights } from "@vercel/speed-insights/react";
 import { uid } from "./lib/files";
 
 export default function App() {

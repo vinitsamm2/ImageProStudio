@@ -22,8 +22,8 @@ function mobileSharePlugin(): Plugin {
     { name: string; type: string; buffer: Buffer; created: number }
   >();
 
-  // Periodically purge files older than 1 hour
-  setInterval(() => {
+  // Periodically purge files older than 1 hour (unref'd so it doesn't hold open CI/build processes)
+  const purgeTimer = setInterval(() => {
     const now = Date.now();
     for (const [id, item] of fileStore.entries()) {
       if (now - item.created > 3600000) {
@@ -31,6 +31,9 @@ function mobileSharePlugin(): Plugin {
       }
     }
   }, 60000);
+  if (typeof purgeTimer.unref === "function") {
+    purgeTimer.unref();
+  }
 
   const handleMiddleware = (req: any, res: any, next: any) => {
     const hostHeader = req.headers.host || "localhost:7000";
