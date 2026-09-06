@@ -206,9 +206,9 @@ export default function ImageCompressorView({
         </div>
       </div>
 
-      <div className="grid gap-6 xl:grid-cols-[1fr_380px] xl:items-start xl:h-full min-h-0">
+      <div className="grid gap-6 xl:grid-cols-[1fr_380px] xl:items-start min-h-0">
       {/* Left Area: Upload & Results */}
-      <div className="space-y-6 xl:h-full xl:max-h-[calc(100vh-175px)] xl:overflow-y-auto overscroll-contain pr-1">
+      <div className="space-y-6 xl:max-h-[calc(100vh-210px)] xl:overflow-y-auto pr-1">
         <div className="panel">
           <UploadZone
             accept={mediaAccept}
@@ -383,7 +383,7 @@ export default function ImageCompressorView({
       </div>
 
       {/* Right Area: Controls, Quality Slider & Dynamic Size Indicator */}
-      <div className="space-y-5 xl:h-full xl:max-h-[calc(100vh-175px)] xl:overflow-y-auto overscroll-contain pr-1">
+      <div className="space-y-5 xl:sticky xl:top-0 xl:max-h-[calc(100vh-210px)] xl:overflow-y-auto pr-1">
         <div className="panel space-y-5">
           {/* Quality Level Slider with Dynamic New Size Feedback */}
           <div className="space-y-2.5">

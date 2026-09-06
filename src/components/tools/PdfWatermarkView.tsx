@@ -9,7 +9,9 @@ import {
   QrCode,
   RotateCw,
   Sparkles,
-  Type
+  Type,
+  Minus,
+  Plus
 } from "lucide-react";
 import UploadZone from "../UploadZone";
 import { NumberField, OptionGrid, Select, TextField } from "../ui/Controls";
@@ -142,9 +144,9 @@ export default function PdfWatermarkView({
         </div>
       )}
 
-      <div className="grid gap-6 xl:grid-cols-[1fr_380px] xl:items-start xl:h-full min-h-0">
+      <div className="grid gap-6 xl:grid-cols-[1fr_380px] xl:items-start min-h-0">
       {/* Left Area: Upload & Real-Time Live Preview */}
-      <div className="space-y-6 xl:h-full xl:max-h-[calc(100vh-175px)] xl:overflow-y-auto overscroll-contain pr-1">
+      <div className="space-y-6 xl:max-h-[calc(100vh-210px)] xl:overflow-y-auto pr-1">
         <div className="panel">
           <UploadZone
             accept="application/pdf"
@@ -274,7 +276,7 @@ export default function PdfWatermarkView({
       </div>
 
       {/* Right Area: Watermark Controls & Settings */}
-      <div className="space-y-5 xl:h-full xl:max-h-[calc(100vh-175px)] xl:overflow-y-auto overscroll-contain pr-1">
+      <div className="space-y-5 xl:sticky xl:top-0 xl:max-h-[calc(100vh-210px)] xl:overflow-y-auto pr-1">
         <div className="panel space-y-5">
           {/* Watermark Type Selector */}
           <div>
@@ -363,14 +365,63 @@ export default function PdfWatermarkView({
               </div>
 
               <OptionGrid>
-                <NumberField
-                  label="Font Size"
-                  value={fontSize}
-                  onChange={setFontSize}
-                  min={12}
-                  max={120}
-                  suffix="px"
-                />
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="label">Font Size</span>
+                    <div className="flex items-center gap-1.5 rounded-xl border border-slate-200/80 bg-slate-50/90 p-0.5 dark:border-white/[0.08] dark:bg-slate-900/80">
+                      <button
+                        type="button"
+                        onClick={() => setFontSize((f) => Math.max(12, f - 4))}
+                        disabled={fontSize <= 12}
+                        className="flex h-6 w-6 items-center justify-center rounded-lg text-xs font-bold text-slate-600 transition hover:bg-white hover:text-cyan-600 disabled:opacity-30 disabled:pointer-events-none dark:text-slate-300 dark:hover:bg-slate-800"
+                        title="Decrease Font Size (-4px)"
+                        aria-label="Decrease Font Size"
+                      >
+                        <Minus size={12} />
+                      </button>
+                      <span className="min-w-[42px] text-center font-mono text-xs font-bold text-cyan-600 dark:text-cyan-400">
+                        {fontSize}px
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setFontSize((f) => Math.min(120, f + 4))}
+                        disabled={fontSize >= 120}
+                        className="flex h-6 w-6 items-center justify-center rounded-lg text-xs font-bold text-slate-600 transition hover:bg-white hover:text-cyan-600 disabled:opacity-30 disabled:pointer-events-none dark:text-slate-300 dark:hover:bg-slate-800"
+                        title="Increase Font Size (+4px)"
+                        aria-label="Increase Font Size"
+                      >
+                        <Plus size={12} />
+                      </button>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="range"
+                      min={12}
+                      max={120}
+                      step={2}
+                      value={fontSize}
+                      onChange={(e) => setFontSize(Number(e.target.value))}
+                      className="w-full accent-cyan-600"
+                    />
+                  </div>
+                  <div className="flex items-center gap-1">
+                    {[24, 36, 48, 64, 80].map((sz) => (
+                      <button
+                        key={sz}
+                        type="button"
+                        onClick={() => setFontSize(sz)}
+                        className={`flex-1 rounded-md py-0.5 text-[10px] font-mono font-semibold transition ${
+                          fontSize === sz
+                            ? "bg-cyan-600 text-white shadow-xs"
+                            : "border border-slate-200/70 bg-slate-50 text-slate-500 hover:bg-white hover:text-slate-900 dark:border-white/[0.06] dark:bg-slate-900 dark:text-slate-400 dark:hover:bg-slate-800"
+                        }`}
+                      >
+                        {sz}
+                      </button>
+                    ))}
+                  </div>
+                </div>
                 <div>
                   <div className="flex items-center justify-between mb-1">
                     <span className="label">Rotation</span>

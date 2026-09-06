@@ -220,9 +220,9 @@ export default function PdfOrganizeView({
         </div>
       )}
 
-      <div className="grid gap-6 xl:grid-cols-[1fr_380px] xl:items-start xl:h-full min-h-0">
+      <div className="grid gap-6 xl:grid-cols-[1fr_380px] xl:items-start min-h-0">
       {/* Left Workspace: Upload & Interactive Visual Grid */}
-      <div className="space-y-6 xl:h-full xl:max-h-[calc(100vh-175px)] xl:overflow-y-auto overscroll-contain pr-1">
+      <div className="space-y-6 xl:max-h-[calc(100vh-210px)] xl:overflow-y-auto pr-1">
         <div className="panel">
           <UploadZone
             accept="application/pdf"
@@ -418,7 +418,7 @@ export default function PdfOrganizeView({
       </div>
 
       {/* Right Sidebar: Document Plan & Output Trigger (Independent scroll) */}
-      <div className="space-y-6 xl:sticky xl:top-0 xl:max-h-[calc(100vh-175px)] xl:overflow-y-auto overscroll-contain pr-1">
+      <div className="space-y-6 xl:sticky xl:top-0 xl:max-h-[calc(100vh-210px)] xl:overflow-y-auto pr-1">
         <div className="panel space-y-5">
           <div className="flex items-center justify-between border-b border-slate-200/80 pb-3 dark:border-slate-800">
             <h3 className="text-base font-bold text-slate-800 dark:text-white">

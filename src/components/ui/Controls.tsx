@@ -1,4 +1,4 @@
-import { ChevronDown, Copy, Check } from "lucide-react";
+import { ChevronDown, Copy, Check, Minus, Plus } from "lucide-react";
 import { ReactNode, useState } from "react";
 
 export function OptionGrid({ children }: { children: ReactNode }) {
@@ -54,7 +54,8 @@ export function NumberField({
   min,
   max,
   step = 1,
-  suffix
+  suffix,
+  stepper = true
 }: {
   label: string;
   value: number;
@@ -63,16 +64,51 @@ export function NumberField({
   max?: number;
   step?: number;
   suffix?: string;
+  stepper?: boolean;
 }) {
+  const handleDecrement = (e: React.MouseEvent) => {
+    e.preventDefault();
+    const curr = Number.isFinite(value) ? value : 0;
+    const nextVal = curr - step;
+    if (min !== undefined && nextVal < min) {
+      onChange(min);
+    } else {
+      onChange(Math.round(nextVal * 100) / 100);
+    }
+  };
+
+  const handleIncrement = (e: React.MouseEvent) => {
+    e.preventDefault();
+    const curr = Number.isFinite(value) ? value : 0;
+    const nextVal = curr + step;
+    if (max !== undefined && nextVal > max) {
+      onChange(max);
+    } else {
+      onChange(Math.round(nextVal * 100) / 100);
+    }
+  };
+
   return (
-    <label className="block space-y-1.5">
+    <div className="block space-y-1.5">
       <div className="flex items-center justify-between">
         <span className="label">{label}</span>
         {suffix && <span className="text-[11px] font-mono text-slate-400">{suffix}</span>}
       </div>
-      <div className="relative">
+      <div className="relative flex items-center">
+        {stepper && (
+          <button
+            type="button"
+            onClick={handleDecrement}
+            disabled={min !== undefined && value <= min}
+            className="absolute left-1 z-10 flex h-7 w-7 items-center justify-center rounded-lg border border-slate-200/80 bg-slate-50 text-slate-600 transition hover:bg-white hover:text-cyan-600 disabled:opacity-30 disabled:pointer-events-none dark:border-white/[0.08] dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
+            title={`Decrease ${label}`}
+            aria-label={`Decrease ${label}`}
+          >
+            <Minus size={13} />
+          </button>
+        )}
         <input
-          className={`field font-mono ${suffix ? "pr-12" : ""}`}
+          className={`field font-mono ${stepper ? "pl-9" : ""} ${suffix ? (stepper ? "pr-16" : "pr-12") : stepper ? "pr-9" : ""}`}
           type="number"
           min={min}
           max={max}
@@ -81,12 +117,24 @@ export function NumberField({
           onChange={(e) => onChange(Number(e.target.value))}
         />
         {suffix && (
-          <span className="pointer-events-none absolute right-3.5 top-1/2 -translate-y-1/2 text-xs font-semibold text-slate-400">
+          <span className={`pointer-events-none absolute ${stepper ? "right-9" : "right-3.5"} top-1/2 -translate-y-1/2 text-xs font-semibold text-slate-400`}>
             {suffix}
           </span>
         )}
+        {stepper && (
+          <button
+            type="button"
+            onClick={handleIncrement}
+            disabled={max !== undefined && value >= max}
+            className="absolute right-1 z-10 flex h-7 w-7 items-center justify-center rounded-lg border border-slate-200/80 bg-slate-50 text-slate-600 transition hover:bg-white hover:text-cyan-600 disabled:opacity-30 disabled:pointer-events-none dark:border-white/[0.08] dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
+            title={`Increase ${label}`}
+            aria-label={`Increase ${label}`}
+          >
+            <Plus size={13} />
+          </button>
+        )}
       </div>
-    </label>
+    </div>
   );
 }
 

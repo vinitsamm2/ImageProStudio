@@ -1,1 +1,7 @@
 node_modules
+dist
+dist-ssr
+*.local
+.DS_Store
+outputs
+work/.npm-cache

@@ -264,9 +264,9 @@ export default function PdfToImageView({
   };
 
   return (
-    <div className="grid gap-6 xl:grid-cols-[1fr_380px] xl:items-start xl:h-full min-h-0">
+    <div className="grid gap-6 xl:grid-cols-[1fr_380px] xl:items-start min-h-0">
       {/* Left Area: Upload, Thumbnails, & Output Results */}
-      <div className="space-y-6 xl:h-full xl:max-h-[calc(100vh-175px)] xl:overflow-y-auto overscroll-contain pr-1">
+      <div className="space-y-6 xl:max-h-[calc(100vh-210px)] xl:overflow-y-auto pr-1">
         {onSwitchViceVersa && (
           <div className="flex items-center justify-between rounded-2xl border border-amber-500/20 bg-amber-500/5 p-3.5 text-xs dark:bg-amber-950/20">
             <span className="font-medium text-slate-700 dark:text-amber-200">
@@ -417,7 +417,7 @@ export default function PdfToImageView({
       </div>
 
       {/* Right Area: Size Controls, DPI, & Format */}
-      <div className="space-y-5 xl:h-full xl:max-h-[calc(100vh-175px)] xl:overflow-y-auto overscroll-contain pr-1">
+      <div className="space-y-5 xl:sticky xl:top-0 xl:max-h-[calc(100vh-210px)] xl:overflow-y-auto pr-1">
         <div className="panel space-y-5">
           {/* Output Size Mode Selector */}
           <div>

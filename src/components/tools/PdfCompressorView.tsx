@@ -309,9 +309,9 @@ export default function PdfCompressorView({
       </div>
 
       {/* Main Dual-Column Workspace with Independent Scroll Containment */}
-      <div className="grid gap-6 xl:grid-cols-[1fr_380px] xl:items-start xl:h-full min-h-0">
+      <div className="grid gap-6 xl:grid-cols-[1fr_380px] xl:items-start min-h-0">
         {/* Left Area: Upload & Results */}
-        <div className="space-y-6 xl:h-full xl:max-h-[calc(100vh-230px)] xl:overflow-y-auto overscroll-contain pr-1">
+        <div className="space-y-6 xl:max-h-[calc(100vh-210px)] xl:overflow-y-auto pr-1">
           {/* Upload Panel */}
           <div className="panel">
             <UploadZone
@@ -533,7 +533,7 @@ export default function PdfCompressorView({
         </div>
 
         {/* Right Area: Compression Level Presets & Live Size Savings Meter */}
-        <div className="space-y-5 xl:h-full xl:max-h-[calc(100vh-230px)] xl:overflow-y-auto overscroll-contain pr-1">
+        <div className="space-y-5 xl:sticky xl:top-0 xl:max-h-[calc(100vh-210px)] xl:overflow-y-auto pr-1">
           <div className="panel space-y-5">
             <div>
               <h3 className="text-sm font-extrabold text-slate-900 dark:text-white flex items-center gap-2">

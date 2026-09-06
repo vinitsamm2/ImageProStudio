@@ -10,6 +10,7 @@ import {
   Sun,
   Wand2
 } from "lucide-react";
+import FontSizeScaleControl from "./ui/FontSizeScaleControl";
 
 type HeaderProps = {
   dark: boolean;
@@ -107,6 +108,9 @@ export default function Header({
             <ShieldCheck size={14} className="text-emerald-500" />
             <span>100% In-Browser</span>
           </div>
+
+          {/* Global Accessibility Font Increaser & Decreaser */}
+          <FontSizeScaleControl className="hidden sm:inline-flex" />
 
           {/* Theme Toggle */}
           <button

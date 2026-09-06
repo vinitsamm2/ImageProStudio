@@ -119,17 +119,28 @@ function mobileSharePlugin(): Plugin {
 export default defineConfig({
   plugins: [react(), mobileSharePlugin()],
   server: {
-    port: 7000,
-    host: "0.0.0.0"
+    host: "localhost"
   },
   preview: {
-    port: 7000,
-    host: "0.0.0.0"
+    host: "localhost"
   },
   optimizeDeps: {
     exclude: ["pdfjs-dist"]
   },
   build: {
-    target: "es2020"
+    target: "es2020",
+    chunkSizeWarningLimit: 3500,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          "vendor-react": ["react", "react-dom"],
+          "vendor-pdf-lib": ["pdf-lib"],
+          "vendor-pdfjs": ["pdfjs-dist"],
+          "vendor-motion": ["framer-motion"],
+          "vendor-jszip": ["jszip"],
+          "vendor-icons": ["lucide-react"]
+        }
+      }
+    }
   }
 });

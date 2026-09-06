@@ -131,11 +131,9 @@ export default function StudioLayout({
 
         {/* Central Studio Stage Viewport */}
         <main
-          className={`flex-1 studio-grid p-3 sm:p-5 lg:p-6 min-h-0 ${
-            isCatalogOpen ? "overflow-y-auto" : "overflow-y-auto lg:overflow-hidden"
-          }`}
+          className="flex-1 studio-grid p-3 sm:p-5 lg:p-6 min-h-0 overflow-y-auto"
         >
-          <div className={`mx-auto max-w-[1680px] w-full ${isCatalogOpen ? "" : "h-full flex flex-col min-h-0"}`}>
+          <div className="mx-auto max-w-[1680px] w-full min-h-0">
             <AnimatePresence mode="wait">
               {isCatalogOpen ? (
                 <motion.div
@@ -154,7 +152,7 @@ export default function StudioLayout({
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -10 }}
                   transition={{ duration: 0.15 }}
-                  className="h-full flex flex-col min-h-0 w-full"
+                  className="w-full min-h-0"
                 >
                   {toolContent}
                 </motion.div>

@@ -61,9 +61,9 @@ export default function PdfMergerView({
   const totalPages = files.reduce((sum, f) => sum + f.pages, 0);
 
   return (
-    <div className="grid gap-6 xl:grid-cols-[1fr_360px] xl:items-start xl:h-full min-h-0">
+    <div className="grid gap-6 xl:grid-cols-[1fr_360px] xl:items-start min-h-0">
       {/* Left Area: Upload & Reorder List */}
-      <div className="space-y-6 xl:h-full xl:max-h-[calc(100vh-175px)] xl:overflow-y-auto overscroll-contain pr-1">
+      <div className="space-y-6 xl:max-h-[calc(100vh-210px)] xl:overflow-y-auto pr-1">
         {onSwitchViceVersa && (
           <div className="flex items-center justify-between rounded-2xl border border-purple-500/20 bg-purple-500/5 p-3.5 text-xs dark:bg-purple-950/20">
             <span className="font-medium text-slate-700 dark:text-purple-200">
@@ -157,7 +157,7 @@ export default function PdfMergerView({
       </div>
 
       {/* Right Area: Summary & Merge Action */}
-      <div className="space-y-5 xl:h-full xl:max-h-[calc(100vh-175px)] xl:overflow-y-auto overscroll-contain pr-1">
+      <div className="space-y-5 xl:sticky xl:top-0 xl:max-h-[calc(100vh-210px)] xl:overflow-y-auto pr-1">
         <div className="panel space-y-5">
           <MetricCard
             label="Combined Page Count"

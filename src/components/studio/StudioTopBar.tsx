@@ -18,6 +18,7 @@ import {
 import { useState } from "react";
 import { ToolId } from "../ToolGrid";
 import { STUDIO_TOOLS } from "./ToolActivityRail";
+import FontSizeScaleControl from "../ui/FontSizeScaleControl";
 
 type StudioTopBarProps = {
   activeTool: ToolId;
@@ -197,6 +198,9 @@ export default function StudioTopBar({
             <span>About Us</span>
           </button>
         )}
+
+        {/* Global Accessibility Font Increaser & Decreaser */}
+        <FontSizeScaleControl className="hidden sm:inline-flex" />
 
         {/* Dark/Light Switcher */}
         <button

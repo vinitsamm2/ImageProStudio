@@ -8,6 +8,7 @@ import {
   Eraser,
   FileSignature,
   Image as ImageIcon,
+  Minus,
   PenTool,
   Plus,
   QrCode,
@@ -73,6 +74,7 @@ export default function PdfSignView({
   // Type signature mode state
   const [typedName, setTypedName] = useState<string>("John Doe");
   const [selectedFontIndex, setSelectedFontIndex] = useState<number>(0);
+  const [typedFontSize, setTypedFontSize] = useState<number>(36);
 
   // Draw signature canvas
   const drawCanvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -247,7 +249,8 @@ export default function PdfSignView({
     if (!ctx) return;
 
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    const fontSpec = CURSIVE_FONTS[selectedFontIndex]?.style || CURSIVE_FONTS[0].style;
+    const baseSpec = CURSIVE_FONTS[selectedFontIndex]?.style || CURSIVE_FONTS[0].style;
+    const fontSpec = baseSpec.replace(/\d+px/, `${typedFontSize}px`);
     ctx.font = fontSpec;
     ctx.fillStyle = inkColor;
     ctx.textAlign = "center";
@@ -261,7 +264,7 @@ export default function PdfSignView({
     if (signMode === "type") {
       generateTypedSignature();
     }
-  }, [typedName, selectedFontIndex, inkColor, signMode]);
+  }, [typedName, selectedFontIndex, inkColor, signMode, typedFontSize]);
 
   // Handle image upload for signature
   const handleSignatureUpload = (file: File) => {
@@ -432,9 +435,9 @@ export default function PdfSignView({
         </div>
       )}
 
-      <div className="grid gap-6 xl:grid-cols-[1fr_390px] xl:items-start xl:h-full min-h-0">
+      <div className="grid gap-6 xl:grid-cols-[1fr_390px] xl:items-start min-h-0">
       {/* Left Workspace: Document Viewport & Visual Signing Area */}
-      <div className="space-y-6 xl:h-full xl:max-h-[calc(100vh-175px)] xl:overflow-y-auto overscroll-contain pr-1">
+      <div className="space-y-6 xl:max-h-[calc(100vh-210px)] xl:overflow-y-auto pr-1">
         <div className="panel">
           <UploadZone
             accept="application/pdf"
@@ -580,7 +583,7 @@ export default function PdfSignView({
       </div>
 
       {/* Right Sidebar: Signature Studio, Customization & Download CTA */}
-      <div className="space-y-6 xl:sticky xl:top-0 xl:max-h-[calc(100vh-175px)] xl:overflow-y-auto overscroll-contain pr-1">
+      <div className="space-y-6 xl:sticky xl:top-0 xl:max-h-[calc(100vh-210px)] xl:overflow-y-auto pr-1">
         {/* Signature Creator Card */}
         <div className="panel space-y-4">
           <div className="flex items-center justify-between border-b border-slate-200/80 pb-3 dark:border-slate-800">
@@ -779,6 +782,48 @@ export default function PdfSignView({
                     </button>
                   ))}
                 </div>
+              </div>
+
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-xs font-medium text-slate-700 dark:text-slate-300">
+                    Signature Font Size
+                  </label>
+                  <div className="flex items-center gap-1 rounded-lg border border-slate-200 bg-slate-50 p-0.5 dark:border-slate-800 dark:bg-slate-900">
+                    <button
+                      type="button"
+                      onClick={() => setTypedFontSize((s) => Math.max(20, s - 3))}
+                      disabled={typedFontSize <= 20}
+                      className="flex h-5 w-5 items-center justify-center rounded text-slate-600 hover:bg-white hover:text-indigo-600 disabled:opacity-30 disabled:pointer-events-none dark:text-slate-300 dark:hover:bg-slate-800"
+                      title="Decrease Signature Font Size"
+                      aria-label="Decrease Signature Font Size"
+                    >
+                      <Minus size={11} />
+                    </button>
+                    <span className="min-w-[34px] text-center font-mono text-[11px] font-bold text-indigo-600 dark:text-indigo-400">
+                      {typedFontSize}px
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setTypedFontSize((s) => Math.min(60, s + 3))}
+                      disabled={typedFontSize >= 60}
+                      className="flex h-5 w-5 items-center justify-center rounded text-slate-600 hover:bg-white hover:text-indigo-600 disabled:opacity-30 disabled:pointer-events-none dark:text-slate-300 dark:hover:bg-slate-800"
+                      title="Increase Signature Font Size"
+                      aria-label="Increase Signature Font Size"
+                    >
+                      <Plus size={11} />
+                    </button>
+                  </div>
+                </div>
+                <input
+                  type="range"
+                  min={20}
+                  max={60}
+                  step={2}
+                  value={typedFontSize}
+                  onChange={(e) => setTypedFontSize(Number(e.target.value))}
+                  className="w-full accent-indigo-600"
+                />
               </div>
             </div>
           )}

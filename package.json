@@ -3,10 +3,14 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
+  "allowScripts": {
+    "esbuild": true,
+    "esbuild@0.28.2": true
+  },
   "scripts": {
-    "dev": "vite --port 7000 --host 0.0.0.0",
+    "dev": "vite --host localhost",
     "build": "tsc && vite build",
-    "preview": "vite preview --port 7000 --host 0.0.0.0"
+    "preview": "vite preview --host localhost"
   },
   "dependencies": {
     "@vitejs/plugin-react": "^5.0.2",

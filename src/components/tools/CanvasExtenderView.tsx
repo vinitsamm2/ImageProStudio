@@ -116,9 +116,9 @@ export default function CanvasExtenderView({
         </div>
       )}
 
-      <div className="grid gap-6 xl:grid-cols-[1fr_360px] xl:items-start xl:h-full min-h-0">
+      <div className="grid gap-6 xl:grid-cols-[1fr_360px] xl:items-start min-h-0">
       {/* Left: Upload & Canvas Preview */}
-      <div className="space-y-6 xl:h-full xl:max-h-[calc(100vh-175px)] xl:overflow-y-auto overscroll-contain pr-1">
+      <div className="space-y-6 xl:max-h-[calc(100vh-210px)] xl:overflow-y-auto pr-1">
         <div className="panel">
           <UploadZone
             accept={imageAccept}
@@ -167,7 +167,7 @@ export default function CanvasExtenderView({
       </div>
 
       {/* Right: Dimension & Color Controls */}
-      <div className="space-y-5 xl:h-full xl:max-h-[calc(100vh-175px)] xl:overflow-y-auto overscroll-contain pr-1">
+      <div className="space-y-5 xl:sticky xl:top-0 xl:max-h-[calc(100vh-210px)] xl:overflow-y-auto pr-1">
         <div className="panel space-y-5">
           <div className="flex items-center justify-between">
             <span className="label">Quick Padding Presets</span>
