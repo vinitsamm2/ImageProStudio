@@ -73,11 +73,16 @@ export default function ShareQrModal({
 
     const generateShareQr = async () => {
       try {
+        const isPdf = current.name.toLowerCase().endsWith(".pdf");
+        const contentType = isPdf
+          ? "application/pdf"
+          : (current.blob.type || "application/octet-stream");
+
         // Upload to local ephemeral transfer endpoint
         const res = await fetch("/api/share", {
           method: "POST",
           headers: {
-            "Content-Type": current.blob.type || "application/octet-stream",
+            "Content-Type": contentType,
             "x-file-name": encodeURIComponent(current.name)
           },
           body: current.blob

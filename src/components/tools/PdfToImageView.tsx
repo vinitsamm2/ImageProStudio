@@ -20,6 +20,7 @@ import {
   PdfFileInfo,
   PdfImageFormat,
   PdfImageOutput,
+  compressOrConvertImage,
   downloadBlob,
   estimateFileSize,
   formatBytes,
@@ -168,15 +169,57 @@ export default function PdfToImageView({
   const [ranges, setRanges] = useState("1");
   const [formatKey, setFormatKey] = useState<FormatKey>("jpg");
   const [categoryFilter, setCategoryFilter] = useState<FormatCategory>("all");
-  const [quality, setQuality] = useState(88);
+  const [quality, setQuality] = useState(80);
+
+  // Target File Size Preset ("70-290kb" is the active calibrated default)
+  const [sizePreset, setSizePreset] = useState<
+    "70-290kb" | "20-70kb" | "290-800kb" | "1mb-print" | "custom"
+  >("70-290kb");
 
   const activeFormat = ALL_IMAGE_FORMATS.find((f) => f.key === formatKey) || ALL_IMAGE_FORMATS[0];
 
-  // Size Controls
+  // Size Controls (calibrated default: 150 DPI gives ~110-230 KB per A4 page)
   const [sizeMode, setSizeMode] = useState<SizeMode>("dpi");
-  const [dpi, setDpi] = useState<number>(300);
-  const [scaleMultiplier, setScaleMultiplier] = useState<number>(2.0);
-  const [targetWidth, setTargetWidth] = useState<number>(1920);
+  const [dpi, setDpi] = useState<number>(150);
+  const [scaleMultiplier, setScaleMultiplier] = useState<number>(1.5);
+  const [targetWidth, setTargetWidth] = useState<number>(1280);
+
+  const applyPreset = (preset: "70-290kb" | "20-70kb" | "290-800kb" | "1mb-print") => {
+    setSizePreset(preset);
+    if (preset === "70-290kb") {
+      setSizeMode("dpi");
+      setDpi(150);
+      setQuality(80);
+      setScaleMultiplier(1.5);
+      setTargetWidth(1280);
+      setFormatKey("jpg");
+      notify("Calibrated for 70–290 KB (Default Exam & Govt Portal Quota)", "info");
+    } else if (preset === "20-70kb") {
+      setSizeMode("dpi");
+      setDpi(96);
+      setQuality(65);
+      setScaleMultiplier(1.0);
+      setTargetWidth(800);
+      setFormatKey("jpg");
+      notify("Calibrated for 20–70 KB (Signatures / Thumbnails)", "info");
+    } else if (preset === "290-800kb") {
+      setSizeMode("dpi");
+      setDpi(200);
+      setQuality(85);
+      setScaleMultiplier(2.0);
+      setTargetWidth(1920);
+      setFormatKey("jpg");
+      notify("Calibrated for 290–800 KB (High Clarity Web)", "info");
+    } else if (preset === "1mb-print") {
+      setSizeMode("dpi");
+      setDpi(300);
+      setQuality(92);
+      setScaleMultiplier(3.0);
+      setTargetWidth(2480);
+      setFormatKey("jpg");
+      notify("Calibrated for 1 MB+ (300 DPI Commercial Print Master)", "info");
+    }
+  };
 
   const [outputs, setOutputs] = useState<PdfImageOutput[]>([]);
   const [busy, setBusy] = useState(false);
@@ -248,7 +291,7 @@ export default function PdfToImageView({
     if (!pages.length) return notify("Specify at least one valid page number.", "error");
     setBusy(true);
     try {
-      const result = await pdfPagesToImages(info.file, pages, {
+      let result = await pdfPagesToImages(info.file, pages, {
         type: activeFormat.mime,
         quality: quality / 100,
         scaleMode: sizeMode,
@@ -257,6 +300,27 @@ export default function PdfToImageView({
         targetWidth,
         extension: activeFormat.ext
       });
+
+      // If user has the 70–290 KB default quota active, ensure output images stay within 70-290 KB
+      if (sizePreset === "70-290kb" && activeFormat.mime === "image/jpeg") {
+        result = await Promise.all(
+          result.map(async (out) => {
+            if (out.blob.size > 290 * 1024) {
+              const fileObj = new File([out.blob], out.name, { type: "image/jpeg" });
+              const compressedBlob = await compressOrConvertImage(fileObj, "image/jpeg", 0.72);
+              if (compressedBlob.size < out.blob.size) {
+                return {
+                  ...out,
+                  blob: compressedBlob,
+                  url: URL.createObjectURL(compressedBlob)
+                };
+              }
+            }
+            return out;
+          })
+        );
+      }
+
       setOutputs(result);
       notify(`Converted ${result.length} page(s) into ${estimatedW}×${estimatedH}px ${activeFormat.name} images!`, "success");
     } catch (error) {
@@ -422,10 +486,60 @@ export default function PdfToImageView({
       {/* Right Area: Size Controls, DPI, & Format */}
       <div className="space-y-5 xl:sticky xl:top-0 xl:max-h-[calc(100vh-210px)] xl:overflow-y-auto pr-1">
         <div className="panel space-y-5">
+          {/* Target File Size Presets (1-Click Quota Calibrator) */}
+          <div className="space-y-2 rounded-2xl border border-cyan-500/30 bg-gradient-to-tr from-cyan-500/10 via-teal-500/5 to-transparent p-3.5 dark:bg-slate-900/60">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-1.5 font-extrabold text-xs text-slate-900 dark:text-white">
+                <Sparkles size={14} className="text-cyan-500" />
+                <span>Target File Size Presets</span>
+              </div>
+              <span className="rounded-full bg-cyan-500/20 px-2 py-0.5 font-mono text-[9px] font-bold text-cyan-600 dark:text-cyan-400 uppercase">
+                {sizePreset === "70-290kb" ? "🎯 Default Active" : sizePreset === "custom" ? "Custom Sliders" : sizePreset}
+              </span>
+            </div>
+            <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-snug">
+              Defaults to <strong>70–290 KB</strong> for official exam & job portal upload compliance. You have 100% full access to customize any slider below anytime.
+            </p>
+
+            <div className="grid grid-cols-2 gap-1.5 pt-1">
+              {[
+                { id: "70-290kb" as const, label: "🎯 70–290 KB", sub: "Portal & Exam Default", hint: "150 DPI • 80% Quality" },
+                { id: "20-70kb" as const, label: "⚡ 20–70 KB", sub: "Signatures / Thumbnails", hint: "96 DPI • 65% Quality" },
+                { id: "290-800kb" as const, label: "📸 290–800 KB", sub: "High Clarity Web", hint: "200 DPI • 85% Quality" },
+                { id: "1mb-print" as const, label: "🖨️ 1 MB+ Print", sub: "300 DPI Commercial", hint: "300 DPI • 92% Quality" }
+              ].map((p) => {
+                const isSelected = sizePreset === p.id;
+                return (
+                  <button
+                    key={p.id}
+                    type="button"
+                    onClick={() => applyPreset(p.id)}
+                    className={`rounded-xl border p-2 text-left transition ${
+                      isSelected
+                        ? "border-cyan-500 bg-cyan-500/15 text-slate-900 shadow-sm ring-1 ring-cyan-500/50 dark:bg-cyan-500/20 dark:text-white font-bold"
+                        : "border-slate-200/80 bg-white hover:border-slate-300 text-slate-700 dark:border-slate-800 dark:bg-slate-900/80 dark:text-slate-300"
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold">{p.label}</span>
+                      {p.id === "70-290kb" && (
+                        <span className="rounded bg-emerald-500/20 px-1 py-0.2 text-[8px] font-extrabold text-emerald-600 dark:text-emerald-400">
+                          DEFAULT
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-[10px] text-slate-500 dark:text-slate-400 truncate mt-0.5">{p.sub}</p>
+                    <p className="text-[9px] font-mono text-cyan-600 dark:text-cyan-400/80 truncate">{p.hint}</p>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
           {/* Output Size Mode Selector */}
           <div>
             <div className="flex items-center justify-between mb-2">
-              <span className="label">Output Size Control</span>
+              <span className="label">Manual Size & Quality Controls</span>
               <div className="flex items-center gap-1.5 font-mono text-[10px] font-bold">
                 <span className="rounded-full bg-cyan-500/10 px-2 py-0.5 text-cyan-700 dark:text-cyan-300">
                   {estimatedW} × {estimatedH} px
@@ -481,13 +595,16 @@ export default function PdfToImageView({
               <div className="grid grid-cols-3 gap-2">
                 {[
                   { label: "72 DPI", sub: "Web/Screen", val: 72 },
-                  { label: "150 DPI", sub: "HD Sharp", val: 150 },
+                  { label: "150 DPI", sub: "HD (70–290 KB)", val: 150 },
                   { label: "300 DPI", sub: "Ultra Print", val: 300 }
                 ].map((item) => (
                   <button
                     key={item.label}
                     type="button"
-                    onClick={() => setDpi(item.val)}
+                    onClick={() => {
+                      setDpi(item.val);
+                      if (item.val !== 150) setSizePreset("custom");
+                    }}
                     className={`rounded-xl border p-2 text-center transition ${
                       dpi === item.val
                         ? "border-cyan-500 bg-cyan-500/10 text-cyan-700 dark:text-cyan-300"
@@ -502,7 +619,10 @@ export default function PdfToImageView({
               <NumberField
                 label="Custom DPI"
                 value={dpi}
-                onChange={setDpi}
+                onChange={(val) => {
+                  setDpi(val);
+                  setSizePreset("custom");
+                }}
                 min={36}
                 max={600}
                 suffix="DPI"
@@ -525,7 +645,10 @@ export default function PdfToImageView({
                 max={4.0}
                 step={0.25}
                 value={scaleMultiplier}
-                onChange={(e) => setScaleMultiplier(Number(e.target.value))}
+                onChange={(e) => {
+                  setScaleMultiplier(Number(e.target.value));
+                  setSizePreset("custom");
+                }}
                 className="w-full accent-cyan-600"
               />
               <div className="grid grid-cols-4 gap-1.5">
@@ -533,7 +656,10 @@ export default function PdfToImageView({
                   <button
                     key={s}
                     type="button"
-                    onClick={() => setScaleMultiplier(s)}
+                    onClick={() => {
+                      setScaleMultiplier(s);
+                      setSizePreset("custom");
+                    }}
                     className={`rounded-lg border py-1 text-xs font-bold ${
                       scaleMultiplier === s
                         ? "border-cyan-500 bg-cyan-500/10 text-cyan-600"
@@ -553,24 +679,30 @@ export default function PdfToImageView({
               <NumberField
                 label="Target Width (Height auto-calculated)"
                 value={targetWidth}
-                onChange={setTargetWidth}
+                onChange={(val) => {
+                  setTargetWidth(val);
+                  setSizePreset("custom");
+                }}
                 min={320}
                 max={7680}
                 suffix="px"
               />
               <div className="flex flex-wrap gap-1.5">
-                {[1080, 1920, 2400, 3840].map((w) => (
+                {[1080, 1280, 1920, 2400, 3840].map((w) => (
                   <button
                     key={w}
                     type="button"
-                    onClick={() => setTargetWidth(w)}
+                    onClick={() => {
+                      setTargetWidth(w);
+                      setSizePreset("custom");
+                    }}
                     className={`rounded-lg border px-2.5 py-1 text-xs font-medium ${
                       targetWidth === w
                         ? "border-cyan-500 bg-cyan-500/10 text-cyan-600"
                         : "border-slate-200 bg-slate-50 dark:border-slate-800 dark:bg-slate-800"
                     }`}
                   >
-                    {w}px {w === 1920 ? "(FHD)" : w === 3840 ? "(4K)" : ""}
+                    {w}px {w === 1280 ? "(70–290KB)" : w === 1920 ? "(FHD)" : w === 3840 ? "(4K)" : ""}
                   </button>
                 ))}
               </div>
@@ -643,7 +775,10 @@ export default function PdfToImageView({
                   <button
                     key={item.key}
                     type="button"
-                    onClick={() => setFormatKey(item.key)}
+                    onClick={() => {
+                      setFormatKey(item.key);
+                      if (item.key !== "jpg") setSizePreset("custom");
+                    }}
                     className={`relative rounded-xl border p-2.5 text-left transition ${
                       formatKey === item.key
                         ? "border-cyan-500 bg-cyan-500/10 text-slate-900 shadow-sm ring-1 ring-cyan-500/50 dark:text-white dark:bg-cyan-500/15"
@@ -685,7 +820,10 @@ export default function PdfToImageView({
                   min={20}
                   max={100}
                   value={quality}
-                  onChange={(e) => setQuality(Number(e.target.value))}
+                  onChange={(e) => {
+                    setQuality(Number(e.target.value));
+                    setSizePreset("custom");
+                  }}
                   className="w-full accent-cyan-600 cursor-pointer h-2 bg-slate-200 rounded-lg dark:bg-slate-800"
                 />
                 <div className="grid grid-cols-4 gap-1.5 pt-0.5">
@@ -698,7 +836,10 @@ export default function PdfToImageView({
                     <button
                       key={preset.label}
                       type="button"
-                      onClick={() => setQuality(preset.val)}
+                      onClick={() => {
+                        setQuality(preset.val);
+                        setSizePreset("custom");
+                      }}
                       className={`rounded-xl border py-1.5 px-1 text-center transition ${
                         quality === preset.val
                           ? "border-cyan-500 bg-cyan-500/15 text-cyan-700 dark:text-cyan-300 font-bold"
@@ -755,6 +896,52 @@ export default function PdfToImageView({
                   </span>
                 </div>
               </div>
+
+              {/* 70–290 KB Target Quota Indicator Badge */}
+              {(() => {
+                const effectivePerPageBytes = actualPerPage ?? estimatedPerPage.bytes;
+                const inRange = effectivePerPageBytes >= 70 * 1024 && effectivePerPageBytes <= 290 * 1024;
+                const isOver = effectivePerPageBytes > 290 * 1024;
+                return (
+                  <div
+                    className={`rounded-xl border p-2 text-xs flex items-center justify-between transition ${
+                      inRange
+                        ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
+                        : isOver
+                        ? "border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300"
+                        : "border-cyan-500/30 bg-cyan-500/10 text-cyan-700 dark:text-cyan-300"
+                    }`}
+                  >
+                    <div className="flex items-center gap-1.5 font-bold">
+                      {inRange ? (
+                        <>
+                          <CheckCircle2 size={14} className="text-emerald-500 shrink-0" />
+                          <span>✓ In 70–290 KB Target (Default Active)</span>
+                        </>
+                      ) : isOver ? (
+                        <>
+                          <span className="shrink-0 font-bold text-amber-500">⚠️</span>
+                          <span>Above 290 KB (~{formatBytes(effectivePerPageBytes)})</span>
+                        </>
+                      ) : (
+                        <>
+                          <span className="shrink-0 text-cyan-500">⚡</span>
+                          <span>Below 70 KB (~{formatBytes(effectivePerPageBytes)})</span>
+                        </>
+                      )}
+                    </div>
+                    {!inRange && (
+                      <button
+                        type="button"
+                        onClick={() => applyPreset("70-290kb")}
+                        className="rounded-lg bg-white/90 dark:bg-slate-800 px-2 py-0.5 text-[10px] font-bold shadow-xs hover:bg-white transition shrink-0 ml-1 text-slate-800 dark:text-slate-100"
+                      >
+                        Snap to 70–290 KB
+                      </button>
+                    )}
+                  </div>
+                );
+              })()}
 
               <div className="space-y-1.5 text-xs font-mono">
                 <div className="flex items-center justify-between text-slate-500 dark:text-slate-400">

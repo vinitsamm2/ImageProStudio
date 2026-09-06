@@ -64,8 +64,8 @@ export default function ImageConverterView({
   onShareFile?: (file: File) => void;
 }) {
   const [files, setFiles] = useState<File[]>([]);
-  const [targetKey, setTargetKey] = useState<ConvertFormatKey>("png");
-  const [quality, setQuality] = useState(92);
+  const [targetKey, setTargetKey] = useState<ConvertFormatKey>("jpg");
+  const [quality, setQuality] = useState(82);
   const [outputs, setOutputs] = useState<Array<{ name: string; blob: Blob }>>([]);
   const [busy, setBusy] = useState(false);
   const [measuredSize, setMeasuredSize] = useState<number | null>(null);
@@ -377,6 +377,31 @@ export default function ImageConverterView({
                   onChange={(e) => setQuality(Number(e.target.value))}
                   className="w-full accent-cyan-600"
                 />
+                <div className="flex flex-wrap items-center gap-1.5 pt-1.5">
+                  <span className="text-[10px] text-slate-400 font-semibold">Targets:</span>
+                  {[
+                    { label: "🎯 70–290 KB (Gov Default)", q: 82, format: "jpg" as const },
+                    { label: "⚡ 20–70 KB (Compact)", q: 55, format: "jpg" as const },
+                    { label: "📸 High (90%)", q: 90, format: "jpg" as const }
+                  ].map((preset) => (
+                    <button
+                      key={preset.label}
+                      type="button"
+                      onClick={() => {
+                        setTargetKey(preset.format);
+                        setQuality(preset.q);
+                        notify(`Calibrated for ${preset.label}`, "info");
+                      }}
+                      className={`rounded-lg px-2 py-0.5 text-[10px] font-bold border transition ${
+                        quality === preset.q && targetKey === preset.format
+                          ? "border-cyan-500 bg-cyan-500/20 text-cyan-700 dark:text-cyan-300"
+                          : "border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100 dark:border-slate-800 dark:bg-slate-800 dark:text-slate-400"
+                      }`}
+                    >
+                      {preset.label}
+                    </button>
+                  ))}
+                </div>
               </div>
             ) : (
               <div className="rounded-xl border border-slate-200/80 bg-slate-50/50 p-2.5 text-xs text-slate-500 dark:border-slate-800 dark:bg-slate-900/40">
@@ -412,6 +437,55 @@ export default function ImageConverterView({
                     </span>
                   </div>
                 </div>
+
+                {/* 70–290 KB Status Badge */}
+                {(() => {
+                  const avgPerImage = files.length > 0 ? effectiveOutputBytes / files.length : 0;
+                  const inRange = avgPerImage >= 70 * 1024 && avgPerImage <= 290 * 1024;
+                  return (
+                    <div
+                      className={`rounded-xl border p-2 text-xs flex items-center justify-between transition ${
+                        inRange
+                          ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
+                          : avgPerImage > 290 * 1024
+                          ? "border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300"
+                          : "border-cyan-500/30 bg-cyan-500/10 text-cyan-700 dark:text-cyan-300"
+                      }`}
+                    >
+                      <div className="flex items-center gap-1.5 font-bold">
+                        {inRange ? (
+                          <>
+                            <CheckCircle2 size={13} className="text-emerald-500 shrink-0" />
+                            <span>✓ In 70–290 KB Target (Default Active)</span>
+                          </>
+                        ) : avgPerImage > 290 * 1024 ? (
+                          <>
+                            <span>⚠️</span>
+                            <span>Above 290 KB (~{formatBytes(avgPerImage)}/img)</span>
+                          </>
+                        ) : (
+                          <>
+                            <span>⚡</span>
+                            <span>Below 70 KB (~{formatBytes(avgPerImage)}/img)</span>
+                          </>
+                        )}
+                      </div>
+                      {!inRange && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setTargetKey("jpg");
+                            setQuality(82);
+                            notify("Calibrated to 70–290 KB in JPG", "info");
+                          }}
+                          className="rounded-lg bg-white/80 dark:bg-slate-800 px-2 py-0.5 text-[10px] font-bold shadow-xs hover:bg-white transition text-slate-800 dark:text-slate-100"
+                        >
+                          Snap 70–290 KB
+                        </button>
+                      )}
+                    </div>
+                  );
+                })()}
                 <div className="flex items-center justify-between text-xs font-mono">
                   <span className="text-slate-500">Original Size:</span>
                   <span className="font-semibold text-slate-700 dark:text-slate-300">

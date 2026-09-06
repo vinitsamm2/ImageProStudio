@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import {
   CheckCircle2,
   Download,
+  ExternalLink,
   FileCheck,
   FileImage,
   FileText,
@@ -56,37 +57,66 @@ export default function MobileDownloadView({
     fetchInfo();
   }, [downloadId]);
 
-  const handleDownload = () => {
+  const isPdf = Boolean(meta?.name.toLowerCase().endsWith(".pdf") || meta?.type?.includes("pdf"));
+
+  const handleDownload = async () => {
     setDownloading(true);
-    const link = document.createElement("a");
-    link.href = directFileUrl;
-    link.download = meta?.name || "download";
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    setTimeout(() => setDownloading(false), 2000);
+    try {
+      const res = await fetch(directFileUrl);
+      if (!res.ok) throw new Error("Could not download file.");
+      const dataBlob = await res.blob();
+      const mimeType = isPdf ? "application/pdf" : (meta?.type || "application/octet-stream");
+      const blob = new Blob([dataBlob], { type: mimeType });
+      const blobUrl = URL.createObjectURL(blob);
+
+      const isIOS =
+        /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+        (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+
+      if (isIOS && isPdf) {
+        // On iOS Safari, programmatic <a download> does not trigger file save for PDFs.
+        // Opening blobUrl or direct view URL opens Safari's native PDF viewer with Share/Save to Files.
+        const win = window.open(blobUrl, "_blank");
+        if (!win) {
+          window.location.href = `${directFileUrl}?view=1`;
+        }
+      } else {
+        const link = document.createElement("a");
+        link.href = blobUrl;
+        link.download = meta?.name || (isPdf ? "document.pdf" : "download");
+        document.body.appendChild(link);
+        link.click();
+        setTimeout(() => {
+          link.remove();
+          URL.revokeObjectURL(blobUrl);
+        }, 1500);
+      }
+    } catch {
+      window.location.href = isPdf ? `${directFileUrl}?view=1` : directFileUrl;
+    } finally {
+      setTimeout(() => setDownloading(false), 800);
+    }
   };
 
   const handleShareMobile = async () => {
     if (!meta) return;
     try {
       const res = await fetch(directFileUrl);
-      const blob = await res.blob();
-      const file = new File([blob], meta.name, { type: meta.type });
+      const dataBlob = await res.blob();
+      const mimeType = isPdf ? "application/pdf" : (meta.type || "application/octet-stream");
+      const file = new File([dataBlob], meta.name, { type: mimeType });
       if (navigator.canShare && navigator.canShare({ files: [file] })) {
         await navigator.share({
           files: [file],
           title: meta.name
         });
-      } else {
-        handleDownload();
+        return;
       }
     } catch {
-      handleDownload();
+      // Ignored user cancel
     }
+    handleDownload();
   };
-
-  const isPdf = meta?.name.toLowerCase().endsWith(".pdf");
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col justify-between p-4 sm:p-6 font-sans">
@@ -186,10 +216,22 @@ export default function MobileDownloadView({
                 ) : (
                   <>
                     <Download size={18} />
-                    <span>Download to Mobile</span>
+                    <span>{isPdf ? "Download PDF Document" : "Download to Mobile"}</span>
                   </>
                 )}
               </button>
+
+              {isPdf && (
+                <a
+                  href={`${directFileUrl}?view=1`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="rounded-xl border border-cyan-500/30 bg-cyan-500/10 px-4 py-3 text-xs font-bold text-cyan-300 hover:bg-cyan-500/20 transition flex items-center justify-center gap-2 w-full"
+                >
+                  <ExternalLink size={15} />
+                  <span>Open & View PDF Fullscreen</span>
+                </a>
+              )}
 
               <button
                 type="button"
@@ -199,6 +241,12 @@ export default function MobileDownloadView({
                 <Share2 size={15} />
                 <span>Save to Files / Share</span>
               </button>
+
+              {isPdf && (
+                <p className="text-[10px] text-slate-400 pt-1 leading-snug">
+                  💡 <strong>Tip for iPhone:</strong> Tap <em>Save to Files / Share</em> to save directly to iCloud / Apple Files, or tap <em>Open & View PDF</em> to read fullscreen.
+                </p>
+              )}
             </div>
           </div>
         ) : null}

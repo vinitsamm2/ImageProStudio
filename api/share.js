@@ -54,7 +54,8 @@ export default async function handler(req, res) {
       const id = Math.random().toString(36).substring(2, 10);
       const nameHeader = req.headers["x-file-name"];
       const name = typeof nameHeader === "string" ? decodeURIComponent(nameHeader) : "download";
-      const type = req.headers["content-type"] || "application/octet-stream";
+      const isPdf = name.toLowerCase().endsWith(".pdf");
+      const type = isPdf ? "application/pdf" : (req.headers["content-type"] || "application/octet-stream");
 
       fileStore.set(id, { name, type, buffer, created: Date.now() });
 
@@ -67,6 +68,7 @@ export default async function handler(req, res) {
         downloadUrl,
         directFileUrl,
         name,
+        type,
         size: buffer.length
       });
     } catch (err) {
@@ -74,14 +76,24 @@ export default async function handler(req, res) {
     }
   }
 
-  // GET /api/share/file/:id - Direct download
+  // GET /api/share/file/:id - Direct download or inline view
   if (req.method === "GET" && pathname.includes("/file/")) {
     const id = pathname.split("/").pop() || "";
     const item = fileStore.get(id);
     if (item) {
-      res.setHeader("Content-Type", item.type);
-      res.setHeader("Content-Disposition", `attachment; filename="${encodeURIComponent(item.name)}"`);
+      const isPdf = item.name.toLowerCase().endsWith(".pdf") || (item.type && item.type.includes("pdf"));
+      const contentType = isPdf ? "application/pdf" : (item.type || "application/octet-stream");
+      res.setHeader("Content-Type", contentType);
+      res.setHeader("Accept-Ranges", "bytes");
       res.setHeader("Content-Length", item.buffer.length);
+
+      const isView = url.searchParams.get("view") === "1";
+      const disposition = isView ? "inline" : "attachment";
+      const safeName = item.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+      res.setHeader(
+        "Content-Disposition",
+        `${disposition}; filename="${safeName}"; filename*=UTF-8''${encodeURIComponent(item.name)}`
+      );
       return res.status(200).end(item.buffer);
     }
     return res.status(404).send("File expired or not found");
@@ -92,11 +104,12 @@ export default async function handler(req, res) {
     const id = pathname.split("/").pop() || "";
     const item = fileStore.get(id);
     if (item) {
+      const isPdf = item.name.toLowerCase().endsWith(".pdf") || (item.type && item.type.includes("pdf"));
       return res.status(200).json({
         ok: true,
         name: item.name,
         size: item.buffer.length,
-        type: item.type
+        type: isPdf ? "application/pdf" : item.type
       });
     }
     return res.status(404).json({ ok: false, error: "File expired or not found" });
