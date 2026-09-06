@@ -14,7 +14,11 @@
     "resolveJsonModule": true,
     "isolatedModules": true,
     "noEmit": true,
-    "jsx": "react-jsx"
+    "jsx": "react-jsx",
+    "baseUrl": ".",
+    "paths": {
+      "@vercel/speed-insights/next": ["node_modules/@vercel/speed-insights/dist/react"]
+    }
   },
   "include": ["src"],
   "references": []

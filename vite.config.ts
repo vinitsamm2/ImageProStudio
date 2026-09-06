@@ -124,6 +124,11 @@ export default defineConfig({
   preview: {
     host: "localhost"
   },
+  resolve: {
+    alias: {
+      "@vercel/speed-insights/next": "@vercel/speed-insights/react"
+    }
+  },
   optimizeDeps: {
     exclude: ["pdfjs-dist"]
   },

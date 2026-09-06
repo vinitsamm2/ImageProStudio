@@ -24,6 +24,7 @@ import PdfSignView from "./components/tools/PdfSignView";
 import PdfCompressorView from "./components/tools/PdfCompressorView";
 import ShareQrModal, { ShareableFile } from "./components/ShareQrModal";
 import MobileDownloadView from "./components/MobileDownloadView";
+import { SpeedInsights } from "@vercel/speed-insights/next";
 import { uid } from "./lib/files";
 
 export default function App() {
@@ -314,6 +315,9 @@ export default function App() {
         file={shareModalFile}
         notify={notify}
       />
+
+      {/* Vercel Speed Insights */}
+      <SpeedInsights />
     </>
   );
 }
