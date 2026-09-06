@@ -15,6 +15,7 @@ import {
 import { useState } from "react";
 import OmniDropzone from "./OmniDropzone";
 import { TOOLS, ToolCategory, ToolId } from "./ToolGrid";
+import { VisitorStatsSection } from "./ui/VisitorCounter";
 
 type HubViewProps = {
   onLaunchTool: (id: ToolId) => void;
@@ -260,6 +261,9 @@ export default function HubView({ onLaunchTool, onOmniRoute, onOpenAbout }: HubV
             </p>
           </div>
         </div>
+
+        {/* Real-time Visitor & Community Stats Banner */}
+        <VisitorStatsSection className="mt-8" />
 
         {onOpenAbout && (
           <div className="mt-8 flex items-center justify-center">

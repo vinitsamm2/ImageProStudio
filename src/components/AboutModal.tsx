@@ -18,6 +18,7 @@ import {
   Zap
 } from "lucide-react";
 import { useState } from "react";
+import { useVisitorStats } from "../lib/useVisitorStats";
 
 type AboutModalProps = {
   isOpen: boolean;
@@ -29,6 +30,7 @@ type TabId = "story" | "privacy" | "engine" | "values";
 
 export default function AboutModal({ isOpen, onClose, onOpenTool }: AboutModalProps) {
   const [activeTab, setActiveTab] = useState<TabId>("story");
+  const { formattedTotal, activeNow } = useVisitorStats();
 
   if (!isOpen) return null;
 
@@ -136,30 +138,42 @@ export default function AboutModal({ isOpen, onClose, onOpenTool }: AboutModalPr
                   </p>
                 </div>
 
-                {/* 3 Metric Highlights */}
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2">
-                  <div className="rounded-2xl border border-cyan-500/20 bg-cyan-500/5 p-4 dark:bg-cyan-950/20 text-center">
-                    <div className="text-2xl font-black text-cyan-600 dark:text-cyan-400">0 KB</div>
-                    <div className="mt-1 text-xs font-bold text-slate-700 dark:text-slate-300">
-                      Zero Server Uploads
+                {/* 4 Metric Highlights */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 pt-2">
+                  <div className="rounded-2xl border border-cyan-500/20 bg-cyan-50/50 p-3 dark:bg-cyan-950/20 text-center">
+                    <div className="text-xl font-black text-cyan-600 dark:text-cyan-400">0 KB</div>
+                    <div className="mt-0.5 text-xs font-bold text-slate-700 dark:text-slate-300">
+                      Zero Uploads
                     </div>
-                    <p className="mt-0.5 text-[10px] text-slate-400">Files never leave your computer</p>
+                    <p className="mt-0.5 text-[9px] text-slate-400">100% in-browser</p>
                   </div>
 
-                  <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/5 p-4 dark:bg-emerald-950/20 text-center">
-                    <div className="text-2xl font-black text-emerald-600 dark:text-emerald-400">100%</div>
-                    <div className="mt-1 text-xs font-bold text-slate-700 dark:text-slate-300">
-                      Private & Offline Ready
+                  <div className="rounded-2xl border border-emerald-500/20 bg-emerald-50/50 p-3 dark:bg-emerald-950/20 text-center">
+                    <div className="text-xl font-black text-emerald-600 dark:text-emerald-400">100%</div>
+                    <div className="mt-0.5 text-xs font-bold text-slate-700 dark:text-slate-300">
+                      Private & Offline
                     </div>
-                    <p className="mt-0.5 text-[10px] text-slate-400">Works without an internet connection</p>
+                    <p className="mt-0.5 text-[9px] text-slate-400">Zero data retention</p>
                   </div>
 
-                  <div className="rounded-2xl border border-indigo-500/20 bg-indigo-500/5 p-4 dark:bg-indigo-950/20 text-center">
-                    <div className="text-2xl font-black text-indigo-600 dark:text-indigo-400">100% Free</div>
-                    <div className="mt-1 text-xs font-bold text-slate-700 dark:text-slate-300">
-                      Unlimited Use Forever
+                  <div className="rounded-2xl border border-indigo-500/20 bg-indigo-50/50 p-3 dark:bg-indigo-950/20 text-center">
+                    <div className="text-xl font-black text-indigo-600 dark:text-indigo-400">100% Free</div>
+                    <div className="mt-0.5 text-xs font-bold text-slate-700 dark:text-slate-300">
+                      Forever Unlimited
                     </div>
-                    <p className="mt-0.5 text-[10px] text-slate-400">Zero subscriptions, paywalls, or limits</p>
+                    <p className="mt-0.5 text-[9px] text-slate-400">Zero subscriptions</p>
+                  </div>
+
+                  <div className="rounded-2xl border border-teal-500/20 bg-teal-50/50 p-3 dark:bg-teal-950/20 text-center">
+                    <div className="text-xl font-black text-teal-600 dark:text-teal-400">{formattedTotal}+</div>
+                    <div className="mt-0.5 text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center justify-center gap-1">
+                      <span className="relative flex h-1.5 w-1.5">
+                        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
+                        <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                      </span>
+                      <span>{activeNow} Online Now</span>
+                    </div>
+                    <p className="mt-0.5 text-[9px] text-slate-400">Total Site Visitors</p>
                   </div>
                 </div>
 

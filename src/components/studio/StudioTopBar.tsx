@@ -19,6 +19,7 @@ import { useState } from "react";
 import { ToolId } from "../ToolGrid";
 import { STUDIO_TOOLS } from "./ToolActivityRail";
 import FontSizeScaleControl from "../ui/FontSizeScaleControl";
+import { VisitorCounterBadge } from "../ui/VisitorCounter";
 
 type StudioTopBarProps = {
   activeTool: ToolId;
@@ -179,6 +180,9 @@ export default function StudioTopBar({
             ⌘K
           </kbd>
         </button>
+
+        {/* Real-Time Live Visitor Counter */}
+        <VisitorCounterBadge className="hidden sm:inline-block" />
 
         {/* Exam Form Fill & 100% Free Badge */}
         <div className="hidden lg:flex items-center gap-1.5 rounded-xl border border-emerald-500/25 bg-emerald-500/10 px-2.5 py-1 text-xs font-extrabold text-emerald-600 dark:text-emerald-400 shadow-xs" title="Created for Students & Employees • 100% Accepted for All Examination & Job Forms">

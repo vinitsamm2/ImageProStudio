@@ -18,6 +18,14 @@
       "destination": "/api/share"
     },
     {
+      "source": "/api/stats/:path*",
+      "destination": "/api/stats"
+    },
+    {
+      "source": "/api/stats",
+      "destination": "/api/stats"
+    },
+    {
       "source": "/((?!api/).*)",
       "destination": "/index.html"
     }
