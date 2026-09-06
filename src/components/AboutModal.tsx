@@ -165,15 +165,15 @@ export default function AboutModal({ isOpen, onClose, onOpenTool }: AboutModalPr
                   </div>
 
                   <div className="rounded-2xl border border-teal-500/20 bg-teal-50/50 p-3 dark:bg-teal-950/20 text-center">
-                    <div className="text-xl font-black text-teal-600 dark:text-teal-400">{formattedTotal}+</div>
+                    <div className="text-xl font-black text-teal-600 dark:text-teal-400">{formattedTotal}</div>
                     <div className="mt-0.5 text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center justify-center gap-1">
                       <span className="relative flex h-1.5 w-1.5">
                         <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
                         <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-500" />
                       </span>
-                      <span>{activeNow} Online Now</span>
+                      <span>{activeNow} Online</span>
                     </div>
-                    <p className="mt-0.5 text-[9px] text-slate-400">Total Site Visitors</p>
+                    <p className="mt-0.5 text-[9px] text-slate-400">Total Site Visits</p>
                   </div>
                 </div>
 

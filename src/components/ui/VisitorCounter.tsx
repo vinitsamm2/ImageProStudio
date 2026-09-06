@@ -105,7 +105,7 @@ export function VisitorCounterBadge({ className = "" }: { className?: string }) 
                   <div className="mt-1 font-mono text-base font-extrabold text-slate-900 dark:text-white">
                     {formattedTotal}
                   </div>
-                  <p className="text-[9px] text-slate-400">All-time site visitors</p>
+                  <p className="text-[9px] text-slate-400">All-time site visits</p>
                 </div>
 
                 {/* Active Live */}
@@ -120,7 +120,7 @@ export function VisitorCounterBadge({ className = "" }: { className?: string }) 
                   <div className="mt-1 font-mono text-base font-extrabold text-emerald-600 dark:text-emerald-400">
                     {activeNow} Online
                   </div>
-                  <p className="text-[9px] text-slate-400">Students & Pros now</p>
+                  <p className="text-[9px] text-slate-400">Live on site right now</p>
                 </div>
 
                 {/* Today's Visits */}
@@ -161,7 +161,7 @@ export function VisitorCounterBadge({ className = "" }: { className?: string }) 
  * High-Fidelity Community Stats Banner for HubView & About Page
  */
 export function VisitorStatsSection({ className = "" }: { className?: string }) {
-  const { formattedTotal, formattedToday, activeNow } = useVisitorStats();
+  const { formattedTotal, formattedToday, activeNow, total, today } = useVisitorStats();
 
   return (
     <div
@@ -190,7 +190,7 @@ export function VisitorStatsSection({ className = "" }: { className?: string }) 
             <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
             <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
           </span>
-          <span>{activeNow} Active Users Online Now</span>
+          <span>{activeNow} {activeNow === 1 ? "Active User" : "Active Users"} Online Now</span>
         </div>
       </div>
 
@@ -205,10 +205,10 @@ export function VisitorStatsSection({ className = "" }: { className?: string }) 
             </span>
           </div>
           <div className="mt-2 font-mono text-2xl font-black text-slate-900 dark:text-white">
-            {formattedTotal}+
+            {formattedTotal}
           </div>
           <p className="mt-0.5 text-xs font-semibold text-slate-700 dark:text-slate-300">
-            Total Site Visitors
+            {total === 1 ? "Total Site Visit" : "Total Site Visits"}
           </p>
           <p className="text-[11px] text-slate-400">Processed without server uploads</p>
         </div>
@@ -222,12 +222,12 @@ export function VisitorStatsSection({ className = "" }: { className?: string }) 
             </span>
           </div>
           <div className="mt-2 font-mono text-2xl font-black text-emerald-600 dark:text-emerald-400">
-            {activeNow} Live
+            {activeNow} {activeNow === 1 ? "User" : "Live"}
           </div>
           <p className="mt-0.5 text-xs font-semibold text-slate-700 dark:text-slate-300">
             Active Right Now
           </p>
-          <p className="text-[11px] text-slate-400">Filling exam & job forms</p>
+          <p className="text-[11px] text-slate-400">Live users across all tools</p>
         </div>
 
         {/* Today's Visits */}
@@ -239,12 +239,12 @@ export function VisitorStatsSection({ className = "" }: { className?: string }) 
             </span>
           </div>
           <div className="mt-2 font-mono text-2xl font-black text-indigo-600 dark:text-indigo-400">
-            {formattedToday}+
+            {formattedToday}
           </div>
           <p className="mt-0.5 text-xs font-semibold text-slate-700 dark:text-slate-300">
-            Visitors Today
+            {today === 1 ? "Visit Today" : "Visits Today"}
           </p>
-          <p className="text-[11px] text-slate-400">Growing student community</p>
+          <p className="text-[11px] text-slate-400">Real-time daily tracker</p>
         </div>
       </div>
     </div>

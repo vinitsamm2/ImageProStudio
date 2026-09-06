@@ -1,6 +1,8 @@
 import { defineConfig, Plugin } from "vite";
 import react from "@vitejs/plugin-react";
 import os from "os";
+import fs from "fs";
+import path from "path";
 
 function getLocalIp(): string {
   const nets = os.networkInterfaces();
@@ -21,6 +23,37 @@ function mobileSharePlugin(): Plugin {
     string,
     { name: string; type: string; buffer: Buffer; created: number }
   >();
+  const activeSessions = new Map<string, number>();
+  const statsFilePath = path.resolve(process.cwd(), "visitor-stats.json");
+
+  const getStats = () => {
+    const todayStr = new Date().toISOString().slice(0, 10);
+    let s = { total: 1, today: 1, lastDay: todayStr };
+    try {
+      if (fs.existsSync(statsFilePath)) {
+        const raw = fs.readFileSync(statsFilePath, "utf-8");
+        const p = JSON.parse(raw);
+        s.total = typeof p.total === "number" ? p.total : 1;
+        s.today = typeof p.today === "number" ? p.today : 1;
+        s.lastDay = p.lastDay || todayStr;
+      }
+    } catch {
+      // fallback
+    }
+    if (s.lastDay !== todayStr) {
+      s.today = 0;
+      s.lastDay = todayStr;
+    }
+    return s;
+  };
+
+  const saveStats = (s: { total: number; today: number; lastDay: string }) => {
+    try {
+      fs.writeFileSync(statsFilePath, JSON.stringify(s, null, 2), "utf-8");
+    } catch {
+      // fallback
+    }
+  };
 
   // Periodically purge files older than 1 hour (unref'd so it doesn't hold open CI/build processes)
   const purgeTimer = setInterval(() => {
@@ -40,6 +73,40 @@ function mobileSharePlugin(): Plugin {
     const port = hostHeader.split(":")[1] || "7000";
     const localIp = getLocalIp();
     const url = new URL(req.url || "", `http://${hostHeader}`);
+
+    // GET /api/stats/visitors - Real-time visitor counter (exact true count)
+    if (req.method === "GET" && url.pathname === "/api/stats/visitors") {
+      const isPeek = url.searchParams.get("peek") === "1";
+      const sid = url.searchParams.get("sid") || req.socket?.remoteAddress || "client";
+      const now = Date.now();
+
+      activeSessions.set(sid, now);
+      for (const [s, ts] of activeSessions.entries()) {
+        if (now - ts > 180000) {
+          activeSessions.delete(s);
+        }
+      }
+
+      const s = getStats();
+      if (!isPeek) {
+        s.total += 1;
+        s.today += 1;
+        saveStats(s);
+      }
+
+      const activeNow = Math.max(1, activeSessions.size);
+
+      res.setHeader("Content-Type", "application/json");
+      res.setHeader("Access-Control-Allow-Origin", "*");
+      res.end(JSON.stringify({
+        ok: true,
+        total: s.total,
+        today: s.today,
+        activeNow,
+        timestamp: now
+      }));
+      return;
+    }
 
     // GET /api/share/network-info
     if (req.method === "GET" && url.pathname === "/api/share/network-info") {

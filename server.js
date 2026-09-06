@@ -15,8 +15,8 @@ const statsFilePath = path.join(__dirname, "visitor-stats.json");
 const activeSessions = new Map();
 
 let visitorStats = {
-  total: 38450,
-  today: 1280,
+  total: 1,
+  today: 1,
   lastDay: new Date().toISOString().slice(0, 10)
 };
 
@@ -24,8 +24,8 @@ try {
   if (fs.existsSync(statsFilePath)) {
     const raw = fs.readFileSync(statsFilePath, "utf-8");
     const parsed = JSON.parse(raw);
-    visitorStats.total = Math.max(38450, parsed.total || 38450);
-    visitorStats.today = parsed.today || 1280;
+    visitorStats.total = typeof parsed.total === "number" ? parsed.total : 1;
+    visitorStats.today = typeof parsed.today === "number" ? parsed.today : 1;
     visitorStats.lastDay = parsed.lastDay || new Date().toISOString().slice(0, 10);
   }
 } catch {
@@ -69,7 +69,7 @@ app.use((req, res, next) => {
   next();
 });
 
-// GET /api/stats/visitors - Real-time visitor counter
+// GET /api/stats/visitors - Real-time visitor counter (exact true count)
 app.get("/api/stats/visitors", (req, res) => {
   const todayStr = new Date().toISOString().slice(0, 10);
   if (visitorStats.lastDay !== todayStr) {
@@ -95,8 +95,8 @@ app.get("/api/stats/visitors", (req, res) => {
     saveStats();
   }
 
-  const minuteSeed = Math.floor(now / 60000) % 11;
-  const activeNow = Math.max(16, activeSessions.size + 15 + (minuteSeed % 8));
+  // Real active users online count
+  const activeNow = Math.max(1, activeSessions.size);
 
   res.json({
     ok: true,

@@ -13,9 +13,6 @@ export interface VisitorStats {
 
 const STORAGE_KEY = "imagepro_visitor_stats";
 const SESSION_KEY = "imagepro_session_active";
-const DEFAULT_TOTAL = 38450;
-const DEFAULT_TODAY = 1280;
-const DEFAULT_ACTIVE = 22;
 
 function formatCompact(num: number): string {
   if (num >= 1_000_000) {
@@ -34,21 +31,26 @@ export function useVisitorStats(): VisitorStats {
         const saved = localStorage.getItem(STORAGE_KEY);
         if (saved) {
           const parsed = JSON.parse(saved);
-          return {
-            total: Math.max(DEFAULT_TOTAL, parsed.total || DEFAULT_TOTAL),
-            today: parsed.today || DEFAULT_TODAY,
-            activeNow: parsed.activeNow || DEFAULT_ACTIVE,
-            loading: false
-          };
+          // Purge legacy inflated static numbers (e.g. 38450)
+          if (parsed && typeof parsed.total === "number" && parsed.total < 30000) {
+            return {
+              total: parsed.total,
+              today: typeof parsed.today === "number" ? parsed.today : 1,
+              activeNow: typeof parsed.activeNow === "number" ? parsed.activeNow : 1,
+              loading: false
+            };
+          } else {
+            localStorage.removeItem(STORAGE_KEY);
+          }
         }
       } catch {
-        // use default
+        // use fallback
       }
     }
     return {
-      total: DEFAULT_TOTAL,
-      today: DEFAULT_TODAY,
-      activeNow: DEFAULT_ACTIVE,
+      total: 1,
+      today: 1,
+      activeNow: 1,
       loading: true
     };
   });
@@ -72,12 +74,16 @@ export function useVisitorStats(): VisitorStats {
       if (data.ok && typeof data.total === "number") {
         const updated = {
           total: data.total,
-          today: data.today,
-          activeNow: data.activeNow || DEFAULT_ACTIVE,
+          today: typeof data.today === "number" ? data.today : 1,
+          activeNow: typeof data.activeNow === "number" ? data.activeNow : 1,
           loading: false
         };
         setStats(updated);
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+        try {
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+        } catch {
+          // ignore
+        }
         return;
       }
     } catch {
@@ -86,7 +92,7 @@ export function useVisitorStats(): VisitorStats {
         const updated = {
           total: isPeek ? prev.total : prev.total + 1,
           today: isPeek ? prev.today : prev.today + 1,
-          activeNow: prev.activeNow,
+          activeNow: Math.max(1, prev.activeNow),
           loading: false
         };
         try {
