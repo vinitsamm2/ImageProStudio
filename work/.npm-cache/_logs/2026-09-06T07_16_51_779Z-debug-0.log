@@ -1,0 +1,328 @@
+0 verbose cli /opt/homebrew/Cellar/node/26.0.0/bin/node /opt/homebrew/bin/npm
+1 info using npm@11.12.1
+2 info using node@v26.0.0
+3 silly config load:file:/opt/homebrew/lib/node_modules/npm/npmrc
+4 silly config load:file:/Users/vinitsammir/Documents/Codex/2026-09-06/files-pasted-by-the-user-create/.npmrc
+5 silly config load:file:/Users/vinitsammir/.npmrc
+6 silly config load:file:/opt/homebrew/etc/npmrc
+7 verbose title npm install pdfjs-dist@^6.2.108
+8 verbose argv "install" "pdfjs-dist@^6.2.108"
+9 verbose logfile logs-max:10 dir:/Users/vinitsammir/Documents/Codex/2026-09-06/files-pasted-by-the-user-create/work/.npm-cache/_logs/2026-09-06T07_16_51_779Z-
+10 verbose logfile /Users/vinitsammir/Documents/Codex/2026-09-06/files-pasted-by-the-user-create/work/.npm-cache/_logs/2026-09-06T07_16_51_779Z-debug-0.log
+11 silly logfile done cleaning log files
+12 silly packumentCache heap:4395630592 maxSize:1098907648 maxEntrySize:549453824
+13 verbose shrinkwrap failed to load node_modules/.package-lock.json out of date, updated: node_modules
+14 silly idealTree buildDeps
+15 silly fetch manifest pdfjs-dist@^6.2.108
+16 silly packumentCache full:https://registry.npmjs.org/pdfjs-dist cache-miss
+17 http fetch GET 200 https://registry.npmjs.org/pdfjs-dist 211ms (cache revalidated)
+18 silly packumentCache full:https://registry.npmjs.org/pdfjs-dist set size:2103138 disposed:false
+19 silly placeDep ROOT pdfjs-dist@6.3.289 REPLACE for: imagepro-tools@1.0.0 want: ^6.2.108
+20 silly fetch manifest @napi-rs/canvas@^1.0.0
+21 silly packumentCache full:https://registry.npmjs.org/@napi-rs%2fcanvas cache-miss
+22 http fetch GET 200 https://registry.npmjs.org/@napi-rs%2fcanvas 83ms (cache revalidated)
+23 silly packumentCache full:https://registry.npmjs.org/@napi-rs%2fcanvas set size:607726 disposed:false
+24 silly placeDep ROOT @napi-rs/canvas@1.0.8 OK for: pdfjs-dist@6.3.289 want: ^1.0.0
+25 silly fetch manifest @napi-rs/canvas-darwin-x64@1.0.8
+26 silly packumentCache full:https://registry.npmjs.org/@napi-rs%2fcanvas-darwin-x64 cache-miss
+27 silly fetch manifest @napi-rs/canvas-darwin-arm64@1.0.8
+28 silly packumentCache full:https://registry.npmjs.org/@napi-rs%2fcanvas-darwin-arm64 cache-miss
+29 silly fetch manifest @napi-rs/canvas-android-arm64@1.0.8
+30 silly packumentCache full:https://registry.npmjs.org/@napi-rs%2fcanvas-android-arm64 cache-miss
+31 silly fetch manifest @napi-rs/canvas-linux-x64-gnu@1.0.8
+32 silly packumentCache full:https://registry.npmjs.org/@napi-rs%2fcanvas-linux-x64-gnu cache-miss
+33 silly fetch manifest @napi-rs/canvas-linux-x64-musl@1.0.8
+34 silly packumentCache full:https://registry.npmjs.org/@napi-rs%2fcanvas-linux-x64-musl cache-miss
+35 silly fetch manifest @napi-rs/canvas-win32-x64-msvc@1.0.8
+36 silly packumentCache full:https://registry.npmjs.org/@napi-rs%2fcanvas-win32-x64-msvc cache-miss
+37 silly fetch manifest @napi-rs/canvas-linux-arm64-gnu@1.0.8
+38 silly packumentCache full:https://registry.npmjs.org/@napi-rs%2fcanvas-linux-arm64-gnu cache-miss
+39 silly fetch manifest @napi-rs/canvas-linux-arm64-musl@1.0.8
+40 silly packumentCache full:https://registry.npmjs.org/@napi-rs%2fcanvas-linux-arm64-musl cache-miss
+41 silly fetch manifest @napi-rs/canvas-win32-arm64-msvc@1.0.8
+42 silly packumentCache full:https://registry.npmjs.org/@napi-rs%2fcanvas-win32-arm64-msvc cache-miss
+43 http fetch GET 200 https://registry.npmjs.org/@napi-rs%2fcanvas-darwin-x64 215ms (cache revalidated)
+44 silly packumentCache full:https://registry.npmjs.org/@napi-rs%2fcanvas-darwin-x64 set size:251195 disposed:false
+45 silly fetch manifest @napi-rs/canvas-linux-riscv64-gnu@1.0.8
+46 silly packumentCache full:https://registry.npmjs.org/@napi-rs%2fcanvas-linux-riscv64-gnu cache-miss
+47 http fetch GET 200 https://registry.npmjs.org/@napi-rs%2fcanvas-darwin-arm64 218ms (cache revalidated)
+48 silly packumentCache full:https://registry.npmjs.org/@napi-rs%2fcanvas-darwin-arm64 set size:252981 disposed:false
+49 silly fetch manifest @napi-rs/canvas-linux-arm-gnueabihf@1.0.8
+50 silly packumentCache full:https://registry.npmjs.org/@napi-rs%2fcanvas-linux-arm-gnueabihf cache-miss
+51 http fetch GET 200 https://registry.npmjs.org/@napi-rs%2fcanvas-linux-x64-musl 224ms (cache revalidated)
+52 silly packumentCache full:https://registry.npmjs.org/@napi-rs%2fcanvas-linux-x64-musl set size:256942 disposed:false
+53 http fetch GET 200 https://registry.npmjs.org/@napi-rs%2fcanvas-linux-x64-gnu 313ms (cache revalidated)
+54 silly packumentCache full:https://registry.npmjs.org/@napi-rs%2fcanvas-linux-x64-gnu set size:256252 disposed:false
+55 http fetch GET 200 https://registry.npmjs.org/@napi-rs%2fcanvas-win32-arm64-msvc 337ms (cache revalidated)
+56 silly packumentCache full:https://registry.npmjs.org/@napi-rs%2fcanvas-win32-arm64-msvc set size:52297 disposed:false
+57 http fetch GET 200 https://registry.npmjs.org/@napi-rs%2fcanvas-win32-x64-msvc 369ms (cache revalidated)
+58 silly packumentCache full:https://registry.npmjs.org/@napi-rs%2fcanvas-win32-x64-msvc set size:254213 disposed:false
+59 http fetch GET 200 https://registry.npmjs.org/@napi-rs%2fcanvas-linux-arm64-gnu 456ms (cache revalidated)
+60 silly packumentCache full:https://registry.npmjs.org/@napi-rs%2fcanvas-linux-arm64-gnu set size:258059 disposed:false
+61 http fetch GET 200 https://registry.npmjs.org/@napi-rs%2fcanvas-linux-arm-gnueabihf 315ms (cache revalidated)
+62 silly packumentCache full:https://registry.npmjs.org/@napi-rs%2fcanvas-linux-arm-gnueabihf set size:258129 disposed:false
+63 http fetch GET 200 https://registry.npmjs.org/@napi-rs%2fcanvas-linux-arm64-musl 574ms (cache revalidated)
+64 silly packumentCache full:https://registry.npmjs.org/@napi-rs%2fcanvas-linux-arm64-musl set size:241380 disposed:false
+65 http fetch GET 200 https://registry.npmjs.org/@napi-rs%2fcanvas-linux-riscv64-gnu 623ms (cache revalidated)
+66 silly packumentCache full:https://registry.npmjs.org/@napi-rs%2fcanvas-linux-riscv64-gnu set size:93983 disposed:false
+67 http fetch GET 200 https://registry.npmjs.org/@napi-rs%2fcanvas-android-arm64 912ms (cache revalidated)
+68 silly packumentCache full:https://registry.npmjs.org/@napi-rs%2fcanvas-android-arm64 set size:253905 disposed:false
+69 silly placeDep ROOT @napi-rs/canvas-android-arm64@1.0.8 OK for: @napi-rs/canvas@1.0.8 want: 1.0.8
+70 silly placeDep ROOT @napi-rs/canvas-darwin-arm64@1.0.8 OK for: @napi-rs/canvas@1.0.8 want: 1.0.8
+71 silly placeDep ROOT @napi-rs/canvas-darwin-x64@1.0.8 OK for: @napi-rs/canvas@1.0.8 want: 1.0.8
+72 silly placeDep ROOT @napi-rs/canvas-linux-arm-gnueabihf@1.0.8 OK for: @napi-rs/canvas@1.0.8 want: 1.0.8
+73 silly placeDep ROOT @napi-rs/canvas-linux-arm64-gnu@1.0.8 OK for: @napi-rs/canvas@1.0.8 want: 1.0.8
+74 silly placeDep ROOT @napi-rs/canvas-linux-arm64-musl@1.0.8 OK for: @napi-rs/canvas@1.0.8 want: 1.0.8
+75 silly placeDep ROOT @napi-rs/canvas-linux-riscv64-gnu@1.0.8 OK for: @napi-rs/canvas@1.0.8 want: 1.0.8
+76 silly placeDep ROOT @napi-rs/canvas-linux-x64-gnu@1.0.8 OK for: @napi-rs/canvas@1.0.8 want: 1.0.8
+77 silly placeDep ROOT @napi-rs/canvas-linux-x64-musl@1.0.8 OK for: @napi-rs/canvas@1.0.8 want: 1.0.8
+78 silly placeDep ROOT @napi-rs/canvas-win32-arm64-msvc@1.0.8 OK for: @napi-rs/canvas@1.0.8 want: 1.0.8
+79 silly placeDep ROOT @napi-rs/canvas-win32-x64-msvc@1.0.8 OK for: @napi-rs/canvas@1.0.8 want: 1.0.8
+80 silly reify mark retired [
+80 silly reify   '/Users/vinitsammir/Documents/Codex/2026-09-06/files-pasted-by-the-user-create/node_modules/pdfjs-dist'
+80 silly reify ]
+81 silly reify mark retired [
+81 silly reify   '/Users/vinitsammir/Documents/Codex/2026-09-06/files-pasted-by-the-user-create/node_modules/@napi-rs/canvas'
+81 silly reify ]
+82 silly reify mark retired [
+82 silly reify   '/Users/vinitsammir/Documents/Codex/2026-09-06/files-pasted-by-the-user-create/node_modules/@napi-rs/canvas-darwin-arm64'
+82 silly reify ]
+83 silly reify moves {
+83 silly reify   '/Users/vinitsammir/Documents/Codex/2026-09-06/files-pasted-by-the-user-create/node_modules/pdfjs-dist': '/Users/vinitsammir/Documents/Codex/2026-09-06/files-pasted-by-the-user-create/node_modules/.pdfjs-dist-voUQEnEt',
+83 silly reify   '/Users/vinitsammir/Documents/Codex/2026-09-06/files-pasted-by-the-user-create/node_modules/@napi-rs/canvas': '/Users/vinitsammir/Documents/Codex/2026-09-06/files-pasted-by-the-user-create/node_modules/@napi-rs/.canvas-MlIDJm9x',
+83 silly reify   '/Users/vinitsammir/Documents/Codex/2026-09-06/files-pasted-by-the-user-create/node_modules/@napi-rs/canvas-darwin-arm64': '/Users/vinitsammir/Documents/Codex/2026-09-06/files-pasted-by-the-user-create/node_modules/@napi-rs/.canvas-darwin-arm64-p7yh8tia'
+83 silly reify }
+84 silly audit bulk request {
+84 silly audit   '@alloc/quick-lru': [ '5.3.0' ],
+84 silly audit   '@babel/code-frame': [ '7.29.7' ],
+84 silly audit   '@babel/compat-data': [ '7.29.7' ],
+84 silly audit   '@babel/core': [ '7.29.7' ],
+84 silly audit   '@babel/generator': [ '7.29.8' ],
+84 silly audit   '@babel/helper-compilation-targets': [ '7.29.7' ],
+84 silly audit   '@babel/helper-globals': [ '7.29.7' ],
+84 silly audit   '@babel/helper-module-imports': [ '7.29.7' ],
+84 silly audit   '@babel/helper-module-transforms': [ '7.29.7' ],
+84 silly audit   '@babel/helper-plugin-utils': [ '7.29.7' ],
+84 silly audit   '@babel/helper-string-parser': [ '7.29.7' ],
+84 silly audit   '@babel/helper-validator-identifier': [ '7.29.7' ],
+84 silly audit   '@babel/helper-validator-option': [ '7.29.7' ],
+84 silly audit   '@babel/helpers': [ '7.29.7' ],
+84 silly audit   '@babel/parser': [ '7.29.8' ],
+84 silly audit   '@babel/plugin-transform-react-jsx-self': [ '7.29.7' ],
+84 silly audit   '@babel/plugin-transform-react-jsx-source': [ '7.29.7' ],
+84 silly audit   '@babel/template': [ '7.29.7' ],
+84 silly audit   '@babel/traverse': [ '7.29.8' ],
+84 silly audit   '@babel/types': [ '7.29.8' ],
+84 silly audit   '@esbuild/aix-ppc64': [ '0.28.2' ],
+84 silly audit   '@esbuild/android-arm': [ '0.28.2' ],
+84 silly audit   '@esbuild/android-arm64': [ '0.28.2' ],
+84 silly audit   '@esbuild/android-x64': [ '0.28.2' ],
+84 silly audit   '@esbuild/darwin-arm64': [ '0.28.2' ],
+84 silly audit   '@esbuild/darwin-x64': [ '0.28.2' ],
+84 silly audit   '@esbuild/freebsd-arm64': [ '0.28.2' ],
+84 silly audit   '@esbuild/freebsd-x64': [ '0.28.2' ],
+84 silly audit   '@esbuild/linux-arm': [ '0.28.2' ],
+84 silly audit   '@esbuild/linux-arm64': [ '0.28.2' ],
+84 silly audit   '@esbuild/linux-ia32': [ '0.28.2' ],
+84 silly audit   '@esbuild/linux-loong64': [ '0.28.2' ],
+84 silly audit   '@esbuild/linux-mips64el': [ '0.28.2' ],
+84 silly audit   '@esbuild/linux-ppc64': [ '0.28.2' ],
+84 silly audit   '@esbuild/linux-riscv64': [ '0.28.2' ],
+84 silly audit   '@esbuild/linux-s390x': [ '0.28.2' ],
+84 silly audit   '@esbuild/linux-x64': [ '0.28.2' ],
+84 silly audit   '@esbuild/netbsd-arm64': [ '0.28.2' ],
+84 silly audit   '@esbuild/netbsd-x64': [ '0.28.2' ],
+84 silly audit   '@esbuild/openbsd-arm64': [ '0.28.2' ],
+84 silly audit   '@esbuild/openbsd-x64': [ '0.28.2' ],
+84 silly audit   '@esbuild/openharmony-arm64': [ '0.28.2' ],
+84 silly audit   '@esbuild/sunos-x64': [ '0.28.2' ],
+84 silly audit   '@esbuild/win32-arm64': [ '0.28.2' ],
+84 silly audit   '@esbuild/win32-ia32': [ '0.28.2' ],
+84 silly audit   '@esbuild/win32-x64': [ '0.28.2' ],
+84 silly audit   '@jridgewell/gen-mapping': [ '0.3.13' ],
+84 silly audit   '@jridgewell/remapping': [ '2.3.5' ],
+84 silly audit   '@jridgewell/resolve-uri': [ '3.1.2' ],
+84 silly audit   '@jridgewell/sourcemap-codec': [ '1.6.0' ],
+84 silly audit   '@jridgewell/trace-mapping': [ '0.3.31' ],
+84 silly audit   '@napi-rs/lzma-linux-x64-gnu': [ '1.5.1' ],
+84 silly audit   '@nodelib/fs.scandir': [ '2.1.5' ],
+84 silly audit   '@nodelib/fs.stat': [ '2.0.5' ],
+84 silly audit   '@nodelib/fs.walk': [ '1.2.8' ],
+84 silly audit   '@pdf-lib/standard-fonts': [ '1.0.0' ],
+84 silly audit   '@pdf-lib/upng': [ '1.0.1' ],
+84 silly audit   '@rolldown/pluginutils': [ '1.0.0-rc.3' ],
+84 silly audit   '@rollup/rollup-android-arm-eabi': [ '4.63.1' ],
+84 silly audit   '@rollup/rollup-android-arm64': [ '4.63.1' ],
+84 silly audit   '@rollup/rollup-darwin-arm64': [ '4.63.1' ],
+84 silly audit   '@rollup/rollup-darwin-x64': [ '4.63.1' ],
+84 silly audit   '@rollup/rollup-freebsd-arm64': [ '4.63.1' ],
+84 silly audit   '@rollup/rollup-freebsd-x64': [ '4.63.1' ],
+84 silly audit   '@rollup/rollup-linux-arm-gnueabihf': [ '4.63.1' ],
+84 silly audit   '@rollup/rollup-linux-arm-musleabihf': [ '4.63.1' ],
+84 silly audit   '@rollup/rollup-linux-arm64-gnu': [ '4.63.1' ],
+84 silly audit   '@rollup/rollup-linux-arm64-musl': [ '4.63.1' ],
+84 silly audit   '@rollup/rollup-linux-loong64-gnu': [ '4.63.1' ],
+84 silly audit   '@rollup/rollup-linux-loong64-musl': [ '4.63.1' ],
+84 silly audit   '@rollup/rollup-linux-ppc64-gnu': [ '4.63.1' ],
+84 silly audit   '@rollup/rollup-linux-ppc64-musl': [ '4.63.1' ],
+84 silly audit   '@rollup/rollup-linux-riscv64-gnu': [ '4.63.1' ],
+84 silly audit   '@rollup/rollup-linux-riscv64-musl': [ '4.63.1' ],
+84 silly audit   '@rollup/rollup-linux-s390x-gnu': [ '4.63.1' ],
+84 silly audit   '@rollup/rollup-linux-x64-gnu': [ '4.63.1' ],
+84 silly audit   '@rollup/rollup-linux-x64-musl': [ '4.63.1' ],
+84 silly audit   '@rollup/rollup-openbsd-x64': [ '4.63.1' ],
+84 silly audit   '@rollup/rollup-openharmony-arm64': [ '4.63.1' ],
+84 silly audit   '@rollup/rollup-win32-arm64-msvc': [ '4.63.1' ],
+84 silly audit   '@rollup/rollup-win32-ia32-msvc': [ '4.63.1' ],
+84 silly audit   '@rollup/rollup-win32-x64-gnu': [ '4.63.1' ],
+84 silly audit   '@rollup/rollup-win32-x64-msvc': [ '4.63.1' ],
+84 silly audit   '@types/babel__core': [ '7.20.5' ],
+84 silly audit   '@types/babel__generator': [ '7.27.0' ],
+84 silly audit   '@types/babel__template': [ '7.4.4' ],
+84 silly audit   '@types/babel__traverse': [ '7.28.0' ],
+84 silly audit   '@types/estree': [ '1.0.9' ],
+84 silly audit   '@types/react': [ '19.2.18' ],
+84 silly audit   '@types/react-dom': [ '19.2.7' ],
+84 silly audit   '@vitejs/plugin-react': [ '5.2.0' ],
+84 silly audit   'any-promise': [ '1.3.0' ],
+84 silly audit   anymatch: [ '3.1.3' ],
+84 silly audit   arg: [ '5.0.2' ],
+84 silly audit   autoprefixer: [ '10.5.5' ],
+84 silly audit   'baseline-browser-mapping': [ '2.11.21' ],
+84 silly audit   'binary-extensions': [ '2.3.0' ],
+84 silly audit   braces: [ '3.0.3' ],
+84 silly audit   browserslist: [ '4.28.9' ],
+84 silly audit   'camelcase-css': [ '2.0.1' ],
+84 silly audit   'caniuse-lite': [ '1.0.30001810' ],
+84 silly audit   chokidar: [ '3.6.0' ],
+84 silly audit   'glob-parent': [ '5.1.2', '6.0.2' ],
+84 silly audit   commander: [ '4.1.1' ],
+84 silly audit   'convert-source-map': [ '2.0.0' ],
+84 silly audit   'core-util-is': [ '1.0.3' ],
+84 silly audit   cssesc: [ '3.0.0' ],
+84 silly audit   csstype: [ '3.2.3' ],
+84 silly audit   debug: [ '4.4.3' ],
+84 silly audit   didyoumean: [ '1.2.2' ],
+84 silly audit   dlv: [ '1.1.3' ],
+84 silly audit   'electron-to-chromium': [ '1.5.422' ],
+84 silly audit   'es-errors': [ '1.3.0' ],
+84 silly audit   esbuild: [ '0.28.2' ],
+84 silly audit   escalade: [ '3.2.0' ],
+84 silly audit   'fast-glob': [ '3.3.3' ],
+84 silly audit   fastq: [ '1.20.3' ],
+84 silly audit   'fill-range': [ '7.1.1' ],
+84 silly audit   'fraction.js': [ '5.3.4' ],
+84 silly audit   'framer-motion': [ '12.43.0' ],
+84 silly audit   fsevents: [ '2.3.3' ],
+84 silly audit   'function-bind': [ '1.1.2' ],
+84 silly audit   gensync: [ '1.0.0-beta.2' ],
+84 silly audit   hasown: [ '2.0.4' ],
+84 silly audit   immediate: [ '3.0.6' ],
+84 silly audit   inherits: [ '2.0.4' ],
+84 silly audit   'is-binary-path': [ '2.1.0' ],
+84 silly audit   'is-core-module': [ '2.16.2' ],
+84 silly audit   'is-extglob': [ '2.1.1' ],
+84 silly audit   'is-glob': [ '4.0.3' ],
+84 silly audit   'is-number': [ '7.0.0' ],
+84 silly audit   isarray: [ '1.0.0' ],
+84 silly audit   jiti: [ '1.21.7' ],
+84 silly audit   'js-tokens': [ '4.0.0' ],
+84 silly audit   jsesc: [ '3.1.0' ],
+84 silly audit   json5: [ '2.2.3' ],
+84 silly audit   jszip: [ '3.10.1' ],
+84 silly audit   lie: [ '3.3.0' ],
+84 silly audit   lilconfig: [ '3.1.3' ],
+84 silly audit   'lines-and-columns': [ '1.2.4' ],
+84 silly audit   'lru-cache': [ '5.1.1' ],
+84 silly audit   'lucide-react': [ '0.542.0' ],
+84 silly audit   merge2: [ '1.4.1' ],
+84 silly audit   micromatch: [ '4.0.8' ],
+84 silly audit   'motion-dom': [ '12.43.0' ],
+84 silly audit   'motion-utils': [ '12.39.0' ],
+84 silly audit   ms: [ '2.1.3' ],
+84 silly audit   mz: [ '2.7.0' ],
+84 silly audit   nanoid: [ '3.3.18' ],
+84 silly audit   'node-releases': [ '2.0.54' ],
+84 silly audit   'normalize-path': [ '3.0.0' ],
+84 silly audit   'object-assign': [ '4.1.1' ],
+84 silly audit   'object-hash': [ '3.0.0' ],
+84 silly audit   pako: [ '1.0.11' ],
+84 silly audit   'path-parse': [ '1.0.7' ],
+84 silly audit   'pdf-lib': [ '1.17.1' ],
+84 silly audit   tslib: [ '1.14.1', '2.8.1' ],
+84 silly audit   picocolors: [ '1.1.1' ],
+84 silly audit   picomatch: [ '2.3.2', '4.0.7' ],
+84 silly audit   pirates: [ '4.0.7' ],
+84 silly audit   postcss: [ '8.5.28' ],
+84 silly audit   'postcss-import': [ '15.1.0' ],
+84 silly audit   'postcss-js': [ '4.1.0' ],
+84 silly audit   'postcss-load-config': [ '6.0.1' ],
+84 silly audit   'postcss-nested': [ '6.2.0' ],
+84 silly audit   'postcss-selector-parser': [ '6.1.4' ],
+84 silly audit   'postcss-value-parser': [ '4.2.0' ],
+84 silly audit   'process-nextick-args': [ '2.0.1' ],
+84 silly audit   'queue-microtask': [ '1.2.3' ],
+84 silly audit   react: [ '19.2.8' ],
+84 silly audit   'react-dom': [ '19.2.8' ],
+84 silly audit   'react-refresh': [ '0.18.0' ],
+84 silly audit   'read-cache': [ '1.0.2' ],
+84 silly audit   'readable-stream': [ '2.3.8' ],
+84 silly audit   readdirp: [ '3.6.0' ],
+84 silly audit   resolve: [ '1.22.12' ],
+84 silly audit   reusify: [ '1.1.0' ],
+84 silly audit   rollup: [ '4.63.1' ],
+84 silly audit   'run-parallel': [ '1.2.0' ],
+84 silly audit   'safe-buffer': [ '5.1.2' ],
+84 silly audit   scheduler: [ '0.27.0' ],
+84 silly audit   semver: [ '6.3.1' ],
+84 silly audit   setimmediate: [ '1.0.5' ],
+84 silly audit   'source-map-js': [ '1.2.1' ],
+84 silly audit   string_decoder: [ '1.1.1' ],
+84 silly audit   sucrase: [ '3.35.1' ],
+84 silly audit   'supports-preserve-symlinks-flag': [ '1.0.0' ],
+84 silly audit   tailwindcss: [ '3.4.19' ],
+84 silly audit   thenify: [ '3.3.1' ],
+84 silly audit   'thenify-all': [ '1.6.0' ],
+84 silly audit   tinyglobby: [ '0.2.17' ],
+84 silly audit   fdir: [ '6.5.0' ],
+84 silly audit   'to-regex-range': [ '5.0.1' ],
+84 silly audit   'ts-interface-checker': [ '0.1.13' ],
+84 silly audit   typescript: [ '5.9.3' ],
+84 silly audit   'update-browserslist-db': [ '1.3.2' ],
+84 silly audit   'util-deprecate': [ '1.0.2' ],
+84 silly audit   vite: [ '7.3.6' ],
+84 silly audit   yallist: [ '3.1.1' ],
+84 silly audit   'pdfjs-dist': [ '6.3.289' ],
+84 silly audit   '@napi-rs/canvas': [ '1.0.8' ],
+84 silly audit   '@napi-rs/canvas-android-arm64': [ '1.0.8' ],
+84 silly audit   '@napi-rs/canvas-darwin-arm64': [ '1.0.8' ],
+84 silly audit   '@napi-rs/canvas-darwin-x64': [ '1.0.8' ],
+84 silly audit   '@napi-rs/canvas-linux-arm-gnueabihf': [ '1.0.8' ],
+84 silly audit   '@napi-rs/canvas-linux-arm64-gnu': [ '1.0.8' ],
+84 silly audit   '@napi-rs/canvas-linux-arm64-musl': [ '1.0.8' ],
+84 silly audit   '@napi-rs/canvas-linux-riscv64-gnu': [ '1.0.8' ],
+84 silly audit   '@napi-rs/canvas-linux-x64-gnu': [ '1.0.8' ],
+84 silly audit   '@napi-rs/canvas-linux-x64-musl': [ '1.0.8' ],
+84 silly audit   '@napi-rs/canvas-win32-arm64-msvc': [ '1.0.8' ],
+84 silly audit   '@napi-rs/canvas-win32-x64-msvc': [ '1.0.8' ]
+84 silly audit }
+85 http cache @napi-rs/canvas-darwin-arm64@https://registry.npmjs.org/@napi-rs/canvas-darwin-arm64/-/canvas-darwin-arm64-1.0.8.tgz 0ms (cache hit)
+86 http cache @napi-rs/canvas@https://registry.npmjs.org/@napi-rs/canvas/-/canvas-1.0.8.tgz 0ms (cache hit)
+87 http cache pdfjs-dist@https://registry.npmjs.org/pdfjs-dist/-/pdfjs-dist-6.3.289.tgz 0ms (cache hit)
+88 silly tarball no local data for @napi-rs/canvas@https://registry.npmjs.org/@napi-rs/canvas/-/canvas-1.0.8.tgz. Extracting by manifest.
+89 silly tarball no local data for @napi-rs/canvas-darwin-arm64@https://registry.npmjs.org/@napi-rs/canvas-darwin-arm64/-/canvas-darwin-arm64-1.0.8.tgz. Extracting by manifest.
+90 silly tarball no local data for pdfjs-dist@https://registry.npmjs.org/pdfjs-dist/-/pdfjs-dist-6.3.289.tgz. Extracting by manifest.
+91 http fetch GET 200 https://registry.npmjs.org/@napi-rs/canvas/-/canvas-1.0.8.tgz 407ms (cache miss)
+92 http fetch POST 200 https://registry.npmjs.org/-/npm/v1/security/advisories/bulk 1028ms
+93 silly audit report {}
+94 http fetch GET 200 https://registry.npmjs.org/pdfjs-dist/-/pdfjs-dist-6.3.289.tgz 3027ms (cache miss)
+95 http fetch GET 200 https://registry.npmjs.org/@napi-rs/canvas-darwin-arm64/-/canvas-darwin-arm64-1.0.8.tgz 5867ms (cache miss)
+96 silly CHANGE node_modules/@napi-rs/canvas-darwin-arm64
+97 silly CHANGE node_modules/@napi-rs/canvas
+98 silly CHANGE node_modules/pdfjs-dist
+99 verbose cwd /Users/vinitsammir/Documents/Codex/2026-09-06/files-pasted-by-the-user-create
+100 verbose os Darwin 25.6.0
+101 verbose node v26.0.0
+102 verbose npm  v11.12.1
+103 verbose exit 0
+104 info ok
