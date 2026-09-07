@@ -3,9 +3,15 @@ import {
   Archive,
   ArrowRight,
   CheckCircle2,
+  ChevronDown,
+  ChevronUp,
+  Cpu,
+  FileText,
   GraduationCap,
   HardDrive,
+  HelpCircle,
   Info,
+  Layers,
   Linkedin,
   Lock,
   ShieldCheck,
@@ -27,6 +33,7 @@ type HubViewProps = {
 export default function HubView({ onLaunchTool, onOmniRoute, onOpenAbout }: HubViewProps) {
   const [selectedCategory, setSelectedCategory] = useState<ToolCategory>("all");
   const [hoveredCardId, setHoveredCardId] = useState<string | null>(null);
+  const [openFaqIndex, setOpenFaqIndex] = useState<number | null>(0);
 
   const filteredTools = TOOLS.filter((t) => {
     if (selectedCategory === "all") return true;
@@ -194,6 +201,133 @@ export default function HubView({ onLaunchTool, onOmniRoute, onOpenAbout }: HubV
                   </button>
                 </div>
               </motion.div>
+            );
+          })}
+        </div>
+      </section>
+
+      {/* Informational Explanatory Copy Section (SEO & Crawlability) */}
+      <section className="mx-auto max-w-7xl space-y-10">
+        <div className="text-center max-w-3xl mx-auto space-y-3">
+          <span className="text-xs font-bold uppercase tracking-wider text-cyan-600 dark:text-cyan-400">
+            Why Choose ImagePro Studio
+          </span>
+          <h2 className="text-2xl sm:text-4xl font-extrabold tracking-tight text-slate-900 dark:text-white">
+            100% Free Client-Side Image Editor &amp; PDF Tools
+          </h2>
+          <p className="text-sm sm:text-base leading-relaxed text-slate-600 dark:text-slate-300">
+            Engineered with modern WebAssembly, HTML5 2D Canvas, and vector PDF processing, ImagePro Studio delivers instant desktop-class media processing directly inside your browser without upload queues or cloud security risks.
+          </p>
+        </div>
+
+        <div className="grid gap-6 md:grid-cols-3">
+          {/* Card 1: Zero Server Upload Privacy */}
+          <div className="rounded-3xl border border-slate-200/80 bg-white/80 p-6 sm:p-8 shadow-soft dark:border-white/[0.08] dark:bg-slate-900/60 space-y-4">
+            <div className="grid h-12 w-12 place-items-center rounded-2xl bg-cyan-500/10 text-cyan-600 dark:text-cyan-400">
+              <Cpu size={24} />
+            </div>
+            <h3 className="text-lg font-bold text-slate-900 dark:text-white">
+              Online Bulk Image Resizer Without Upload
+            </h3>
+            <p className="text-xs sm:text-sm leading-relaxed text-slate-600 dark:text-slate-300">
+              Most image manipulation websites upload your files to third-party cloud servers, posing severe privacy risks. ImagePro Studio is a <strong>free client-side image editor</strong> where all compression, cropping, resizing, and pixel interpolation run locally in your computer or phone&apos;s memory. Your pictures, signatures, and confidential marksheet scans are never transmitted across the network.
+            </p>
+          </div>
+
+          {/* Card 2: Universal Format Conversion */}
+          <div className="rounded-3xl border border-slate-200/80 bg-white/80 p-6 sm:p-8 shadow-soft dark:border-white/[0.08] dark:bg-slate-900/60 space-y-4">
+            <div className="grid h-12 w-12 place-items-center rounded-2xl bg-indigo-500/10 text-indigo-600 dark:text-indigo-400">
+              <Layers size={24} />
+            </div>
+            <h3 className="text-lg font-bold text-slate-900 dark:text-white">
+              Convert PNG to WebP &amp; PDF to Word DOCX
+            </h3>
+            <p className="text-xs sm:text-sm leading-relaxed text-slate-600 dark:text-slate-300">
+              Easily convert between modern web and print formats. Use our <strong>convert PNG to WebP browser tool</strong> to reduce web asset weight by up to 80% without visible quality degradation. Furthermore, our <strong>PDF to Word DOCX converter without upload</strong> and <strong>Word to PDF in-browser vector converter</strong> support 6 Microsoft Word extensions (.docx, .doc, .docm, .dot, .dotx, .dotm) with structure, headings, and lists intact.
+            </p>
+          </div>
+
+          {/* Card 3: Competitive Exam & Govt Form Ready */}
+          <div className="rounded-3xl border border-slate-200/80 bg-white/80 p-6 sm:p-8 shadow-soft dark:border-white/[0.08] dark:bg-slate-900/60 space-y-4">
+            <div className="grid h-12 w-12 place-items-center rounded-2xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+              <GraduationCap size={24} />
+            </div>
+            <h3 className="text-lg font-bold text-slate-900 dark:text-white">
+              UPSC, SSC, NEET, JEE &amp; Job Form Presets
+            </h3>
+            <p className="text-xs sm:text-sm leading-relaxed text-slate-600 dark:text-slate-300">
+              Eliminate rejected examination applications. Quickly generate compliant <strong>35×45mm passport photos</strong> with clean white backgrounds, format <strong>signatures strictly between 10KB and 20KB</strong>, and compress certificates and marksheets to <strong>PDF under 200KB or 100KB</strong> without compromising legibility.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      {/* Frequently Asked Questions (FAQ) Section */}
+      <section className="mx-auto max-w-4xl space-y-8">
+        <div className="text-center space-y-2">
+          <span className="text-xs font-bold uppercase tracking-wider text-cyan-600 dark:text-cyan-400 flex items-center justify-center gap-1.5">
+            <HelpCircle size={15} />
+            <span>Got Questions?</span>
+          </span>
+          <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-slate-900 dark:text-white">
+            Frequently Asked Questions
+          </h2>
+          <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400">
+            Everything you need to know about privacy, supported formats, and examination presets.
+          </p>
+        </div>
+
+        <div className="space-y-3">
+          {[
+            {
+              q: "How does ImagePro Studio process files without uploading to a server?",
+              a: "ImagePro Studio is a 100% free client-side image editor and PDF studio. Unlike traditional online tools that require uploading your private photos and confidential documents to remote cloud servers, ImagePro executes all operations directly within your web browser using HTML5 Canvas, WebAssembly, and pdf-lib. Zero bytes of your files or metadata ever leave your computer or smartphone."
+            },
+            {
+              q: "Can I resize photos and signatures for UPSC, SSC, NEET, and JEE forms?",
+              a: "Yes! ImagePro Studio includes one-click presets for competitive exams and government recruitment portals (UPSC, SSC, NEET, JEE, GATE, IBPS, State PSCs, Universities). You can crop and resize passport photos to exact 35×45mm or 3.5×4.5cm dimensions, compress applicant signatures to 10–20KB, and shrink PDF marksheets and caste certificates under 200KB or 100KB with 100% portal acceptance."
+            },
+            {
+              q: "What image and document formats are supported?",
+              a: "For images, ImagePro supports JPG, JPEG, PNG, WebP, AVIF, SVG, BMP, TIFF, and GIF format conversions and compression. For documents, it provides comprehensive editing, annotating, signing, watermarking, compressing, and two-way conversion between PDF and Microsoft Word formats (.docx, .doc, .docm, .dot, .dotx, .dotm)."
+            },
+            {
+              q: "How do I convert PDF to Word DOCX without uploading files?",
+              a: "Launch the 'PDF to Word' tool, drag and drop your PDF, and select your preferred output format (.docx, .doc, .docm, .dot, .dotx, .dotm). The in-browser engine parses text runs, reconstructs paragraphs, identifies headings (H1–H3), formats lists, and builds a native Word document directly in your browser with zero server contact."
+            },
+            {
+              q: "How do I convert Word (.docx, .doc) files to PDF in-browser?",
+              a: "Open the 'Word to PDF' tool, upload your .docx or .doc file, adjust optional layout settings (A4 or US Letter, margins, font family, line spacing, and page numbers), and click 'Convert to PDF'. True vector text and images are typeset into a downloadable PDF that stays crisp at any zoom level."
+            },
+            {
+              q: "Is ImagePro Studio completely free? Are there file limits or subscriptions?",
+              a: "ImagePro Studio is 100% free and unlimited forever. There are no subscriptions, account registrations, credit cards, watermarks added to your outputs, or daily file limits."
+            }
+          ].map((faq, index) => {
+            const isOpen = openFaqIndex === index;
+            return (
+              <div
+                key={index}
+                className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white/70 shadow-sm transition-all dark:border-white/[0.08] dark:bg-slate-900/60"
+              >
+                <button
+                  type="button"
+                  onClick={() => setOpenFaqIndex(isOpen ? null : index)}
+                  className="flex w-full items-center justify-between p-5 text-left transition hover:bg-slate-50/60 dark:hover:bg-slate-800/40"
+                >
+                  <h3 className="text-sm font-bold text-slate-900 dark:text-white pr-4">
+                    {faq.q}
+                  </h3>
+                  <div className="grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400">
+                    {isOpen ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                  </div>
+                </button>
+                {isOpen && (
+                  <div className="border-t border-slate-100 p-5 pt-3 text-xs sm:text-sm leading-relaxed text-slate-600 dark:border-slate-800 dark:text-slate-300">
+                    <p>{faq.a}</p>
+                  </div>
+                )}
+              </div>
             );
           })}
         </div>

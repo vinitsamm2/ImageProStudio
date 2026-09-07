@@ -3,14 +3,108 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="description" content="ImagePro Tools — 100% Free & Unlimited In-Browser Studio. Specially created for Students and Employees to fill examination and job application forms (UPSC, SSC, NEET, JEE, GATE, Universities). Resize passport photos (35×45mm), signatures, and compress PDFs with zero server uploads." />
+    <meta name="description" content="Edit, compress, resize, and convert images & PDFs directly in your browser with ImagePro Studio. 100% private with zero server uploads. Free, fast, and unlimited." />
+    <meta name="keywords" content="online bulk image resizer without upload, free client-side image editor, convert png to webp browser tool, pdf to word docx converter without upload, word to pdf in-browser vector converter, compress pdf under 200kb, 35x45mm passport photo maker, signature resize 10kb 20kb, upsc exam photo resizer, client side pdf editor" />
     <meta name="author" content="Vinit Sammir, Software Engineer - Cognizant" />
+    <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1" />
+    <link rel="canonical" href="https://image-pro-studio.vercel.app/" />
+
+    <!-- Open Graph (Facebook / LinkedIn) -->
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://image-pro-studio.vercel.app/" />
+    <meta property="og:title" content="ImagePro Studio — Free In-Browser Image & PDF Editor, Compressor, Converter" />
+    <meta property="og:description" content="Edit, compress, and convert images and PDFs directly in your browser. 100% private, zero server uploads, free and unlimited." />
+    <meta property="og:site_name" content="ImagePro Studio" />
+
+    <!-- Twitter Cards -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="ImagePro Studio — Free In-Browser Image & PDF Editor" />
+    <meta name="twitter:description" content="100% private client-side image and PDF tools for students and professionals. Zero server uploads." />
+
+    <!-- Google Site Verification -->
     <meta name="google-site-verification" content="aFd7qf-WGY73o5kIHoPUY_jJW8pIAMJEhOaRZ62fd-k" />
+
+    <!-- Structured Data (JSON-LD) for SoftwareApplication & FAQPage -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@graph": [
+        {
+          "@type": "WebApplication",
+          "@id": "https://image-pro-studio.vercel.app/#webapp",
+          "name": "ImagePro Studio",
+          "url": "https://image-pro-studio.vercel.app/",
+          "description": "Free in-browser image and PDF editor, compressor, resizer, and converter operating 100% client-side with zero server uploads.",
+          "applicationCategory": "MultimediaApplication, UtilitiesApplication",
+          "operatingSystem": "All (Web Browser)",
+          "browserRequirements": "Requires JavaScript. Requires HTML5 Canvas & WebAssembly.",
+          "offers": {
+            "@type": "Offer",
+            "price": "0",
+            "priceCurrency": "USD"
+          },
+          "author": {
+            "@type": "Person",
+            "name": "Vinit Sammir",
+            "jobTitle": "Software Engineer",
+            "sameAs": "https://www.linkedin.com/in/vinit-sammir"
+          }
+        },
+        {
+          "@type": "FAQPage",
+          "@id": "https://image-pro-studio.vercel.app/#faq",
+          "mainEntity": [
+            {
+              "@type": "Question",
+              "name": "How does ImagePro Studio process files without uploading to a server?",
+              "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "ImagePro Studio uses modern browser technologies including WebAssembly, HTML5 Canvas API, and pdf-lib. All compression, resizing, format conversion, and PDF editing happen 100% in your device's memory. Zero bytes of your files or personal documents ever leave your computer or phone."
+              }
+            },
+            {
+              "@type": "Question",
+              "name": "What image and document formats are supported?",
+              "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "ImagePro Studio supports images in JPG, JPEG, PNG, WebP, AVIF, SVG, BMP, TIFF, and GIF. For documents, it supports full editing, compression, watermarking, signing, and two-way conversion between PDF and Microsoft Word (.docx, .doc, .docm, .dot, .dotx, .dotm)."
+              }
+            },
+            {
+              "@type": "Question",
+              "name": "Can I use ImagePro Studio for competitive examination and govt job application forms?",
+              "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "Yes. ImagePro Studio has specialized presets for Indian and international examination portals including UPSC, SSC, NEET, JEE, GATE, IBPS, State PSCs, and universities. You can resize photos to exact 35×45mm dimensions, scale signatures to 10–20KB, and compress PDF marksheets under 200KB or 100KB with guaranteed acceptance."
+              }
+            },
+            {
+              "@type": "Question",
+              "name": "Is ImagePro Studio free to use? Are there file limits or paywalls?",
+              "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "ImagePro Studio is 100% free and unlimited forever. There are no subscriptions, account registrations, credit cards, or daily file limits."
+              }
+            },
+            {
+              "@type": "Question",
+              "name": "How do I convert PDF to Word (.docx, .doc) or Word to PDF?",
+              "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "Select the 'PDF to Word' or 'Word to PDF' tool, upload your document, choose your desired target format or typography settings, and download your converted file instantly—with headings, paragraphs, and lists preserved."
+              }
+            }
+          ]
+        }
+      ]
+    }
+    </script>
+
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2306b6d4' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z'/%3E%3C/svg%3E" />
-    <title>ImagePro Studio — 100% Accepted for All Student & Employee Examination Forms</title>
+    <title>ImagePro Studio — Free In-Browser Image & PDF Editor, Compressor, Converter (100% Private)</title>
     <!-- Google AdSense -->
     <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-5853403690463089" crossorigin="anonymous"></script>
   </head>
