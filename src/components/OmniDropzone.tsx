@@ -34,7 +34,7 @@ type OmniDropzoneProps = {
 export default function OmniDropzone({ onRouteWithFiles }: OmniDropzoneProps) {
   const [isDragging, setIsDragging] = useState(false);
   const [detectedFiles, setDetectedFiles] = useState<File[]>([]);
-  const [fileType, setFileType] = useState<"image" | "pdf" | null>(null);
+  const [fileType, setFileType] = useState<"image" | "pdf" | "word" | null>(null);
 
   // Paste handler
   useEffect(() => {
@@ -61,7 +61,23 @@ export default function OmniDropzone({ onRouteWithFiles }: OmniDropzoneProps) {
   const processFiles = (files: File[]) => {
     if (!files.length) return;
     setDetectedFiles(files);
-    const hasPdf = files.some((f) => f.type.includes("pdf") || f.name.endsWith(".pdf"));
+    const hasWord = files.some((f) => {
+      const n = f.name.toLowerCase();
+      return (
+        n.endsWith(".docx") ||
+        n.endsWith(".doc") ||
+        n.endsWith(".docm") ||
+        n.endsWith(".dotx") ||
+        n.endsWith(".dot") ||
+        f.type.includes("word") ||
+        f.type.includes("document")
+      );
+    });
+    if (hasWord) {
+      setFileType("word");
+      return;
+    }
+    const hasPdf = files.some((f) => f.type.includes("pdf") || f.name.toLowerCase().endsWith(".pdf"));
     setFileType(hasPdf ? "pdf" : "image");
   };
 
@@ -209,7 +225,51 @@ export default function OmniDropzone({ onRouteWithFiles }: OmniDropzoneProps) {
             <div className="space-y-2.5">
               <span className="label block">What would you like to do with this {fileType}?</span>
 
-              {fileType === "image" ? (
+              {fileType === "word" ? (
+                <div className="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
+                  {[
+                    {
+                      id: "word-to-pdf" as ToolId,
+                      name: "Convert to PDF",
+                      desc: "Transform Word DOCX/DOC into vector PDF document",
+                      icon: FileText,
+                      color: "from-indigo-600 via-blue-600 to-sky-500"
+                    },
+                    {
+                      id: "pdf-to-word" as ToolId,
+                      name: "PDF to Word (Vice Versa)",
+                      desc: "Switch to PDF to Word converter tool",
+                      icon: FileType,
+                      color: "from-blue-600 via-indigo-600 to-sky-500"
+                    }
+                  ].map((action) => {
+                    const Icon = action.icon;
+                    return (
+                      <button
+                        key={action.id}
+                        type="button"
+                        onClick={() => executeAction(action.id)}
+                        className="group flex items-start gap-3 rounded-2xl border border-slate-200/80 bg-white p-3.5 text-left transition-all hover:border-cyan-400 hover:shadow-md dark:border-slate-800 dark:bg-slate-900/90 dark:hover:border-cyan-500"
+                      >
+                        <div
+                          className={`grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-gradient-to-tr ${action.color} text-white shadow-sm transition-transform group-hover:scale-105`}
+                        >
+                          <Icon size={18} />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-xs font-bold text-slate-900 dark:text-white flex items-center justify-between">
+                            <span>{action.name}</span>
+                            <ArrowRight size={13} className="text-cyan-500 opacity-0 transition-opacity group-hover:opacity-100" />
+                          </p>
+                          <p className="text-[11px] text-slate-500 dark:text-slate-400 line-clamp-1">
+                            {action.desc}
+                          </p>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              ) : fileType === "image" ? (
                 <div className="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
                   {[
                     {
@@ -283,6 +343,13 @@ export default function OmniDropzone({ onRouteWithFiles }: OmniDropzoneProps) {
                       desc: "Export to DOCX, DOC, DOCM, DOT, DOTX & DOTM",
                       icon: FileType,
                       color: "from-blue-600 via-indigo-600 to-sky-500"
+                    },
+                    {
+                      id: "word-to-pdf" as ToolId,
+                      name: "Word to PDF (Vice Versa)",
+                      desc: "Convert DOCX and DOC files to PDF",
+                      icon: FileText,
+                      color: "from-indigo-600 via-blue-600 to-sky-500"
                     },
                     {
                       id: "edit-pdf" as ToolId,

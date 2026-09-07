@@ -60,8 +60,19 @@ export const STUDIO_TOOLS: ToolItemDef[] = [
     category: "pdf",
     icon: FileType,
     badge: "6 Types",
-    viceVersaId: "edit-pdf",
-    viceVersaLabel: "PDF Editor"
+    viceVersaId: "word-to-pdf",
+    viceVersaLabel: "Word to PDF"
+  },
+  {
+    id: "word-to-pdf",
+    name: "Word to PDF",
+    shortName: "Word➔PDF",
+    shortcut: "D",
+    category: "pdf",
+    icon: FileText,
+    badge: "Vice Versa",
+    viceVersaId: "pdf-to-word",
+    viceVersaLabel: "PDF to Word"
   },
   {
     id: "image-to-pdf",

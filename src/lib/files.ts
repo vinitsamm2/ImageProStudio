@@ -2104,3 +2104,616 @@ export async function convertPdfToWord(
   return await buildOoxmlZip(structuredPages, format, docTitle);
 }
 
+// ---------------------------------------------------------------------------
+// Word to PDF Conversion Engine (Vice-Versa)
+// ---------------------------------------------------------------------------
+
+export interface WordParsedRun {
+  text: string;
+  bold?: boolean;
+  italic?: boolean;
+  underline?: boolean;
+  fontSize?: number; // pt
+  colorHex?: string;
+}
+
+export interface WordParsedElement {
+  type: "paragraph" | "heading" | "list" | "page-break" | "image";
+  runs: WordParsedRun[];
+  rawText: string;
+  headingLevel?: 1 | 2 | 3;
+  alignment?: "left" | "center" | "right" | "justify";
+  imageBlob?: Blob;
+  imageWidth?: number;
+  imageHeight?: number;
+}
+
+export interface WordDocumentInfo {
+  id: string;
+  fileName: string;
+  fileSize: number;
+  format: string;
+  elements: WordParsedElement[];
+  wordCount: number;
+  charCount: number;
+  paragraphCount: number;
+  headingCount: number;
+  imageCount: number;
+}
+
+export interface WordToPdfOptions {
+  pageSize?: "A4" | "Letter";
+  margin?: "normal" | "narrow" | "wide";
+  fontFamily?: "sans" | "serif" | "mono";
+  lineSpacing?: number;
+  showPageNumbers?: boolean;
+  onProgress?: (percent: number) => void;
+}
+
+/**
+ * Extracts structured document content from a Word document (.docx, .docm, .dotx, .doc, .dot)
+ */
+export async function parseWordDocument(file: File): Promise<WordDocumentInfo> {
+  const ext = (file.name.split(".").pop() || "").toLowerCase();
+  const elements: WordParsedElement[] = [];
+  const buffer = await file.arrayBuffer();
+
+  let isZipOoxml = false;
+  try {
+    const zip = await JSZip.loadAsync(buffer);
+    if (zip.file("word/document.xml")) {
+      isZipOoxml = true;
+
+      // 1. Read document relationships for media
+      const relsMap = new Map<string, string>();
+      const relsFile = zip.file("word/_rels/document.xml.rels");
+      if (relsFile) {
+        try {
+          const relsXml = await relsFile.async("text");
+          const relsDoc = new DOMParser().parseFromString(relsXml, "application/xml");
+          const relEls = relsDoc.getElementsByTagName("Relationship");
+          for (let i = 0; i < relEls.length; i++) {
+            const rel = relEls[i];
+            const rId = rel.getAttribute("Id");
+            const target = rel.getAttribute("Target");
+            if (rId && target) {
+              const fullPath = target.startsWith("media/")
+                ? `word/${target}`
+                : target.startsWith("/")
+                ? target.substring(1)
+                : `word/${target}`;
+              relsMap.set(rId, fullPath);
+            }
+          }
+        } catch (err) {
+          console.warn("Could not parse word rels:", err);
+        }
+      }
+
+      // 2. Parse word/document.xml
+      const docXmlText = await zip.file("word/document.xml")!.async("text");
+      const doc = new DOMParser().parseFromString(docXmlText, "application/xml");
+      const body = doc.getElementsByTagName("w:body")[0];
+
+      if (body) {
+        for (let i = 0; i < body.childNodes.length; i++) {
+          const node = body.childNodes[i];
+          if (node.nodeType !== 1) continue;
+          const el = node as Element;
+
+          // Paragraph (<w:p>)
+          if (el.localName === "p" || el.tagName.endsWith(":p")) {
+            // Check for explicit page break in runs
+            const pageBrs = el.getElementsByTagName("w:br");
+            let hasPageBreak = false;
+            for (let b = 0; b < pageBrs.length; b++) {
+              if (pageBrs[b].getAttribute("w:type") === "page") {
+                hasPageBreak = true;
+                break;
+              }
+            }
+            if (hasPageBreak) {
+              elements.push({
+                type: "page-break",
+                runs: [],
+                rawText: ""
+              });
+              continue;
+            }
+
+            // Paragraph style detection
+            let isHead = false;
+            let hLevel: 1 | 2 | 3 = 1;
+            let isList = false;
+            let alignment: WordParsedElement["alignment"] = "left";
+
+            const pPr = el.getElementsByTagName("w:pPr")[0];
+            if (pPr) {
+              const pStyle = pPr.getElementsByTagName("w:pStyle")[0];
+              if (pStyle) {
+                const styleVal = (pStyle.getAttribute("w:val") || "").toLowerCase();
+                if (styleVal.includes("heading1") || styleVal.includes("title")) {
+                  isHead = true;
+                  hLevel = 1;
+                } else if (styleVal.includes("heading2") || styleVal.includes("subtitle")) {
+                  isHead = true;
+                  hLevel = 2;
+                } else if (styleVal.includes("heading3") || styleVal.includes("heading")) {
+                  isHead = true;
+                  hLevel = 3;
+                } else if (styleVal.includes("list")) {
+                  isList = true;
+                }
+              }
+
+              const numPr = pPr.getElementsByTagName("w:numPr")[0];
+              if (numPr) isList = true;
+
+              const jc = pPr.getElementsByTagName("w:jc")[0];
+              if (jc) {
+                const jcVal = jc.getAttribute("w:val");
+                if (jcVal === "center") alignment = "center";
+                else if (jcVal === "right") alignment = "right";
+                else if (jcVal === "both") alignment = "justify";
+              }
+            }
+
+            // Runs inside paragraph
+            const runs: WordParsedRun[] = [];
+            const rNodes = el.getElementsByTagName("w:r");
+            for (let rIdx = 0; rIdx < rNodes.length; rIdx++) {
+              const rEl = rNodes[rIdx];
+
+              // Check for embedded drawing / image
+              const blip = rEl.getElementsByTagName("a:blip")[0];
+              if (blip) {
+                const embedId =
+                  blip.getAttribute("r:embed") || blip.getAttribute("embed") || "";
+                const imgPath = relsMap.get(embedId);
+                if (imgPath && zip.file(imgPath)) {
+                  try {
+                    const imgBlob = await zip.file(imgPath)!.async("blob");
+                    elements.push({
+                      type: "image",
+                      runs: [],
+                      rawText: "[Image]",
+                      imageBlob: imgBlob
+                    });
+                  } catch (e) {
+                    console.warn("Could not extract image:", e);
+                  }
+                }
+              }
+
+              // Text runs
+              const tNodes = rEl.getElementsByTagName("w:t");
+              let runText = "";
+              for (let tIdx = 0; tIdx < tNodes.length; tIdx++) {
+                runText += tNodes[tIdx].textContent || "";
+              }
+
+              if (runText) {
+                let bold = false;
+                let italic = false;
+                let underline = false;
+                let fontSize: number | undefined;
+                let colorHex: string | undefined;
+
+                const rPr = rEl.getElementsByTagName("w:rPr")[0];
+                if (rPr) {
+                  if (rPr.getElementsByTagName("w:b").length > 0) bold = true;
+                  if (rPr.getElementsByTagName("w:i").length > 0) italic = true;
+                  if (rPr.getElementsByTagName("w:u").length > 0) underline = true;
+
+                  const sz = rPr.getElementsByTagName("w:sz")[0];
+                  if (sz) {
+                    const val = Number(sz.getAttribute("w:val"));
+                    if (Number.isFinite(val) && val > 0) fontSize = val / 2; // half-points to pt
+                  }
+
+                  const col = rPr.getElementsByTagName("w:color")[0];
+                  if (col) {
+                    const val = col.getAttribute("w:val");
+                    if (val && val !== "auto") colorHex = `#${val}`;
+                  }
+                }
+
+                runs.push({
+                  text: runText,
+                  bold,
+                  italic,
+                  underline,
+                  fontSize,
+                  colorHex
+                });
+              }
+            }
+
+            const rawText = runs.map((r) => r.text).join("");
+            if (rawText.trim().length > 0) {
+              elements.push({
+                type: isHead ? "heading" : isList ? "list" : "paragraph",
+                runs,
+                rawText,
+                headingLevel: isHead ? hLevel : undefined,
+                alignment
+              });
+            }
+          }
+        }
+      }
+    }
+  } catch (err) {
+    // Not a zip file or corrupted zip
+    isZipOoxml = false;
+  }
+
+  // Fallback / legacy .doc HTML & text parser
+  if (!isZipOoxml) {
+    try {
+      const decoder = new TextDecoder("utf-8");
+      const text = decoder.decode(buffer);
+
+      if (text.includes("<html") || text.includes("<w:WordDocument") || text.includes("<body")) {
+        const dom = new DOMParser().parseFromString(text, "text/html");
+        const bodyEls = dom.body.querySelectorAll("h1, h2, h3, p, li, .page-break");
+
+        for (let i = 0; i < bodyEls.length; i++) {
+          const item = bodyEls[i];
+          const tag = item.tagName.toLowerCase();
+
+          if (item.classList.contains("page-break")) {
+            elements.push({ type: "page-break", runs: [], rawText: "" });
+            continue;
+          }
+
+          const rawText = item.textContent?.trim() || "";
+          if (!rawText) continue;
+
+          let type: WordParsedElement["type"] = "paragraph";
+          let headingLevel: 1 | 2 | 3 | undefined;
+
+          if (tag === "h1") {
+            type = "heading";
+            headingLevel = 1;
+          } else if (tag === "h2") {
+            type = "heading";
+            headingLevel = 2;
+          } else if (tag === "h3") {
+            type = "heading";
+            headingLevel = 3;
+          } else if (tag === "li") {
+            type = "list";
+          }
+
+          elements.push({
+            type,
+            headingLevel,
+            runs: [{ text: rawText }],
+            rawText
+          });
+        }
+      } else {
+        // Plain text lines extraction
+        const lines = text
+          .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, "")
+          .split(/\r?\n/)
+          .map((l) => l.trim())
+          .filter((l) => l.length > 2);
+
+        for (const line of lines) {
+          elements.push({
+            type: "paragraph",
+            runs: [{ text: line }],
+            rawText: line
+          });
+        }
+      }
+    } catch (fallbackErr) {
+      console.error("Legacy Word parse error:", fallbackErr);
+    }
+  }
+
+  // Calculate statistics
+  let wordCount = 0;
+  let charCount = 0;
+  let paragraphCount = 0;
+  let headingCount = 0;
+  let imageCount = 0;
+
+  for (const el of elements) {
+    if (el.type === "image") {
+      imageCount++;
+    } else if (el.rawText) {
+      charCount += el.rawText.length;
+      wordCount += el.rawText.trim().split(/\s+/).length;
+      if (el.type === "heading") headingCount++;
+      else paragraphCount++;
+    }
+  }
+
+  return {
+    id: uid("word"),
+    fileName: file.name,
+    fileSize: file.size,
+    format: ext.toUpperCase(),
+    elements,
+    wordCount,
+    charCount,
+    paragraphCount,
+    headingCount,
+    imageCount
+  };
+}
+
+/**
+ * Converts a Word document (.docx, .docm, .dotx, .doc, .dot) to a high-fidelity PDF
+ */
+export async function convertWordToPdf(
+  file: File,
+  options: WordToPdfOptions = {}
+): Promise<Blob> {
+  const docInfo = await parseWordDocument(file);
+  const pdfDoc = await PDFDocument.create();
+
+  // Page dimensions (points)
+  const pageSizeName = options.pageSize || "A4";
+  const [pageWidth, pageHeight] =
+    pageSizeName === "Letter" ? [612.0, 792.0] : [595.28, 841.89];
+
+  // Margins
+  let margin = 72; // 1.0 inch default
+  if (options.margin === "narrow") margin = 36;
+  else if (options.margin === "wide") margin = 90;
+
+  const contentWidth = pageWidth - margin * 2;
+
+  // Fonts
+  let regularFont = await pdfDoc.embedFont(StandardFonts.Helvetica);
+  let boldFont = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+  let italicFont = await pdfDoc.embedFont(StandardFonts.HelveticaOblique);
+  let boldItalicFont = await pdfDoc.embedFont(StandardFonts.HelveticaBoldOblique);
+
+  if (options.fontFamily === "serif") {
+    regularFont = await pdfDoc.embedFont(StandardFonts.TimesRoman);
+    boldFont = await pdfDoc.embedFont(StandardFonts.TimesRomanBold);
+    italicFont = await pdfDoc.embedFont(StandardFonts.TimesRomanItalic);
+    boldItalicFont = await pdfDoc.embedFont(StandardFonts.TimesRomanBoldItalic);
+  } else if (options.fontFamily === "mono") {
+    regularFont = await pdfDoc.embedFont(StandardFonts.Courier);
+    boldFont = await pdfDoc.embedFont(StandardFonts.CourierBold);
+    italicFont = await pdfDoc.embedFont(StandardFonts.CourierOblique);
+    boldItalicFont = await pdfDoc.embedFont(StandardFonts.CourierBoldOblique);
+  }
+
+  const lineSpacingMultiplier = options.lineSpacing || 1.35;
+
+  let currentPage = pdfDoc.addPage([pageWidth, pageHeight]);
+  let currentY = pageHeight - margin;
+
+  const ensureSpace = (heightNeeded: number) => {
+    if (currentY - heightNeeded < margin + 36) {
+      currentPage = pdfDoc.addPage([pageWidth, pageHeight]);
+      currentY = pageHeight - margin;
+    }
+  };
+
+  for (let idx = 0; idx < docInfo.elements.length; idx++) {
+    const el = docInfo.elements[idx];
+
+    if (options.onProgress) {
+      options.onProgress(Math.round(((idx + 1) / docInfo.elements.length) * 100));
+    }
+
+    if (el.type === "page-break") {
+      currentPage = pdfDoc.addPage([pageWidth, pageHeight]);
+      currentY = pageHeight - margin;
+      continue;
+    }
+
+    if (el.type === "image" && el.imageBlob) {
+      try {
+        const imgBuffer = await el.imageBlob.arrayBuffer();
+        let embeddedImg: any;
+        try {
+          embeddedImg = await pdfDoc.embedPng(imgBuffer);
+        } catch {
+          embeddedImg = await pdfDoc.embedJpg(imgBuffer);
+        }
+
+        const maxW = contentWidth;
+        const maxH = (pageHeight - margin * 2) * 0.45;
+        const scale = Math.min(maxW / embeddedImg.width, maxH / embeddedImg.height, 1);
+        const drawW = embeddedImg.width * scale;
+        const drawH = embeddedImg.height * scale;
+
+        ensureSpace(drawH + 16);
+
+        const xPos = margin + (contentWidth - drawW) / 2;
+        currentPage.drawImage(embeddedImg, {
+          x: xPos,
+          y: currentY - drawH,
+          width: drawW,
+          height: drawH
+        });
+
+        currentY -= drawH + 16;
+      } catch (imgErr) {
+        console.warn("Skipping embed of image:", imgErr);
+      }
+      continue;
+    }
+
+    // Typography rules for headings and text
+    let fontSize = 11;
+    let isHeading = el.type === "heading";
+    let isList = el.type === "list";
+    let spacingBefore = 4;
+    let spacingAfter = 8;
+    let baseColor = rgb(0.08, 0.1, 0.15);
+
+    if (isHeading) {
+      if (el.headingLevel === 1) {
+        fontSize = 20;
+        spacingBefore = 16;
+        spacingAfter = 10;
+        baseColor = rgb(0.12, 0.23, 0.54);
+      } else if (el.headingLevel === 2) {
+        fontSize = 15;
+        spacingBefore = 12;
+        spacingAfter = 8;
+        baseColor = rgb(0.15, 0.35, 0.7);
+      } else {
+        fontSize = 12.5;
+        spacingBefore = 8;
+        spacingAfter = 6;
+        baseColor = rgb(0.1, 0.15, 0.3);
+      }
+    } else if (isList) {
+      fontSize = 11;
+      spacingAfter = 5;
+    }
+
+    const lineHeight = fontSize * lineSpacingMultiplier;
+    currentY -= spacingBefore;
+
+    const indent = isList ? 20 : 0;
+    const availableWidth = contentWidth - indent;
+
+    // Word wrap text runs
+    interface WrappedLine {
+      runs: Array<{ text: string; font: typeof regularFont; fontSize: number; color: typeof baseColor }>;
+      width: number;
+    }
+
+    const lines: WrappedLine[] = [];
+    let currentLineRuns: WrappedLine["runs"] = [];
+    let currentLineWidth = 0;
+
+    // Flatten all runs into word tokens
+    const tokens: Array<{ text: string; font: typeof regularFont; fontSize: number; color: typeof baseColor }> = [];
+
+    const effectiveRuns = el.runs.length > 0 ? el.runs : [{ text: el.rawText }];
+    for (const run of effectiveRuns) {
+      let runFont = regularFont;
+      if (isHeading || run.bold) {
+        runFont = run.italic ? boldItalicFont : boldFont;
+      } else if (run.italic) {
+        runFont = italicFont;
+      }
+
+      const runSize = run.fontSize ? Math.min(Math.max(run.fontSize, 8), 36) : fontSize;
+      let runColor = baseColor;
+      if (run.colorHex && run.colorHex.startsWith("#") && run.colorHex.length === 7) {
+        const r = parseInt(run.colorHex.substring(1, 3), 16) / 255;
+        const g = parseInt(run.colorHex.substring(3, 5), 16) / 255;
+        const b = parseInt(run.colorHex.substring(5, 7), 16) / 255;
+        runColor = rgb(r, g, b);
+      }
+
+      // Split text into words while keeping whitespace
+      const words = run.text.split(/(\s+)/);
+      for (const w of words) {
+        if (!w) continue;
+        tokens.push({
+          text: w,
+          font: runFont,
+          fontSize: runSize,
+          color: runColor
+        });
+      }
+    }
+
+    for (const token of tokens) {
+      const wordW = token.font.widthOfTextAtSize(token.text, token.fontSize);
+
+      if (token.text.includes("\n")) {
+        // Explicit line break inside run
+        if (currentLineRuns.length > 0) {
+          lines.push({ runs: currentLineRuns, width: currentLineWidth });
+          currentLineRuns = [];
+          currentLineWidth = 0;
+        }
+        continue;
+      }
+
+      if (currentLineWidth + wordW > availableWidth && currentLineRuns.length > 0 && token.text.trim()) {
+        lines.push({ runs: currentLineRuns, width: currentLineWidth });
+        currentLineRuns = [{ ...token, text: token.text.trimStart() }];
+        currentLineWidth = token.font.widthOfTextAtSize(currentLineRuns[0].text, token.fontSize);
+      } else {
+        currentLineRuns.push(token);
+        currentLineWidth += wordW;
+      }
+    }
+
+    if (currentLineRuns.length > 0) {
+      lines.push({ runs: currentLineRuns, width: currentLineWidth });
+    }
+
+    // Render wrapped lines
+    for (let li = 0; li < lines.length; li++) {
+      const line = lines[li];
+      ensureSpace(lineHeight);
+
+      let xPos = margin + indent;
+      if (el.alignment === "center") {
+        xPos = margin + (contentWidth - line.width) / 2;
+      } else if (el.alignment === "right") {
+        xPos = margin + contentWidth - line.width;
+      }
+
+      // Draw list bullet on the first line of a list item
+      if (isList && li === 0) {
+        currentPage.drawText("•", {
+          x: margin + 6,
+          y: currentY - fontSize,
+          size: fontSize,
+          font: boldFont,
+          color: rgb(0.2, 0.4, 0.8)
+        });
+      }
+
+      // Draw runs in line
+      let runX = xPos;
+      for (const r of line.runs) {
+        currentPage.drawText(r.text, {
+          x: runX,
+          y: currentY - r.fontSize,
+          size: r.fontSize,
+          font: r.font,
+          color: r.color
+        });
+        runX += r.font.widthOfTextAtSize(r.text, r.fontSize);
+      }
+
+      currentY -= lineHeight;
+    }
+
+    currentY -= spacingAfter;
+  }
+
+  // Footer Page Numbers
+  if (options.showPageNumbers !== false) {
+    const totalPages = pdfDoc.getPageCount();
+    const footerFont = regularFont;
+    const footerSize = 9;
+
+    for (let pIdx = 0; pIdx < totalPages; pIdx++) {
+      const p = pdfDoc.getPage(pIdx);
+      const pageNumberText = `Page ${pIdx + 1} of ${totalPages}`;
+      const textW = footerFont.widthOfTextAtSize(pageNumberText, footerSize);
+      p.drawText(pageNumberText, {
+        x: (pageWidth - textW) / 2,
+        y: Math.max(18, margin / 2.5),
+        size: footerSize,
+        font: footerFont,
+        color: rgb(0.45, 0.5, 0.6)
+      });
+    }
+  }
+
+  const outputBytes = await pdfDoc.save();
+  return bytesToBlob(outputBytes, "application/pdf");
+}
+

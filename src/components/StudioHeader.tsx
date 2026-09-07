@@ -18,6 +18,7 @@ import { TOOLS, ToolId } from "./ToolGrid";
 const STUDIO_TOOL_ORDER: ToolId[] = [
   "edit-pdf",
   "pdf-to-word",
+  "word-to-pdf",
   "image-to-pdf",
   "resizer",
   "compressor",

@@ -24,6 +24,7 @@ import PdfSignView from "./components/tools/PdfSignView";
 import PdfCompressorView from "./components/tools/PdfCompressorView";
 import PdfEditorView from "./components/tools/PdfEditorView";
 import PdfToWordView from "./components/tools/PdfToWordView";
+import WordToPdfView from "./components/tools/WordToPdfView";
 import ShareQrModal, { ShareableFile } from "./components/ShareQrModal";
 import MobileDownloadView from "./components/MobileDownloadView";
 import { SpeedInsights } from "@vercel/speed-insights/react";
@@ -294,7 +295,15 @@ export default function App() {
                 <PdfToWordView
                   notify={notify}
                   initialFiles={toolInitialFiles}
-                  onSwitchViceVersa={() => setActiveTool("edit-pdf")}
+                  onSwitchViceVersa={() => setActiveTool("word-to-pdf")}
+                  onShareFile={(file) => setShareModalFile(file)}
+                />
+              )}
+              {activeTool === "word-to-pdf" && (
+                <WordToPdfView
+                  notify={notify}
+                  initialFiles={toolInitialFiles}
+                  onSwitchViceVersa={() => setActiveTool("pdf-to-word")}
                   onShareFile={(file) => setShareModalFile(file)}
                 />
               )}

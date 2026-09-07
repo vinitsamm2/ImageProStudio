@@ -36,7 +36,8 @@ export type ToolId =
   | "organize-pdf"
   | "sign-pdf"
   | "edit-pdf"
-  | "pdf-to-word";
+  | "pdf-to-word"
+  | "word-to-pdf";
 
 export type ToolCategory = "all" | "image" | "pdf";
 
@@ -71,6 +72,16 @@ export const TOOLS: ToolDef[] = [
     icon: FileType,
     badge: "6 Formats",
     gradient: "from-blue-600 via-indigo-600 to-sky-500"
+  },
+  {
+    id: "word-to-pdf",
+    name: "Word to PDF",
+    tagline: "Convert DOCX & DOC into vector PDF",
+    description: "Transform Microsoft Word (.docx, .doc, .docm, .dotx, .dot) files into crisp vector PDF documents with headings, lists & layout preserved.",
+    category: "pdf",
+    icon: FileText,
+    badge: "Vice Versa",
+    gradient: "from-indigo-600 via-blue-600 to-sky-500"
   },
   {
     id: "image-to-pdf",

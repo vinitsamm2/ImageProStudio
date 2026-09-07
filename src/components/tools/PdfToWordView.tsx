@@ -223,8 +223,8 @@ export default function PdfToWordView({
               onClick={onSwitchViceVersa}
               className="flex items-center gap-1.5 rounded-xl border border-slate-300/80 bg-white/80 px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-800/80 dark:text-slate-200 dark:hover:bg-slate-700"
             >
-              <ArrowLeftRight size={13} />
-              Switch to PDF Editor
+              <ArrowLeftRight size={13} className="text-blue-600 dark:text-blue-400" />
+              Switch to Word to PDF (Vice Versa)
             </button>
           )}
         </div>
