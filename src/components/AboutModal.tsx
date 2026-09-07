@@ -9,6 +9,7 @@ import {
   HardDrive,
   Heart,
   Info,
+  Linkedin,
   Lock,
   RefreshCw,
   ShieldCheck,
@@ -184,10 +185,17 @@ export default function AboutModal({ isOpen, onClose, onOpenTool }: AboutModalPr
                       VS
                     </div>
                     <div>
-                      <div className="flex items-center gap-2">
-                        <h4 className="text-sm font-extrabold text-slate-900 dark:text-white">
-                          Vinit Sammir
-                        </h4>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <a
+                          href="https://www.linkedin.com/in/vinit-sammir"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="group inline-flex items-center gap-1 text-sm font-extrabold text-slate-900 hover:text-[#0077b5] dark:text-white dark:hover:text-[#38bdf8] transition-colors"
+                          title="Open Vinit Sammir's LinkedIn Profile"
+                        >
+                          <span>Vinit Sammir</span>
+                          <ExternalLink size={12} className="opacity-40 group-hover:opacity-100 transition-opacity" />
+                        </a>
                         <span className="rounded-full bg-cyan-500/20 px-2 py-0.5 text-[10px] font-bold text-cyan-700 dark:text-cyan-300">
                           Creator & Engineer
                         </span>
@@ -195,15 +203,26 @@ export default function AboutModal({ isOpen, onClose, onOpenTool }: AboutModalPr
                       <p className="text-xs font-bold text-cyan-600 dark:text-cyan-400">
                         Software Engineer — Cognizant
                       </p>
-                      <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                      <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 max-w-lg">
                         Created for Students and Employees to effortlessly prepare 100% accepted photos, signatures, and documents for all examination and recruitment portals.
                       </p>
                     </div>
                   </div>
-                  <div className="flex items-center gap-2 self-start sm:self-center">
+                  <div className="flex items-center gap-2 self-start sm:self-center shrink-0">
                     <span className="rounded-xl border border-cyan-500/30 bg-white/90 px-3 py-1.5 text-xs font-extrabold text-slate-800 dark:border-white/[0.08] dark:bg-slate-800 dark:text-slate-200 shadow-xs">
                       Cognizant
                     </span>
+                    <a
+                      href="https://www.linkedin.com/in/vinit-sammir"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1.5 rounded-xl border border-[#0077b5]/30 bg-[#0077b5]/10 px-3 py-1.5 text-xs font-bold text-[#0077b5] hover:bg-[#0077b5] hover:text-white dark:text-[#38bdf8] dark:hover:bg-[#0077b5] dark:hover:text-white transition-all shadow-xs group"
+                      title="Connect with Vinit Sammir on LinkedIn"
+                    >
+                      <Linkedin size={13} className="shrink-0 transition-transform group-hover:scale-110" />
+                      <span>LinkedIn Profile</span>
+                      <ExternalLink size={11} className="opacity-60 group-hover:opacity-100" />
+                    </a>
                   </div>
                 </div>
               </div>
@@ -347,7 +366,20 @@ export default function AboutModal({ isOpen, onClose, onOpenTool }: AboutModalPr
                 <span>In-Browser Local Engine</span>
               </div>
               <span className="hidden sm:inline">•</span>
-              <span>Created by <strong className="text-slate-800 dark:text-white">Vinit Sammir</strong>, Software Engineer — Cognizant</span>
+              <div className="flex items-center gap-1">
+                <span>Created by</span>
+                <a
+                  href="https://www.linkedin.com/in/vinit-sammir"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 font-bold text-slate-800 hover:text-[#0077b5] dark:text-white dark:hover:text-[#38bdf8] transition-colors underline decoration-slate-300 dark:decoration-slate-700 underline-offset-2"
+                  title="Connect on LinkedIn"
+                >
+                  <Linkedin size={12} className="text-[#0077b5] dark:text-[#38bdf8]" />
+                  <span>Vinit Sammir</span>
+                </a>
+                <span>, Software Engineer — Cognizant</span>
+              </div>
             </div>
 
             <button

@@ -6,6 +6,7 @@ import {
   GraduationCap,
   HardDrive,
   Info,
+  Linkedin,
   Lock,
   ShieldCheck,
   Sparkles,
@@ -282,7 +283,18 @@ export default function HubView({ onLaunchTool, onOmniRoute, onOpenAbout }: HubV
         {/* Creator Signature */}
         <div className="mt-6 flex flex-col items-center justify-center gap-1 text-center">
           <p className="text-xs font-semibold text-slate-700 dark:text-slate-300">
-            Created by <strong className="text-cyan-600 dark:text-cyan-400">Vinit Sammir</strong>, Software Engineer — Cognizant
+            Created by{" "}
+            <a
+              href="https://www.linkedin.com/in/vinit-sammir"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 font-bold text-cyan-600 hover:text-[#0077b5] dark:text-cyan-400 dark:hover:text-[#38bdf8] underline decoration-cyan-500/30 underline-offset-2 transition-colors"
+              title="View Vinit Sammir on LinkedIn"
+            >
+              <span>Vinit Sammir</span>
+              <Linkedin size={12} className="text-[#0077b5] dark:text-[#38bdf8]" />
+            </a>
+            , Software Engineer — Cognizant
           </p>
           <p className="text-[11px] text-slate-400">
             100% In-Browser Creative Studio • 100% Free & Unlimited Forever • Zero Server Uploads

@@ -6,6 +6,7 @@ import {
   ChevronRight,
   Combine,
   Expand,
+  ExternalLink,
   FileImage,
   FileSignature,
   FileText,
@@ -397,9 +398,16 @@ export default function ToolActivityRail({
 
         {!collapsed && (
           <div className="pt-2 border-t border-slate-200/60 dark:border-white/[0.05] px-1 text-[10px]">
-            <p className="font-bold text-slate-700 dark:text-slate-200">
-              Created by Vinit Sammir
-            </p>
+            <a
+              href="https://www.linkedin.com/in/vinit-sammir"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="group inline-flex items-center gap-1 font-bold text-slate-700 hover:text-[#0077b5] dark:text-slate-200 dark:hover:text-[#38bdf8] transition-colors"
+              title="Connect with Vinit Sammir on LinkedIn"
+            >
+              <span>Created by Vinit Sammir</span>
+              <ExternalLink size={9} className="opacity-50 group-hover:opacity-100" />
+            </a>
             <p className="text-[9px] text-slate-400 font-medium">
               Software Engineer — Cognizant
             </p>

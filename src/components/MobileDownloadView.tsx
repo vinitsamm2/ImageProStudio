@@ -258,7 +258,17 @@ export default function MobileDownloadView({
             <span>Direct Computer-to-Mobile Transfer • 100% Free</span>
           </div>
           <p className="text-[11px] text-slate-500">
-            Created by <strong className="text-slate-400">Vinit Sammir</strong>, Software Engineer — Cognizant
+            Created by{" "}
+            <a
+              href="https://www.linkedin.com/in/vinit-sammir"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="font-bold text-slate-400 hover:text-[#38bdf8] transition-colors underline underline-offset-2"
+              title="View LinkedIn Profile"
+            >
+              Vinit Sammir
+            </a>
+            , Software Engineer — Cognizant
           </p>
         </div>
       </main>
