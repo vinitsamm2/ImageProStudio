@@ -8,6 +8,7 @@ import {
   Expand,
   ExternalLink,
   FileImage,
+  FilePenLine,
   FileSignature,
   FileText,
   Grid,
@@ -21,9 +22,11 @@ import {
   Sparkles,
   Stamp,
   Sun,
-  Wand2
+  Wand2,
+  FileType
 } from "lucide-react";
 import { ToolId } from "../ToolGrid";
+import { useState } from "react";
 
 export type ToolItemDef = {
   id: ToolId;
@@ -38,6 +41,28 @@ export type ToolItemDef = {
 };
 
 export const STUDIO_TOOLS: ToolItemDef[] = [
+  {
+    id: "edit-pdf",
+    name: "PDF Editor",
+    shortName: "Edit PDF",
+    shortcut: "E",
+    category: "pdf",
+    icon: FilePenLine,
+    badge: "PRO",
+    viceVersaId: "pdf-compressor",
+    viceVersaLabel: "PDF Compressor"
+  },
+  {
+    id: "pdf-to-word",
+    name: "PDF to Word / Docs",
+    shortName: "PDF➔Word",
+    shortcut: "W",
+    category: "pdf",
+    icon: FileType,
+    badge: "6 Types",
+    viceVersaId: "edit-pdf",
+    viceVersaLabel: "PDF Editor"
+  },
   {
     id: "image-to-pdf",
     name: "Image to PDF",
@@ -146,7 +171,7 @@ export const STUDIO_TOOLS: ToolItemDef[] = [
     id: "watermark-pdf",
     name: "Watermark PDF",
     shortName: "Watermark",
-    shortcut: "W",
+    shortcut: "M",
     category: "pdf",
     icon: Stamp,
     badge: "New",
@@ -211,17 +236,23 @@ export default function ToolActivityRail({
   collapsed,
   onToggleCollapsed
 }: ToolActivityRailProps) {
+  const [categoryFilter, setCategoryFilter] = useState<"all" | "pdf" | "image">("all");
   const currentDef = STUDIO_TOOLS.find((t) => t.id === activeTool);
+
+  const displayedTools = STUDIO_TOOLS.filter((t) => {
+    if (categoryFilter === "all") return true;
+    return t.category === categoryFilter;
+  });
 
   return (
     <aside
-      className={`relative z-30 flex flex-col justify-between border-r border-slate-200/80 bg-white/90 backdrop-blur-2xl transition-all duration-300 dark:border-white/[0.08] dark:bg-slate-950/80 ${
+      className={`relative z-30 flex flex-col justify-between border-r border-slate-200/80 bg-white/90 backdrop-blur-2xl transition-all duration-300 dark:border-white/[0.08] dark:bg-slate-950/80 h-full ${
         collapsed ? "w-16" : "w-60"
       }`}
     >
       {/* Top Header: Brand & Collapse Toggle */}
-      <div>
-        <div className="flex h-14 items-center justify-between border-b border-slate-200/70 px-3 dark:border-white/[0.06]">
+      <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
+        <div className="flex h-14 shrink-0 items-center justify-between border-b border-slate-200/70 px-3 dark:border-white/[0.06]">
           {!collapsed ? (
             <button
               type="button"
@@ -263,7 +294,7 @@ export default function ToolActivityRail({
         </div>
 
         {/* View Switcher: Catalog vs Active Studio */}
-        <div className="p-2 border-b border-slate-200/60 dark:border-white/[0.05]">
+        <div className="p-2 shrink-0 border-b border-slate-200/60 dark:border-white/[0.05]">
           <button
             type="button"
             onClick={onToggleCatalog}
@@ -279,12 +310,36 @@ export default function ToolActivityRail({
           </button>
         </div>
 
+        {/* Category Filter Pills when Expanded */}
+        {!collapsed && (
+          <div className="flex items-center gap-1 px-2 py-1.5 shrink-0 border-b border-slate-200/60 dark:border-white/[0.05] bg-slate-50/50 dark:bg-slate-900/30">
+            {[
+              { id: "all" as const, label: `All (${STUDIO_TOOLS.length})` },
+              { id: "pdf" as const, label: `PDFs (${STUDIO_TOOLS.filter((t) => t.category === "pdf").length})` },
+              { id: "image" as const, label: `Images (${STUDIO_TOOLS.filter((t) => t.category === "image").length})` }
+            ].map((tab) => (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => setCategoryFilter(tab.id)}
+                className={`flex-1 rounded-lg py-1 text-[10px] font-extrabold transition-all ${
+                  categoryFilter === tab.id
+                    ? "bg-cyan-600 text-white shadow-xs"
+                    : "text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
+                }`}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+        )}
+
         {/* Tool List Ordered Left-to-Right / Top-to-Bottom */}
-        <div className="p-2 space-y-1 overflow-y-auto max-h-[calc(100vh-280px)]">
+        <div className="p-2 space-y-1 overflow-y-auto flex-1 min-h-0">
           {!collapsed && (
             <div className="px-2 pt-1 pb-1 flex items-center justify-between">
               <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
-                Studio Tools ({STUDIO_TOOLS.length})
+                {categoryFilter === "pdf" ? "PDF Tools" : categoryFilter === "image" ? "Image Tools" : "Studio Tools"} ({displayedTools.length})
               </span>
               <span className="text-[9px] font-mono text-cyan-600 dark:text-cyan-400 font-semibold">
                 Priority: 1 & 2
@@ -292,7 +347,7 @@ export default function ToolActivityRail({
             </div>
           )}
 
-          {STUDIO_TOOLS.map((tool) => {
+          {displayedTools.map((tool) => {
             const Icon = tool.icon;
             const isActive = activeTool === tool.id && !isCatalogOpen;
 

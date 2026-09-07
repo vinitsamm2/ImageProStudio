@@ -1117,13 +1117,15 @@ export async function signPdf(
 export async function renderPdfPageToDataUrl(
   file: File,
   pageNumber: number,
-  scale = 1.5
+  scale = 1.5,
+  rotation = 0
 ): Promise<string> {
   const buffer = await file.arrayBuffer();
   const loadingTask = getDocument({ data: new Uint8Array(buffer) });
   const pdf = await loadingTask.promise;
   const page = await pdf.getPage(pageNumber);
-  const viewport = page.getViewport({ scale });
+  const totalRotation = (((page.rotate || 0) + rotation) % 360 + 360) % 360;
+  const viewport = page.getViewport({ scale, rotation: totalRotation });
   const canvas = buildCanvas(viewport.width, viewport.height);
   const ctx = canvas.getContext("2d");
   if (!ctx) throw new Error("Canvas unavailable");
@@ -1132,3 +1134,973 @@ export async function renderPdfPageToDataUrl(
   await page.render({ canvasContext: ctx, viewport, canvas }).promise;
   return canvas.toDataURL("image/jpeg", 0.92);
 }
+
+export type PdfAnnotationType =
+  | "text"
+  | "freehand"
+  | "highlight"
+  | "rectangle"
+  | "circle"
+  | "line"
+  | "arrow"
+  | "redact"
+  | "stamp"
+  | "image";
+
+export interface EditorPoint {
+  x: number; // 0 to 1 normalized
+  y: number; // 0 to 1 normalized
+}
+
+export interface PdfAnnotation {
+  id: string;
+  pageIndex: number; // 0-indexed position in current editor pages plan
+  type: PdfAnnotationType;
+  xNorm: number;
+  yNorm: number;
+  widthNorm: number;
+  heightNorm: number;
+  rotation?: number; // degrees
+  opacity?: number;
+
+  // Text properties
+  text?: string;
+  fontSize?: number; // in pt (e.g. 14, 18, 24)
+  fontFamily?: "sans" | "serif" | "mono" | "cursive";
+  fontWeight?: "normal" | "bold";
+  fontStyle?: "normal" | "italic";
+  textColor?: string;
+  textHighlightColor?: string; // background highlight behind text
+
+  // Line / Stroke / Shape properties
+  strokeColor?: string;
+  strokeWidth?: number; // in pt
+  fillColor?: string;
+  points?: EditorPoint[]; // normalized points for freehand drawing
+
+  // Stamp / Image properties
+  stampLabel?: string;
+  stampColor?: string;
+  imageDataUrl?: string;
+}
+
+export interface EditorPagePlanItem {
+  id: string;
+  // If originalPage is null, it's a blank page
+  originalPage: number | null; // 1-indexed
+  rotation: number; // rotation offset in degrees (0, 90, 180, 270)
+}
+
+function loadImg(src: string): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    img.onload = () => resolve(img);
+    img.onerror = () => reject(new Error("Failed to load image"));
+    img.src = src;
+  });
+}
+
+function drawRoundedRect(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  r: number
+) {
+  if (typeof ctx.roundRect === "function") {
+    ctx.roundRect(x, y, w, h, r);
+  } else {
+    ctx.rect(x, y, w, h);
+  }
+}
+
+/**
+ * Compiles an edited PDF document from original file, page plan, and annotations
+ */
+export async function compileEditedPdf(
+  file: File,
+  pagesPlan: EditorPagePlanItem[],
+  annotations: PdfAnnotation[]
+): Promise<Blob> {
+  const buffer = await file.arrayBuffer();
+  const srcDoc = await PDFDocument.load(buffer, { ignoreEncryption: true });
+  const newDoc = await PDFDocument.create();
+
+  // Preload all image assets used across all annotations
+  const imageCache = new Map<string, HTMLImageElement>();
+  for (const ann of annotations) {
+    if (ann.imageDataUrl && !imageCache.has(ann.imageDataUrl)) {
+      try {
+        const loaded = await loadImg(ann.imageDataUrl);
+        imageCache.set(ann.imageDataUrl, loaded);
+      } catch (err) {
+        console.warn("Could not preload annotation image:", err);
+      }
+    }
+  }
+
+  // Iterate each page in plan
+  for (let pageIdx = 0; pageIdx < pagesPlan.length; pageIdx++) {
+    const plan = pagesPlan[pageIdx];
+    let page: any;
+
+    if (
+      plan.originalPage !== null &&
+      plan.originalPage >= 1 &&
+      plan.originalPage <= srcDoc.getPageCount()
+    ) {
+      const [copied] = await newDoc.copyPages(srcDoc, [plan.originalPage - 1]);
+      page = newDoc.addPage(copied);
+    } else {
+      // Standard A4 page: 595.28 x 841.89 points
+      page = newDoc.addPage([595.28, 841.89]);
+    }
+
+    // Apply rotation
+    if (plan.rotation) {
+      const currentAngle = page.getRotation().angle;
+      const finalAngle = (((currentAngle + plan.rotation) % 360) + 360) % 360;
+      page.setRotation(degrees(finalAngle));
+    }
+
+    // Get annotations for this pageIndex
+    const pageAnns = annotations.filter((a) => a.pageIndex === pageIdx);
+    if (pageAnns.length === 0) continue;
+
+    const { width, height } = page.getSize();
+
+    // High-resolution raster scale (2.0x for crisp vector quality)
+    const scale = 2.0;
+    const canvas = buildCanvas(Math.round(width * scale), Math.round(height * scale));
+    const ctx = canvas.getContext("2d");
+    if (!ctx) continue;
+
+    ctx.scale(scale, scale);
+
+    for (const ann of pageAnns) {
+      ctx.save();
+      const ax = ann.xNorm * width;
+      const ay = ann.yNorm * height;
+      const aw = ann.widthNorm * width;
+      const ah = ann.heightNorm * height;
+      const opacity = typeof ann.opacity === "number" ? ann.opacity : 1.0;
+      ctx.globalAlpha = opacity;
+
+      if (ann.rotation) {
+        ctx.translate(ax + aw / 2, ay + ah / 2);
+        ctx.rotate((ann.rotation * Math.PI) / 180);
+        ctx.translate(-(ax + aw / 2), -(ay + ah / 2));
+      }
+
+      switch (ann.type) {
+        case "text": {
+          if (ann.textHighlightColor && ann.textHighlightColor !== "transparent") {
+            ctx.fillStyle = ann.textHighlightColor;
+            ctx.fillRect(ax - 2, ay - 2, aw + 4, ah + 4);
+          }
+          const weight = ann.fontWeight === "bold" ? "bold " : "";
+          const style = ann.fontStyle === "italic" ? "italic " : "";
+          const fSize = ann.fontSize || 16;
+          let fontFam = "sans-serif";
+          if (ann.fontFamily === "serif") fontFam = "Georgia, serif";
+          else if (ann.fontFamily === "mono") fontFam = "'Courier New', monospace";
+          else if (ann.fontFamily === "cursive") fontFam = "'Dancing Script', 'Brush Script MT', cursive";
+          else fontFam = "Inter, -apple-system, sans-serif";
+
+          ctx.font = `${weight}${style}${fSize}px ${fontFam}`;
+          ctx.fillStyle = ann.textColor || "#0f172a";
+          ctx.textBaseline = "top";
+
+          const lines = (ann.text || "").split("\n");
+          const lineHeight = fSize * 1.25;
+          for (let li = 0; li < lines.length; li++) {
+            ctx.fillText(lines[li], ax, ay + li * lineHeight);
+          }
+          break;
+        }
+
+        case "freehand": {
+          if (ann.points && ann.points.length > 0) {
+            ctx.strokeStyle = ann.strokeColor || "#0284c7";
+            ctx.lineWidth = ann.strokeWidth || 3;
+            ctx.lineCap = "round";
+            ctx.lineJoin = "round";
+            ctx.beginPath();
+            const p0 = ann.points[0];
+            ctx.moveTo(p0.x * width, p0.y * height);
+            for (let i = 1; i < ann.points.length; i++) {
+              const p = ann.points[i];
+              ctx.lineTo(p.x * width, p.y * height);
+            }
+            ctx.stroke();
+          }
+          break;
+        }
+
+        case "highlight": {
+          ctx.fillStyle = ann.fillColor || "#fef08a";
+          ctx.globalAlpha = 0.45;
+          ctx.fillRect(ax, ay, aw, ah);
+          break;
+        }
+
+        case "redact": {
+          // Permanently blackout or whiteout content
+          ctx.fillStyle = ann.fillColor || "#000000";
+          ctx.globalAlpha = 1.0;
+          ctx.fillRect(ax, ay, aw, ah);
+          break;
+        }
+
+        case "rectangle": {
+          if (ann.fillColor && ann.fillColor !== "transparent") {
+            ctx.fillStyle = ann.fillColor;
+            ctx.fillRect(ax, ay, aw, ah);
+          }
+          if (ann.strokeWidth && ann.strokeWidth > 0) {
+            ctx.strokeStyle = ann.strokeColor || "#0284c7";
+            ctx.lineWidth = ann.strokeWidth;
+            ctx.strokeRect(ax, ay, aw, ah);
+          }
+          break;
+        }
+
+        case "circle": {
+          ctx.beginPath();
+          ctx.ellipse(
+            ax + aw / 2,
+            ay + ah / 2,
+            Math.max(1, Math.abs(aw / 2)),
+            Math.max(1, Math.abs(ah / 2)),
+            0,
+            0,
+            Math.PI * 2
+          );
+          if (ann.fillColor && ann.fillColor !== "transparent") {
+            ctx.fillStyle = ann.fillColor;
+            ctx.fill();
+          }
+          if (ann.strokeWidth && ann.strokeWidth > 0) {
+            ctx.strokeStyle = ann.strokeColor || "#0284c7";
+            ctx.lineWidth = ann.strokeWidth;
+            ctx.stroke();
+          }
+          break;
+        }
+
+        case "line": {
+          ctx.strokeStyle = ann.strokeColor || "#0284c7";
+          ctx.lineWidth = ann.strokeWidth || 3;
+          ctx.lineCap = "round";
+          ctx.beginPath();
+          ctx.moveTo(ax, ay);
+          ctx.lineTo(ax + aw, ay + ah);
+          ctx.stroke();
+          break;
+        }
+
+        case "arrow": {
+          ctx.strokeStyle = ann.strokeColor || "#0284c7";
+          ctx.fillStyle = ann.strokeColor || "#0284c7";
+          ctx.lineWidth = ann.strokeWidth || 3;
+          ctx.lineCap = "round";
+          const startX = ax;
+          const startY = ay;
+          const endX = ax + aw;
+          const endY = ay + ah;
+
+          ctx.beginPath();
+          ctx.moveTo(startX, startY);
+          ctx.lineTo(endX, endY);
+          ctx.stroke();
+
+          const headlen = Math.max(10, (ann.strokeWidth || 3) * 3);
+          const angle = Math.atan2(endY - startY, endX - startX);
+          ctx.beginPath();
+          ctx.moveTo(endX, endY);
+          ctx.lineTo(
+            endX - headlen * Math.cos(angle - Math.PI / 6),
+            endY - headlen * Math.sin(angle - Math.PI / 6)
+          );
+          ctx.lineTo(
+            endX - headlen * Math.cos(angle + Math.PI / 6),
+            endY - headlen * Math.sin(angle + Math.PI / 6)
+          );
+          ctx.closePath();
+          ctx.fill();
+          break;
+        }
+
+        case "stamp": {
+          const color = ann.stampColor || "#dc2626";
+          ctx.save();
+          ctx.strokeStyle = color;
+          ctx.fillStyle = color;
+          ctx.lineWidth = 3;
+
+          const r = 8;
+          ctx.beginPath();
+          drawRoundedRect(ctx, ax, ay, aw, ah, r);
+          ctx.stroke();
+
+          // Inner dashed border
+          ctx.lineWidth = 1;
+          ctx.setLineDash([4, 3]);
+          ctx.beginPath();
+          drawRoundedRect(ctx, ax + 3, ay + 3, Math.max(1, aw - 6), Math.max(1, ah - 6), r - 2);
+          ctx.stroke();
+          ctx.setLineDash([]);
+
+          const text = ann.stampLabel || "APPROVED";
+          const stampFontSize = Math.max(
+            10,
+            Math.min(ah * 0.45, aw / (text.length * 0.68))
+          );
+          ctx.font = `900 ${stampFontSize}px 'Impact', -apple-system, sans-serif`;
+          ctx.textAlign = "center";
+          ctx.textBaseline = "middle";
+          ctx.fillText(text, ax + aw / 2, ay + ah / 2);
+          ctx.restore();
+          break;
+        }
+
+        case "image": {
+          if (ann.imageDataUrl && imageCache.has(ann.imageDataUrl)) {
+            const img = imageCache.get(ann.imageDataUrl)!;
+            ctx.drawImage(img, ax, ay, aw, ah);
+          }
+          break;
+        }
+      }
+
+      ctx.restore();
+    }
+
+    // Convert high-DPI canvas overlay to PNG and draw onto PDF page
+    const overlayPngDataUrl = canvas.toDataURL("image/png");
+    const base64 = overlayPngDataUrl.replace(/^data:image\/[^;]+;base64,/, "");
+    const binary = atob(base64);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) {
+      bytes[i] = binary.charCodeAt(i);
+    }
+
+    const embeddedPng = await newDoc.embedPng(bytes);
+    page.drawImage(embeddedPng, {
+      x: 0,
+      y: 0,
+      width,
+      height
+    });
+  }
+
+  const outputBytes = await newDoc.save();
+  return bytesToBlob(outputBytes, "application/pdf");
+}
+
+// ---------------------------------------------------------------------------
+// PDF to Word / DOC / DOCX Conversion Engine (.doc, .docx, .docm, .dot, .dotx, .dotm)
+// ---------------------------------------------------------------------------
+
+export type WordFormatKey = "doc" | "docx" | "docm" | "dot" | "dotx" | "dotm";
+
+export interface WordFormatInfo {
+  key: WordFormatKey;
+  ext: string;
+  name: string;
+  description: string;
+  mime: string;
+  badge?: string;
+  isTemplate?: boolean;
+  isMacro?: boolean;
+}
+
+export const WORD_FORMATS: WordFormatInfo[] = [
+  {
+    key: "docx",
+    ext: "docx",
+    name: "Word Document (.docx)",
+    description: "Standard modern Word document format (Word 2007–365, Google Docs)",
+    mime: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    badge: "Most Popular"
+  },
+  {
+    key: "doc",
+    ext: "doc",
+    name: "Word 97–2003 Document (.doc)",
+    description: "Universal compatibility with legacy Microsoft Word 97–2003 & government portals",
+    mime: "application/msword",
+    badge: "Legacy Compatible"
+  },
+  {
+    key: "docm",
+    ext: "docm",
+    name: "Word Macro-Enabled Document (.docm)",
+    description: "Word document supporting automation, forms & embedded VBA macro projects",
+    mime: "application/vnd.ms-word.document.macroEnabled.12",
+    badge: "Macro Enabled",
+    isMacro: true
+  },
+  {
+    key: "dotx",
+    ext: "dotx",
+    name: "Word Template (.dotx)",
+    description: "Reusable modern template for creating standardized letters, resumes & reports",
+    mime: "application/vnd.openxmlformats-officedocument.wordprocessingml.template",
+    badge: "Modern Template",
+    isTemplate: true
+  },
+  {
+    key: "dot",
+    ext: "dot",
+    name: "Word 97–2003 Template (.dot)",
+    description: "Universal legacy template for Microsoft Word 97–2003 institutions & systems",
+    mime: "application/msword",
+    badge: "Legacy Template",
+    isTemplate: true
+  },
+  {
+    key: "dotm",
+    ext: "dotm",
+    name: "Word Macro-Enabled Template (.dotm)",
+    description: "Standardized Word template configured to host automated macros and scripts",
+    mime: "application/vnd.ms-word.template.macroEnabled.12",
+    badge: "Macro Template",
+    isTemplate: true,
+    isMacro: true
+  }
+];
+
+export interface ExtractedParagraph {
+  text: string;
+  isHeading: boolean;
+  headingLevel?: 1 | 2 | 3;
+  isListItem: boolean;
+  fontSize: number;
+}
+
+export interface ExtractedPdfPage {
+  pageNumber: number;
+  paragraphs: ExtractedParagraph[];
+  rawText: string;
+  wordCount: number;
+  charCount: number;
+}
+
+export interface PdfToWordOptions {
+  detectHeadings?: boolean;
+  preserveLineBreaks?: boolean;
+  pageRanges?: string; // empty = all pages, or e.g. "1-3, 5"
+}
+
+function escapeXml(str: string): string {
+  return str
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&apos;");
+}
+
+/**
+ * Extracts structured text paragraphs and pages from a PDF file using pdfjs-dist
+ */
+export async function extractPdfStructuredText(
+  file: File,
+  options: PdfToWordOptions = {}
+): Promise<ExtractedPdfPage[]> {
+  const buffer = await file.arrayBuffer();
+  const loadingTask = getDocument({ data: new Uint8Array(buffer) });
+  const pdf = await loadingTask.promise;
+  const numPages = pdf.numPages;
+
+  let targetPages: number[] = [];
+  if (options.pageRanges && options.pageRanges.trim().length > 0) {
+    targetPages = parsePageRanges(options.pageRanges, numPages);
+  }
+  if (targetPages.length === 0) {
+    targetPages = Array.from({ length: numPages }, (_, i) => i + 1);
+  }
+
+  const result: ExtractedPdfPage[] = [];
+
+  for (const pageNum of targetPages) {
+    const page = await pdf.getPage(pageNum);
+    const textContent = await page.getTextContent();
+    const items = textContent.items as Array<{
+      str: string;
+      transform: number[];
+      width: number;
+      height: number;
+      fontName?: string;
+    }>;
+
+    if (items.length === 0) {
+      result.push({
+        pageNumber: pageNum,
+        paragraphs: [],
+        rawText: "",
+        wordCount: 0,
+        charCount: 0
+      });
+      continue;
+    }
+
+    // Collect non-empty text items with coordinates
+    const parsedItems = items
+      .filter((it) => it.str && it.str.trim().length > 0)
+      .map((it) => ({
+        text: it.str,
+        x: it.transform[4],
+        y: it.transform[5],
+        fontSize: Math.round(Math.abs(it.transform[0]) || Math.abs(it.transform[3]) || 12)
+      }));
+
+    if (parsedItems.length === 0) {
+      result.push({
+        pageNumber: pageNum,
+        paragraphs: [],
+        rawText: "",
+        wordCount: 0,
+        charCount: 0
+      });
+      continue;
+    }
+
+    // Sort items top-to-bottom (Y descending), then left-to-right (X ascending)
+    parsedItems.sort((a, b) => {
+      const dy = b.y - a.y;
+      if (Math.abs(dy) > 3) return dy;
+      return a.x - b.x;
+    });
+
+    // Group items into lines
+    interface TextLine {
+      items: typeof parsedItems;
+      y: number;
+      fontSize: number;
+      text: string;
+    }
+
+    const lines: TextLine[] = [];
+    let currentLine: typeof parsedItems = [];
+    let currentY = parsedItems[0].y;
+    let currentFontSize = parsedItems[0].fontSize;
+
+    for (const item of parsedItems) {
+      if (Math.abs(item.y - currentY) <= 3.5) {
+        currentLine.push(item);
+      } else {
+        if (currentLine.length > 0) {
+          lines.push({
+            items: currentLine,
+            y: currentY,
+            fontSize: currentFontSize,
+            text: currentLine.map((i) => i.text).join(" ").trim()
+          });
+        }
+        currentLine = [item];
+        currentY = item.y;
+        currentFontSize = item.fontSize;
+      }
+    }
+    if (currentLine.length > 0) {
+      lines.push({
+        items: currentLine,
+        y: currentY,
+        fontSize: currentFontSize,
+        text: currentLine.map((i) => i.text).join(" ").trim()
+      });
+    }
+
+    // Calculate median font size
+    const fontSizes = lines.map((l) => l.fontSize).sort((a, b) => a - b);
+    const medianFontSize = fontSizes[Math.floor(fontSizes.length / 2)] || 12;
+
+    // Group lines into paragraphs
+    const paragraphs: ExtractedParagraph[] = [];
+    let currentParaLines: TextLine[] = [];
+
+    const flushPara = () => {
+      if (currentParaLines.length === 0) return;
+      const combinedText = options.preserveLineBreaks
+        ? currentParaLines.map((l) => l.text).join("\n")
+        : currentParaLines.map((l) => l.text).join(" ");
+      const avgFontSize = currentParaLines[0].fontSize;
+      const isHead = options.detectHeadings !== false && avgFontSize >= medianFontSize * 1.3;
+      let headLevel: 1 | 2 | 3 = 1;
+      if (isHead) {
+        if (avgFontSize >= medianFontSize * 1.6) headLevel = 1;
+        else if (avgFontSize >= medianFontSize * 1.4) headLevel = 2;
+        else headLevel = 3;
+      }
+
+      const isList = /^([•\-*]|(\d+\.)|(\([a-zA-Z0-9]+\)))\s+/.test(currentParaLines[0].text);
+
+      paragraphs.push({
+        text: combinedText.trim(),
+        isHeading: isHead,
+        headingLevel: isHead ? headLevel : undefined,
+        isListItem: isList,
+        fontSize: avgFontSize
+      });
+      currentParaLines = [];
+    };
+
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      if (currentParaLines.length === 0) {
+        currentParaLines.push(line);
+        continue;
+      }
+
+      const prevLine = currentParaLines[currentParaLines.length - 1];
+      const lineGap = Math.abs(prevLine.y - line.y);
+      const isLargeGap = lineGap > Math.max(prevLine.fontSize, line.fontSize) * 1.45;
+      const isDiffFontSize = Math.abs(prevLine.fontSize - line.fontSize) > 2.5;
+
+      if (isLargeGap || isDiffFontSize) {
+        flushPara();
+        currentParaLines.push(line);
+      } else {
+        currentParaLines.push(line);
+      }
+    }
+    flushPara();
+
+    const rawText = paragraphs.map((p) => p.text).join("\n\n");
+    const words = rawText.trim().length > 0 ? rawText.trim().split(/\s+/).length : 0;
+    const chars = rawText.length;
+
+    result.push({
+      pageNumber: pageNum,
+      paragraphs,
+      rawText,
+      wordCount: words,
+      charCount: chars
+    });
+  }
+
+  return result;
+}
+
+/**
+ * Builds modern OpenXML package (.docx, .docm, .dotx, .dotm) using JSZip
+ */
+async function buildOoxmlZip(
+  pages: ExtractedPdfPage[],
+  format: WordFormatKey,
+  docTitle: string
+): Promise<Blob> {
+  const zip = new JSZip();
+
+  let mainContentType = "application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml";
+  if (format === "docm") {
+    mainContentType = "application/vnd.ms-word.document.macroEnabled.main+xml";
+  } else if (format === "dotx") {
+    mainContentType = "application/vnd.openxmlformats-officedocument.wordprocessingml.template.main+xml";
+  } else if (format === "dotm") {
+    mainContentType = "application/vnd.ms-word.template.macroEnabled.main+xml";
+  }
+
+  // 1. [Content_Types].xml
+  zip.file(
+    "[Content_Types].xml",
+    `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Override PartName="/word/document.xml" ContentType="${mainContentType}"/>
+  <Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/>
+  <Override PartName="/word/settings.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.settings+xml"/>
+  <Override PartName="/word/fontTable.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.fontTable+xml"/>
+</Types>`
+  );
+
+  // 2. _rels/.rels
+  zip.file(
+    "_rels/.rels",
+    `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
+</Relationships>`
+  );
+
+  // 3. word/_rels/document.xml.rels
+  zip.file(
+    "word/_rels/document.xml.rels",
+    `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>
+  <Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/settings" Target="settings.xml"/>
+  <Relationship Id="rId3" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/fontTable" Target="fontTable.xml"/>
+</Relationships>`
+  );
+
+  // 4. word/styles.xml
+  zip.file(
+    "word/styles.xml",
+    `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:docDefaults>
+    <w:rPrDefault>
+      <w:rPr>
+        <w:rFonts w:ascii="Calibri" w:hAnsi="Calibri" w:cs="Calibri"/>
+        <w:sz w:val="22"/>
+        <w:szCs w:val="22"/>
+        <w:lang w:val="en-US"/>
+      </w:rPr>
+    </w:rPrDefault>
+  </w:docDefaults>
+  <w:style w:type="paragraph" w:default="1" w:styleId="Normal">
+    <w:name w:val="Normal"/>
+    <w:qFormat/>
+    <w:pPr>
+      <w:spacing w:after="160" w:line="276" w:lineRule="auto"/>
+    </w:pPr>
+  </w:style>
+  <w:style w:type="paragraph" w:styleId="Heading1">
+    <w:name w:val="heading 1"/>
+    <w:basedOn w:val="Normal"/>
+    <w:qFormat/>
+    <w:pPr>
+      <w:spacing w:before="240" w:after="120"/>
+    </w:pPr>
+    <w:rPr>
+      <w:b/>
+      <w:color w:val="1F4E79"/>
+      <w:sz w:val="36"/>
+      <w:szCs w:val="36"/>
+    </w:rPr>
+  </w:style>
+  <w:style w:type="paragraph" w:styleId="Heading2">
+    <w:name w:val="heading 2"/>
+    <w:basedOn w:val="Normal"/>
+    <w:qFormat/>
+    <w:pPr>
+      <w:spacing w:before="200" w:after="80"/>
+    </w:pPr>
+    <w:rPr>
+      <w:b/>
+      <w:color w:val="2E75B6"/>
+      <w:sz w:val="28"/>
+      <w:szCs w:val="28"/>
+    </w:rPr>
+  </w:style>
+  <w:style w:type="paragraph" w:styleId="ListParagraph">
+    <w:name w:val="List Paragraph"/>
+    <w:basedOn w:val="Normal"/>
+    <w:qFormat/>
+    <w:pPr>
+      <w:ind w:left="720"/>
+      <w:spacing w:after="100"/>
+    </w:pPr>
+  </w:style>
+</w:styles>`
+  );
+
+  // 5. word/settings.xml
+  zip.file(
+    "word/settings.xml",
+    `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<w:settings xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:defaultTabStop w:val="720"/>
+  <w:characterSpacingControl w:val="doNotCompress"/>
+</w:settings>`
+  );
+
+  // 6. word/fontTable.xml
+  zip.file(
+    "word/fontTable.xml",
+    `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<w:fontTable xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:font w:name="Calibri"><w:panose1 w:val="020F0502020204030204"/><w:family w:val="swiss"/></w:font>
+  <w:font w:name="Arial"><w:panose1 w:val="020B0604020202020204"/><w:family w:val="swiss"/></w:font>
+  <w:font w:name="Times New Roman"><w:panose1 w:val="02020603050405020304"/><w:family w:val="roman"/></w:font>
+</w:fontTable>`
+  );
+
+  // 7. word/document.xml
+  let documentBodyXml = "";
+
+  for (let pageIdx = 0; pageIdx < pages.length; pageIdx++) {
+    const page = pages[pageIdx];
+
+    for (const para of page.paragraphs) {
+      if (!para.text) continue;
+
+      let styleVal = "Normal";
+      if (para.isHeading) {
+        styleVal = para.headingLevel === 1 ? "Heading1" : "Heading2";
+      } else if (para.isListItem) {
+        styleVal = "ListParagraph";
+      }
+
+      // Handle multiline paragraphs
+      const lines = para.text.split("\n");
+      let runsXml = "";
+      for (let li = 0; li < lines.length; li++) {
+        if (li > 0) runsXml += "<w:br/>";
+        runsXml += `<w:t xml:space="preserve">${escapeXml(lines[li])}</w:t>`;
+      }
+
+      documentBodyXml += `<w:p><w:pPr><w:pStyle w:val="${styleVal}"/></w:pPr><w:r>${runsXml}</w:r></w:p>`;
+    }
+
+    // Insert page break between pages (except after the final page)
+    if (pageIdx < pages.length - 1) {
+      documentBodyXml += `<w:p><w:r><w:br w:type="page"/></w:r></w:p>`;
+    }
+  }
+
+  // In case document has zero paragraphs, insert a placeholder paragraph
+  if (!documentBodyXml) {
+    documentBodyXml = `<w:p><w:r><w:t xml:space="preserve">${escapeXml(docTitle)}</w:t></w:r></w:p>`;
+  }
+
+  const documentXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+            xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <w:body>
+    ${documentBodyXml}
+    <w:sectPr>
+      <w:pgSz w:w="11906" w:h="16838"/>
+      <w:pgMar w:top="1440" w:right="1440" w:bottom="1440" w:left="1440"/>
+    </w:sectPr>
+  </w:body>
+</w:document>`;
+
+  zip.file("word/document.xml", documentXml);
+
+  return await zip.generateAsync({
+    type: "blob",
+    mimeType: mainContentType,
+    compression: "DEFLATE",
+    compressionOptions: { level: 6 }
+  });
+}
+
+/**
+ * Builds legacy Word 97–2003 document / template (.doc, .dot) format
+ */
+function buildLegacyWordDoc(pages: ExtractedPdfPage[], docTitle: string): Blob {
+  let bodyContent = "";
+
+  for (let pageIdx = 0; pageIdx < pages.length; pageIdx++) {
+    const page = pages[pageIdx];
+
+    for (const para of page.paragraphs) {
+      if (!para.text) continue;
+      const safeText = escapeXml(para.text).replace(/\n/g, "<br/>");
+
+      if (para.isHeading) {
+        if (para.headingLevel === 1) {
+          bodyContent += `<h1>${safeText}</h1>\n`;
+        } else {
+          bodyContent += `<h2>${safeText}</h2>\n`;
+        }
+      } else if (para.isListItem) {
+        bodyContent += `<p class="MsoList">${safeText}</p>\n`;
+      } else {
+        bodyContent += `<p class="MsoNormal">${safeText}</p>\n`;
+      }
+    }
+
+    if (pageIdx < pages.length - 1) {
+      bodyContent += `<div class="page-break"></div>\n`;
+    }
+  }
+
+  if (!bodyContent) {
+    bodyContent = `<p class="MsoNormal">${escapeXml(docTitle)}</p>`;
+  }
+
+  const htmlDoc = `<html xmlns:o="urn:schemas-microsoft-com:office:office"
+      xmlns:w="urn:schemas-microsoft-com:office:word"
+      xmlns="http://www.w3.org/TR/REC-html40">
+<head>
+<meta charset="utf-8">
+<title>${escapeXml(docTitle)}</title>
+<!--[if gte mso 9]>
+<xml>
+ <w:WordDocument>
+  <w:View>Print</w:View>
+  <w:Zoom>100</w:Zoom>
+  <w:DoNotOptimizeForBrowser/>
+ </w:WordDocument>
+</xml>
+<![endif]-->
+<style>
+@page Section1 {
+  size: 595.3pt 841.9pt;
+  margin: 1.0in 1.0in 1.0in 1.0in;
+  mso-header-margin: 35.4pt;
+  mso-footer-margin: 35.4pt;
+  mso-paper-source: 0;
+}
+div.Section1 { page: Section1; }
+p.MsoNormal, li.MsoNormal, div.MsoNormal {
+  margin: 0in 0in 6.0pt;
+  font-size: 11.0pt;
+  font-family: "Calibri", "Arial", sans-serif;
+  line-height: 1.35;
+  color: #0f172a;
+}
+p.MsoList {
+  margin: 0in 0in 4.0pt 0.25in;
+  font-size: 11.0pt;
+  font-family: "Calibri", "Arial", sans-serif;
+  line-height: 1.3;
+}
+h1 {
+  margin-top: 14.0pt;
+  margin-bottom: 6.0pt;
+  font-size: 18.0pt;
+  font-family: "Calibri", sans-serif;
+  font-weight: bold;
+  color: #1e3a8a;
+}
+h2 {
+  margin-top: 12.0pt;
+  margin-bottom: 4.0pt;
+  font-size: 14.0pt;
+  font-family: "Calibri", sans-serif;
+  font-weight: bold;
+  color: #1d4ed8;
+}
+.page-break {
+  page-break-before: always;
+  mso-break-type: section-break;
+}
+</style>
+</head>
+<body>
+<div class="Section1">
+  ${bodyContent}
+</div>
+</body>
+</html>`;
+
+  return new Blob([htmlDoc], { type: "application/msword;charset=utf-8" });
+}
+
+/**
+ * Main conversion entry point: converts PDF into chosen Word format (.doc, .docx, .docm, .dot, .dotx, .dotm)
+ */
+export async function convertPdfToWord(
+  file: File,
+  format: WordFormatKey,
+  options: PdfToWordOptions = {}
+): Promise<Blob> {
+  const structuredPages = await extractPdfStructuredText(file, options);
+  const docTitle = file.name.replace(/\.[^.]+$/, "");
+
+  if (format === "doc" || format === "dot") {
+    return buildLegacyWordDoc(structuredPages, docTitle);
+  }
+
+  return await buildOoxmlZip(structuredPages, format, docTitle);
+}
+

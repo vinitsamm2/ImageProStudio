@@ -16,6 +16,8 @@ import { useState } from "react";
 import { TOOLS, ToolId } from "./ToolGrid";
 
 const STUDIO_TOOL_ORDER: ToolId[] = [
+  "edit-pdf",
+  "pdf-to-word",
   "image-to-pdf",
   "resizer",
   "compressor",

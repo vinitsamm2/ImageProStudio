@@ -5,6 +5,7 @@ import {
   Combine,
   Expand,
   FileImage,
+  FilePenLine,
   FileSignature,
   FileText,
   ImageIcon,
@@ -15,7 +16,8 @@ import {
   RotateCw,
   Scissors,
   Sparkles,
-  Stamp
+  Stamp,
+  FileType
 } from "lucide-react";
 
 export type ToolId =
@@ -32,7 +34,9 @@ export type ToolId =
   | "watermark-pdf"
   | "rotate-pdf"
   | "organize-pdf"
-  | "sign-pdf";
+  | "sign-pdf"
+  | "edit-pdf"
+  | "pdf-to-word";
 
 export type ToolCategory = "all" | "image" | "pdf";
 
@@ -48,6 +52,26 @@ export type ToolDef = {
 };
 
 export const TOOLS: ToolDef[] = [
+  {
+    id: "edit-pdf",
+    name: "PDF Editor",
+    tagline: "Annotate, draw, redact, text & shape tools",
+    description: "Full in-browser PDF editor: add text, draw freehand, highlight, permanently redact sensitive data, insert stamps, shapes, and images.",
+    category: "pdf",
+    icon: FilePenLine,
+    badge: "PRO Suite",
+    gradient: "from-blue-500 via-indigo-500 to-cyan-500"
+  },
+  {
+    id: "pdf-to-word",
+    name: "PDF to Word / Docs",
+    tagline: "Convert to .DOC, .DOCX, .DOCM, .DOT, .DOTX & .DOTM",
+    description: "Export PDF documents to 6 Microsoft Word and Office formats with headings, lists, and layout preserved.",
+    category: "pdf",
+    icon: FileType,
+    badge: "6 Formats",
+    gradient: "from-blue-600 via-indigo-600 to-sky-500"
+  },
   {
     id: "image-to-pdf",
     name: "Image to PDF",

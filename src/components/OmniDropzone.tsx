@@ -8,6 +8,7 @@ import {
   Expand,
   FileCheck2,
   FileImage,
+  FilePenLine,
   FileSignature,
   FileText,
   FileUp,
@@ -19,7 +20,8 @@ import {
   Sparkles,
   Stamp,
   UploadCloud,
-  X
+  X,
+  FileType
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { formatBytes } from "../lib/files";
@@ -275,6 +277,20 @@ export default function OmniDropzone({ onRouteWithFiles }: OmniDropzoneProps) {
               ) : (
                 <div className="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
                   {[
+                    {
+                      id: "pdf-to-word" as ToolId,
+                      name: "Convert to Word / Docs",
+                      desc: "Export to DOCX, DOC, DOCM, DOT, DOTX & DOTM",
+                      icon: FileType,
+                      color: "from-blue-600 via-indigo-600 to-sky-500"
+                    },
+                    {
+                      id: "edit-pdf" as ToolId,
+                      name: "PDF Editor",
+                      desc: "Annotate, draw, redact, add text & rubber stamps",
+                      icon: FilePenLine,
+                      color: "from-blue-600 via-indigo-600 to-cyan-500"
+                    },
                     {
                       id: "pdf-compressor" as ToolId,
                       name: "Compress PDF",

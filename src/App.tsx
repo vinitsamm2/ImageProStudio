@@ -22,6 +22,8 @@ import PdfWatermarkView from "./components/tools/PdfWatermarkView";
 import PdfOrganizeView from "./components/tools/PdfOrganizeView";
 import PdfSignView from "./components/tools/PdfSignView";
 import PdfCompressorView from "./components/tools/PdfCompressorView";
+import PdfEditorView from "./components/tools/PdfEditorView";
+import PdfToWordView from "./components/tools/PdfToWordView";
 import ShareQrModal, { ShareableFile } from "./components/ShareQrModal";
 import MobileDownloadView from "./components/MobileDownloadView";
 import { SpeedInsights } from "@vercel/speed-insights/react";
@@ -277,6 +279,22 @@ export default function App() {
                   notify={notify}
                   initialFiles={toolInitialFiles}
                   onSwitchViceVersa={() => setActiveTool("rotate-pdf")}
+                  onShareFile={(file) => setShareModalFile(file)}
+                />
+              )}
+              {activeTool === "edit-pdf" && (
+                <PdfEditorView
+                  notify={notify}
+                  initialFiles={toolInitialFiles}
+                  onSwitchViceVersa={() => setActiveTool("pdf-compressor")}
+                  onShareFile={(file) => setShareModalFile(file)}
+                />
+              )}
+              {activeTool === "pdf-to-word" && (
+                <PdfToWordView
+                  notify={notify}
+                  initialFiles={toolInitialFiles}
+                  onSwitchViceVersa={() => setActiveTool("edit-pdf")}
                   onShareFile={(file) => setShareModalFile(file)}
                 />
               )}
