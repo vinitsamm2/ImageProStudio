@@ -26,7 +26,11 @@
       "destination": "/api/stats"
     },
     {
-      "source": "/((?!api/).*)",
+      "source": "/(google[a-zA-Z0-9]+\\.html)",
+      "destination": "/$1"
+    },
+    {
+      "source": "/((?!api/|google[a-zA-Z0-9]+\\.html).*)",
       "destination": "/index.html"
     }
   ],
