@@ -199,7 +199,7 @@ export default function PdfEditorView({
 
   // Left sidebar tab: "pages" | "text"
   const [sidebarTab, setSidebarTab] = useState<"pages" | "text">("pages");
-  const [sidebarOpen, setSidebarOpen] = useState<boolean>(true);
+  const [sidebarOpen, setSidebarOpen] = useState<boolean>(false);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState<boolean>(false);
   const [textSearchQuery, setTextSearchQuery] = useState<string>("");
 
@@ -317,13 +317,10 @@ export default function PdfEditorView({
       }));
       setPagesPlan(plan);
       if (typeof window !== "undefined") {
-        const isSmall = window.innerWidth < 1024;
-        if (isSmall) {
-          setSidebarOpen(false);
-          setMobileSidebarOpen(false);
-        }
-        const availWidth = Math.min(window.innerWidth - (isSmall ? 40 : 280) - 48, 1000);
-        const autoFit = Math.max(0.45, Math.min(1.15, Number((availWidth / 595).toFixed(2))));
+        setSidebarOpen(false);
+        setMobileSidebarOpen(false);
+        const availWidth = Math.min(window.innerWidth - 32, 1400);
+        const autoFit = Math.max(0.55, Math.min(1.85, Number(((availWidth * 0.94) / 595).toFixed(2))));
         setZoomScale(autoFit);
       }
       notify(`Loaded PDF with ${pdf.pages} page(s). Click any text or pick a tool to start editing!`, "info");
@@ -360,9 +357,8 @@ export default function PdfEditorView({
             setPageDimensions({ width: Math.round(res.width), height: Math.round(res.height) });
             setLoadingPage(false);
             if (typeof window !== "undefined" && res.width > 0) {
-              const isSmall = window.innerWidth < 1024;
-              const availWidth = Math.min(window.innerWidth - (isSmall ? 40 : 280) - 48, 1000);
-              const autoFit = Math.max(0.45, Math.min(1.15, Number((availWidth / res.width).toFixed(2))));
+              const availWidth = Math.min(window.innerWidth - 32, 1400);
+              const autoFit = Math.max(0.55, Math.min(1.85, Number(((availWidth * 0.94) / res.width).toFixed(2))));
               setZoomScale((prev) => (Math.abs(prev - 1.0) < 0.05 ? autoFit : prev));
             }
           }
@@ -814,15 +810,11 @@ export default function PdfEditorView({
 
   const handleFitToWidth = useCallback(() => {
     if (!pageDimensions.width || typeof window === "undefined") return;
-    const isSmall = window.innerWidth < 1024;
-    const availWidth = Math.min(
-      window.innerWidth - (sidebarOpen && !isSmall ? 260 : 48) - 32,
-      1200
-    );
-    const fit = Math.max(0.4, Math.min(1.4, Number((availWidth / pageDimensions.width).toFixed(2))));
+    const availWidth = Math.min(window.innerWidth - 32, 1400);
+    const fit = Math.max(0.45, Math.min(1.85, Number(((availWidth * 0.94) / pageDimensions.width).toFixed(2))));
     setZoomScale(fit);
-    notify(`Zoom adjusted to fit width (${Math.round(fit * 100)}%)`, "info");
-  }, [pageDimensions.width, sidebarOpen, notify]);
+    notify(`Zoom adjusted to fit viewport (${Math.round(fit * 100)}%)`, "info");
+  }, [pageDimensions.width, notify]);
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -1960,831 +1952,827 @@ export default function PdfEditorView({
   }
 
   return (
-    <div className="space-y-4">
-      {/* Top Header & Workstation Bar */}
-      <div className="rounded-3xl border border-slate-200/80 bg-white/80 p-3.5 sm:p-4 shadow-sm backdrop-blur-md dark:border-white/[0.08] dark:bg-slate-900/60 flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <div className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl bg-gradient-to-tr from-blue-600 via-indigo-600 to-cyan-500 text-white shadow-md shadow-blue-500/20">
-            <FilePenLine size={20} />
-          </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <h3 className="text-sm font-extrabold text-slate-900 dark:text-white truncate max-w-[200px] sm:max-w-xs">
-                {info.file.name}
-              </h3>
-              <span className="rounded-full bg-slate-100 dark:bg-slate-800 px-2 py-0.5 text-[10px] font-bold text-slate-600 dark:text-slate-300">
-                {formatBytes(info.file.size)}
-              </span>
+    <div className="space-y-2 sm:space-y-3 relative w-full">
+      {/* Floating Menu Capsule for PDF Editing */}
+      <div className="sticky top-2 sm:top-3 z-40 mx-auto w-fit max-w-[98vw] flex flex-col items-center gap-1.5 transition-all">
+        {/* Main Floating Island Toolbar */}
+        <div className="rounded-full border border-slate-200/90 bg-white/95 p-1.5 shadow-2xl backdrop-blur-2xl dark:border-white/15 dark:bg-slate-900/95 flex items-center gap-1 sm:gap-1.5 flex-nowrap overflow-x-auto no-scrollbar">
+          {/* Document File info pill */}
+          <div className="flex items-center gap-1.5 pl-2 pr-2.5 py-1 rounded-full bg-slate-100/80 dark:bg-slate-800/80 text-xs font-bold text-slate-700 dark:text-slate-300 shrink-0">
+            <div className="grid h-5 w-5 place-items-center rounded-full bg-blue-600 text-white text-[10px]">
+              <FilePenLine size={11} />
             </div>
-            <p className="text-[11px] text-slate-500 dark:text-slate-400">
-              Page {activePageIndex + 1} of {pagesPlan.length} • {pageAnnotations.length} annotation(s)
-            </p>
+            <span className="truncate max-w-[90px] sm:max-w-[120px] hidden sm:inline" title={info.file.name}>
+              {info.file.name}
+            </span>
+            <span className="text-[10px] text-blue-600 dark:text-blue-400 font-extrabold whitespace-nowrap">
+              {activePageIndex + 1}/{pagesPlan.length}
+            </span>
           </div>
-        </div>
 
-        {/* Global Controls (Undo, Redo, Zoom, Clear) */}
-        <div className="flex items-center gap-1.5 sm:gap-2">
+          <div className="h-5 w-px bg-slate-200 dark:bg-white/[0.1] mx-0.5 shrink-0" />
+
+          {/* 1. Text */}
+          <button
+            type="button"
+            onClick={() => {
+              setActiveTool("text");
+              setSelectedId(null);
+            }}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer shrink-0 ${
+              activeTool === "text" || activeTool === "editText"
+                ? "bg-emerald-600 text-white shadow-md shadow-emerald-500/25"
+                : "text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800"
+            }`}
+            title="Type text or click any existing text to edit"
+          >
+            <Type size={14} />
+            <span>Text</span>
+          </button>
+
+          {/* 2. Forms (Checkmark, Cross, Radio, Checkbox) */}
+          <div className="relative shrink-0">
+            <button
+              type="button"
+              onClick={() => setFormsMenuOpen((o) => !o)}
+              className={`flex items-center gap-1 px-2.5 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer ${
+                activeTool === "forms"
+                  ? "bg-emerald-600 text-white shadow-md shadow-emerald-500/25"
+                  : "text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800"
+              }`}
+              title="Insert Checkmark, Cross, Radio bullet, or Checkbox"
+            >
+              <CheckSquare size={14} />
+              <span>Forms</span>
+              <ChevronDown size={11} className="opacity-70" />
+            </button>
+
+            {formsMenuOpen && (
+              <div className="absolute left-0 top-full mt-2 z-50 w-44 rounded-2xl border border-slate-200 bg-white p-1.5 shadow-xl dark:border-slate-700 dark:bg-slate-800 space-y-1 text-xs animate-in fade-in zoom-in-95 duration-150">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setFormSymbol("check");
+                    setActiveTool("forms");
+                    setFormsMenuOpen(false);
+                    notify("Click anywhere on PDF to place Checkmark (✓)", "info");
+                  }}
+                  className={`w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-xl font-bold transition-colors cursor-pointer text-left ${
+                    formSymbol === "check" && activeTool === "forms"
+                      ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300"
+                      : "hover:bg-slate-100 dark:hover:bg-slate-700"
+                  }`}
+                >
+                  <span className="grid h-6 w-6 place-items-center rounded-lg bg-emerald-500/15 text-emerald-600 font-black text-sm">
+                    ✓
+                  </span>
+                  <span>Checkmark</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setFormSymbol("cross");
+                    setActiveTool("forms");
+                    setFormsMenuOpen(false);
+                    notify("Click anywhere on PDF to place Cross mark (✕)", "info");
+                  }}
+                  className={`w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-xl font-bold transition-colors cursor-pointer text-left ${
+                    formSymbol === "cross" && activeTool === "forms"
+                      ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300"
+                      : "hover:bg-slate-100 dark:hover:bg-slate-700"
+                  }`}
+                >
+                  <span className="grid h-6 w-6 place-items-center rounded-lg bg-rose-500/15 text-rose-600 font-black text-sm">
+                    ✕
+                  </span>
+                  <span>Cross Mark</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setFormSymbol("radio");
+                    setActiveTool("forms");
+                    setFormsMenuOpen(false);
+                    notify("Click anywhere on PDF to place Radio bullet (●)", "info");
+                  }}
+                  className={`w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-xl font-bold transition-colors cursor-pointer text-left ${
+                    formSymbol === "radio" && activeTool === "forms"
+                      ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300"
+                      : "hover:bg-slate-100 dark:hover:bg-slate-700"
+                  }`}
+                >
+                  <span className="grid h-6 w-6 place-items-center rounded-lg bg-blue-500/15 text-blue-600 font-black text-sm">
+                    ●
+                  </span>
+                  <span>Radio Bullet</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setFormSymbol("checkbox");
+                    setActiveTool("forms");
+                    setFormsMenuOpen(false);
+                    notify("Click anywhere on PDF to place Checkbox (☐)", "info");
+                  }}
+                  className={`w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-xl font-bold transition-colors cursor-pointer text-left ${
+                    formSymbol === "checkbox" && activeTool === "forms"
+                      ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300"
+                      : "hover:bg-slate-100 dark:hover:bg-slate-700"
+                  }`}
+                >
+                  <span className="grid h-6 w-6 place-items-center rounded-lg border-2 border-slate-400 bg-white font-black text-xs">
+                    {" "}
+                  </span>
+                  <span>Checkbox Field</span>
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* 3. Images */}
+          <label className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-full text-xs font-bold text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800 transition-all cursor-pointer shrink-0">
+            <ImageIcon size={14} />
+            <span>Images</span>
+            <input
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) handleImageUpload(file);
+              }}
+            />
+          </label>
+
+          {/* 4. Sign */}
+          <button
+            type="button"
+            onClick={() => setShowSignModal(true)}
+            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-full text-xs font-bold text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800 transition-all cursor-pointer shrink-0"
+            title="Create cursive signature, draw or upload signature"
+          >
+            <FileSignature size={14} />
+            <span>Sign</span>
+          </button>
+
+          {/* 5. Whiteout */}
+          <button
+            type="button"
+            onClick={() => {
+              setActiveTool("erase");
+              setSelectedId(null);
+              notify("Whiteout tool active: Drag a rectangle to conceal or erase content cleanly", "info");
+            }}
+            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer shrink-0 ${
+              activeTool === "erase"
+                ? "bg-emerald-600 text-white shadow-md shadow-emerald-500/25"
+                : "text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800"
+            }`}
+            title="Cover part of page with matching background patch or whiteout"
+          >
+            <Eraser size={14} />
+            <span>Whiteout</span>
+          </button>
+
+          {/* 6. Annotate (Highlight & Pen) */}
+          <div className="relative shrink-0">
+            <button
+              type="button"
+              onClick={() => setAnnotateMenuOpen((o) => !o)}
+              className={`flex items-center gap-1 px-2.5 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer ${
+                activeTool === "highlight" || activeTool === "draw"
+                  ? "bg-emerald-600 text-white shadow-md shadow-emerald-500/25"
+                  : "text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800"
+              }`}
+              title="Highlight or Pen sketch"
+            >
+              <Highlighter size={14} />
+              <span>Annotate</span>
+              <ChevronDown size={11} className="opacity-70" />
+            </button>
+
+            {annotateMenuOpen && (
+              <div className="absolute left-0 top-full mt-2 z-50 w-36 rounded-2xl border border-slate-200 bg-white p-1.5 shadow-xl dark:border-slate-700 dark:bg-slate-800 space-y-1 text-xs animate-in fade-in zoom-in-95 duration-150">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveTool("highlight");
+                    setAnnotateMenuOpen(false);
+                    notify("Highlight tool active: Drag over text or area to highlight", "info");
+                  }}
+                  className={`w-full flex items-center gap-2 px-2.5 py-1.5 rounded-xl font-bold text-left cursor-pointer ${
+                    activeTool === "highlight"
+                      ? "bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300"
+                      : "hover:bg-slate-100 dark:hover:bg-slate-700"
+                  }`}
+                >
+                  <Highlighter size={14} className="text-amber-500" />
+                  <span>Highlight</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveTool("draw");
+                    setAnnotateMenuOpen(false);
+                    notify("Freehand Pen active: Draw anywhere on document", "info");
+                  }}
+                  className={`w-full flex items-center gap-2 px-2.5 py-1.5 rounded-xl font-bold text-left cursor-pointer ${
+                    activeTool === "draw"
+                      ? "bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300"
+                      : "hover:bg-slate-100 dark:hover:bg-slate-700"
+                  }`}
+                >
+                  <PenTool size={14} className="text-blue-500" />
+                  <span>Draw Pen</span>
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* 7. Shapes */}
+          <div className="relative shrink-0">
+            <button
+              type="button"
+              onClick={() => setShapesMenuOpen((o) => !o)}
+              className={`flex items-center gap-1 px-2.5 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer ${
+                ["rectangle", "circle", "line", "arrow"].includes(activeTool)
+                  ? "bg-emerald-600 text-white shadow-md shadow-emerald-500/25"
+                  : "text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800"
+              }`}
+              title="Add Rectangle, Circle, Line or Arrow"
+            >
+              <Square size={14} />
+              <span>Shapes</span>
+              <ChevronDown size={11} className="opacity-70" />
+            </button>
+
+            {shapesMenuOpen && (
+              <div className="absolute left-0 top-full mt-2 z-50 w-36 rounded-2xl border border-slate-200 bg-white p-1.5 shadow-xl dark:border-slate-700 dark:bg-slate-800 space-y-1 text-xs animate-in fade-in zoom-in-95 duration-150">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveTool("rectangle");
+                    setShapesMenuOpen(false);
+                  }}
+                  className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-xl font-bold hover:bg-slate-100 dark:hover:bg-slate-700 text-left cursor-pointer"
+                >
+                  <Square size={14} />
+                  <span>Rectangle</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveTool("circle");
+                    setShapesMenuOpen(false);
+                  }}
+                  className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-xl font-bold hover:bg-slate-100 dark:hover:bg-slate-700 text-left cursor-pointer"
+                >
+                  <Circle size={14} />
+                  <span>Circle</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveTool("line");
+                    setShapesMenuOpen(false);
+                  }}
+                  className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-xl font-bold hover:bg-slate-100 dark:hover:bg-slate-700 text-left cursor-pointer"
+                >
+                  <Minus size={14} />
+                  <span>Line</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveTool("arrow");
+                    setShapesMenuOpen(false);
+                  }}
+                  className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-xl font-bold hover:bg-slate-100 dark:hover:bg-slate-700 text-left cursor-pointer"
+                >
+                  <ArrowRight size={14} />
+                  <span>Arrow</span>
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* 8. More */}
+          <div className="relative shrink-0">
+            <button
+              type="button"
+              onClick={() => setMoreMenuOpen((o) => !o)}
+              className="flex items-center gap-1 px-2 py-1.5 rounded-full text-xs font-bold text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800 transition-all cursor-pointer"
+              title="More tools"
+            >
+              <span>More</span>
+              <ChevronDown size={11} className="opacity-70" />
+            </button>
+
+            {moreMenuOpen && (
+              <div className="absolute left-0 top-full mt-2 z-50 w-44 rounded-2xl border border-slate-200 bg-white p-1.5 shadow-xl dark:border-slate-700 dark:bg-slate-800 space-y-1 text-xs animate-in fade-in zoom-in-95 duration-150">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setFindAndReplaceOpen(true);
+                    setMoreMenuOpen(false);
+                  }}
+                  className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-xl font-bold hover:bg-slate-100 dark:hover:bg-slate-700 text-left cursor-pointer"
+                >
+                  <Replace size={14} className="text-blue-500" />
+                  <span>Find & Replace</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveTool("stamp");
+                    setMoreMenuOpen(false);
+                  }}
+                  className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-xl font-bold hover:bg-slate-100 dark:hover:bg-slate-700 text-left cursor-pointer"
+                >
+                  <Stamp size={14} className="text-emerald-500" />
+                  <span>Stamps</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveTool("redact");
+                    setMoreMenuOpen(false);
+                  }}
+                  className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-xl font-bold hover:bg-slate-100 dark:hover:bg-slate-700 text-left cursor-pointer"
+                >
+                  <EyeOff size={14} className="text-rose-500" />
+                  <span>Permanent Redact</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    clearCurrentPageAnnotations();
+                    setMoreMenuOpen(false);
+                  }}
+                  className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-xl font-bold text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 text-left cursor-pointer"
+                >
+                  <Eraser size={14} />
+                  <span>Clear This Page</span>
+                </button>
+              </div>
+            )}
+          </div>
+
+          <div className="h-5 w-px bg-slate-200 dark:bg-white/[0.1] mx-0.5 shrink-0" />
+
+          {/* Undo / Redo */}
           <button
             type="button"
             onClick={handleUndo}
             disabled={history.length === 0}
-            className="grid h-8 w-8 place-items-center rounded-xl border border-slate-200 bg-white text-slate-700 shadow-xs hover:bg-slate-50 disabled:opacity-40 dark:border-white/[0.08] dark:bg-slate-800 dark:text-slate-200"
+            className="grid h-7 w-7 place-items-center rounded-full text-slate-700 hover:bg-slate-100 disabled:opacity-30 dark:text-slate-200 dark:hover:bg-slate-800 transition-colors cursor-pointer"
             title="Undo (Ctrl+Z)"
           >
-            <Undo2 size={15} />
+            <Undo2 size={13} />
           </button>
           <button
             type="button"
             onClick={handleRedo}
             disabled={redoStack.length === 0}
-            className="grid h-8 w-8 place-items-center rounded-xl border border-slate-200 bg-white text-slate-700 shadow-xs hover:bg-slate-50 disabled:opacity-40 dark:border-white/[0.08] dark:bg-slate-800 dark:text-slate-200"
+            className="grid h-7 w-7 place-items-center rounded-full text-slate-700 hover:bg-slate-100 disabled:opacity-30 dark:text-slate-200 dark:hover:bg-slate-800 transition-colors cursor-pointer"
             title="Redo (Ctrl+Y)"
           >
-            <Redo2 size={15} />
+            <Redo2 size={13} />
           </button>
 
-          <div className="h-5 w-px bg-slate-200 dark:bg-white/[0.1] mx-0.5" />
+          <div className="h-5 w-px bg-slate-200 dark:bg-white/[0.1] mx-0.5 shrink-0" />
 
-          {/* Zoom Controls */}
+          {/* Zoom controls & Fit to Viewport */}
           <button
             type="button"
             onClick={() => setZoomScale((z) => Math.max(0.4, Number((z - 0.15).toFixed(2))))}
-            className="grid h-8 w-8 place-items-center rounded-xl border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 dark:border-white/[0.08] dark:bg-slate-800 dark:text-slate-200"
+            className="grid h-7 w-7 place-items-center rounded-full text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800 cursor-pointer"
             title="Zoom Out"
           >
-            <ZoomOut size={15} />
+            <ZoomOut size={13} />
           </button>
-          <span className="min-w-[40px] text-center font-mono text-xs font-bold text-slate-700 dark:text-slate-300">
+          <span className="min-w-[34px] text-center font-mono text-[11px] font-bold text-slate-700 dark:text-slate-300">
             {Math.round(zoomScale * 100)}%
           </span>
           <button
             type="button"
             onClick={() => setZoomScale((z) => Math.min(2.0, Number((z + 0.15).toFixed(2))))}
-            className="grid h-8 w-8 place-items-center rounded-xl border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 dark:border-white/[0.08] dark:bg-slate-800 dark:text-slate-200"
+            className="grid h-7 w-7 place-items-center rounded-full text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800 cursor-pointer"
             title="Zoom In"
           >
-            <ZoomIn size={15} />
+            <ZoomIn size={13} />
           </button>
           <button
             type="button"
             onClick={handleFitToWidth}
-            className="hidden xs:inline-flex items-center gap-1 rounded-xl border border-slate-200 bg-white px-2.5 h-8 text-[11px] font-bold text-slate-700 hover:bg-slate-50 dark:border-white/[0.08] dark:bg-slate-800 dark:text-slate-200 shadow-2xs"
-            title="Fit to screen width"
+            className="inline-flex items-center rounded-full bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 px-2 py-0.5 text-[10px] font-black hover:bg-blue-100 transition-colors shadow-2xs cursor-pointer"
+            title="Maximize document to viewport width"
           >
             Fit
           </button>
 
-          <div className="h-5 w-px bg-slate-200 dark:bg-white/[0.1] mx-0.5" />
+          <div className="h-5 w-px bg-slate-200 dark:bg-white/[0.1] mx-0.5 shrink-0" />
 
-          {/* Sidebar Pages Toggle */}
+          {/* Pages Drawer Toggle */}
           <button
             type="button"
             onClick={() => setSidebarOpen((v) => !v)}
-            className={`hidden sm:inline-flex items-center gap-1.5 rounded-xl border px-2.5 h-8 text-[11px] font-bold transition-all shadow-2xs ${
+            className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-bold transition-all cursor-pointer ${
               sidebarOpen
-                ? "border-blue-500/50 bg-blue-50/80 text-blue-600 dark:bg-blue-950/40 dark:text-blue-400"
-                : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50 dark:border-white/[0.08] dark:bg-slate-800 dark:text-slate-200"
+                ? "bg-blue-600 text-white shadow-xs"
+                : "text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800"
             }`}
-            title={sidebarOpen ? "Hide Left Sidebar (Page Thumbnails)" : "Show Left Sidebar (Page Thumbnails)"}
+            title="Open page thumbnail drawer and text inspector"
           >
             <Layers size={13} />
-            <span>{sidebarOpen ? "Hide Pages" : `Pages (${pagesPlan.length})`}</span>
-          </button>
-
-          <div className="h-5 w-px bg-slate-200 dark:bg-white/[0.1] mx-0.5" />
-
-          {/* Find & Replace button */}
-          <button
-            type="button"
-            onClick={() => setFindAndReplaceOpen((o) => !o)}
-            className={`flex items-center gap-1.5 rounded-xl border px-3 h-8 text-xs font-bold transition-all ${
-              findAndReplaceOpen
-                ? "border-blue-500 bg-blue-50 text-blue-600 dark:bg-blue-950/40 dark:text-blue-400 shadow-xs ring-2 ring-blue-500/20"
-                : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50 dark:border-white/[0.08] dark:bg-slate-800 dark:text-slate-200"
-            }`}
-            title="Find & Replace text across PDF (Ctrl+F)"
-          >
-            <Replace size={14} className="text-blue-600 dark:text-blue-400" />
-            <span className="hidden sm:inline">Find & Replace</span>
-            <span className="text-[10px] font-mono px-1 rounded bg-slate-100 dark:bg-slate-700 text-slate-500">
-              ^F
+            <span className="hidden sm:inline">Pages</span>
+            <span className="rounded-full bg-black/10 dark:bg-white/15 px-1 text-[10px]">
+              {pagesPlan.length}
             </span>
           </button>
 
+          {/* Find & Replace Toggle */}
           <button
             type="button"
-            onClick={clearCurrentPageAnnotations}
-            disabled={pageAnnotations.length === 0}
-            className="flex items-center gap-1 rounded-xl border border-slate-200 bg-white px-2.5 h-8 text-xs font-bold text-rose-600 hover:bg-rose-50 disabled:opacity-40 dark:border-white/[0.08] dark:bg-slate-800 dark:text-rose-400 dark:hover:bg-rose-950/20"
-            title="Clear annotations on current page"
-          >
-            <Eraser size={13} />
-            <span className="hidden sm:inline">Clear Page</span>
-          </button>
-        </div>
-      </div>
-
-      {/* Sejda Style Primary Toolbar */}
-      <div className="flex items-center gap-1.5 rounded-2xl border border-slate-200/90 bg-white/90 p-2 shadow-sm backdrop-blur-md dark:border-white/[0.08] dark:bg-slate-900/80 overflow-x-auto no-scrollbar flex-nowrap">
-        {/* 1. Text */}
-        <button
-          type="button"
-          onClick={() => {
-            setActiveTool("text");
-            setSelectedId(null);
-          }}
-          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer shrink-0 ${
-            activeTool === "text" || activeTool === "editText"
-              ? "bg-emerald-600 text-white shadow-md shadow-emerald-500/25"
-              : "text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800"
-          }`}
-          title="Type text or click any existing text to edit"
-        >
-          <Type size={15} />
-          <span>Text</span>
-        </button>
-
-        {/* 2. Forms (Checkmark, Cross, Radio, Checkbox) */}
-        <div className="relative shrink-0">
-          <button
-            type="button"
-            onClick={() => setFormsMenuOpen((o) => !o)}
-            className={`flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-              activeTool === "forms"
-                ? "bg-emerald-600 text-white shadow-md shadow-emerald-500/25"
+            onClick={() => setFindAndReplaceOpen((o) => !o)}
+            className={`grid h-7 w-7 place-items-center rounded-full transition-colors cursor-pointer ${
+              findAndReplaceOpen
+                ? "bg-blue-100 text-blue-700 dark:bg-blue-900/60 dark:text-blue-300"
                 : "text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800"
             }`}
-            title="Insert Checkmark, Cross, Radio bullet, or Checkbox"
+            title="Find & Replace (Ctrl+F)"
           >
-            <CheckSquare size={15} />
-            <span>Forms</span>
-            <ChevronDown size={12} className="opacity-70" />
+            <Replace size={13} />
           </button>
 
-          {formsMenuOpen && (
-            <div className="absolute left-0 top-full mt-1.5 z-50 w-44 rounded-2xl border border-slate-200 bg-white p-1.5 shadow-xl dark:border-slate-700 dark:bg-slate-800 space-y-1 text-xs">
-              <button
-                type="button"
-                onClick={() => {
-                  setFormSymbol("check");
-                  setActiveTool("forms");
-                  setFormsMenuOpen(false);
-                  notify("Click anywhere on PDF to place Checkmark (✓)", "info");
-                }}
-                className={`w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-xl font-bold transition-colors cursor-pointer text-left ${
-                  formSymbol === "check" && activeTool === "forms"
-                    ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300"
-                    : "hover:bg-slate-100 dark:hover:bg-slate-700"
-                }`}
-              >
-                <span className="grid h-6 w-6 place-items-center rounded-lg bg-emerald-500/15 text-emerald-600 font-black text-sm">
-                  ✓
-                </span>
-                <span>Checkmark</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setFormSymbol("cross");
-                  setActiveTool("forms");
-                  setFormsMenuOpen(false);
-                  notify("Click anywhere on PDF to place Cross mark (✕)", "info");
-                }}
-                className={`w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-xl font-bold transition-colors cursor-pointer text-left ${
-                  formSymbol === "cross" && activeTool === "forms"
-                    ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300"
-                    : "hover:bg-slate-100 dark:hover:bg-slate-700"
-                }`}
-              >
-                <span className="grid h-6 w-6 place-items-center rounded-lg bg-rose-500/15 text-rose-600 font-black text-sm">
-                  ✕
-                </span>
-                <span>Cross Mark</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setFormSymbol("radio");
-                  setActiveTool("forms");
-                  setFormsMenuOpen(false);
-                  notify("Click anywhere on PDF to place Radio bullet (●)", "info");
-                }}
-                className={`w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-xl font-bold transition-colors cursor-pointer text-left ${
-                  formSymbol === "radio" && activeTool === "forms"
-                    ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300"
-                    : "hover:bg-slate-100 dark:hover:bg-slate-700"
-                }`}
-              >
-                <span className="grid h-6 w-6 place-items-center rounded-lg bg-blue-500/15 text-blue-600 font-black text-sm">
-                  ●
-                </span>
-                <span>Radio Bullet</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setFormSymbol("checkbox");
-                  setActiveTool("forms");
-                  setFormsMenuOpen(false);
-                  notify("Click anywhere on PDF to place Checkbox (☐)", "info");
-                }}
-                className={`w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-xl font-bold transition-colors cursor-pointer text-left ${
-                  formSymbol === "checkbox" && activeTool === "forms"
-                    ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300"
-                    : "hover:bg-slate-100 dark:hover:bg-slate-700"
-                }`}
-              >
-                <span className="grid h-6 w-6 place-items-center rounded-lg border-2 border-slate-400 bg-white font-black text-xs">
-                  {" "}
-                </span>
-                <span>Checkbox Field</span>
-              </button>
-            </div>
-          )}
-        </div>
+          <div className="h-5 w-px bg-slate-200 dark:bg-white/[0.1] mx-0.5 shrink-0" />
 
-        {/* 3. Images */}
-        <label className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800 transition-all cursor-pointer shrink-0">
-          <ImageIcon size={15} />
-          <span>Images</span>
-          <input
-            type="file"
-            accept="image/*"
-            className="hidden"
-            onChange={(e) => {
-              const file = e.target.files?.[0];
-              if (file) handleImageUpload(file);
-            }}
-          />
-        </label>
-
-        {/* 4. Sign */}
-        <button
-          type="button"
-          onClick={() => setShowSignModal(true)}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800 transition-all cursor-pointer shrink-0"
-          title="Create cursive signature, draw or upload signature"
-        >
-          <FileSignature size={15} />
-          <span>Sign</span>
-        </button>
-
-        {/* 5. Whiteout */}
-        <button
-          type="button"
-          onClick={() => {
-            setActiveTool("erase");
-            setSelectedId(null);
-            notify("Whiteout tool active: Drag a rectangle to conceal or erase content cleanly", "info");
-          }}
-          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer shrink-0 ${
-            activeTool === "erase"
-              ? "bg-emerald-600 text-white shadow-md shadow-emerald-500/25"
-              : "text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800"
-          }`}
-          title="Cover part of page with matching background patch or whiteout"
-        >
-          <Eraser size={15} />
-          <span>Whiteout</span>
-        </button>
-
-        {/* 6. Annotate (Highlight & Pen) */}
-        <div className="relative shrink-0">
+          {/* Prominent Apply Changes Button */}
           <button
             type="button"
-            onClick={() => setAnnotateMenuOpen((o) => !o)}
-            className={`flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-              activeTool === "highlight" || activeTool === "draw"
-                ? "bg-emerald-600 text-white shadow-md shadow-emerald-500/25"
-                : "text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800"
-            }`}
-            title="Highlight or Pen sketch"
+            onClick={handleExport}
+            disabled={exporting}
+            className="inline-flex items-center gap-1.5 rounded-full bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white px-3.5 sm:px-4 py-1.5 text-xs font-extrabold shadow-md shadow-emerald-600/30 transition-all shrink-0 cursor-pointer disabled:opacity-50"
+            title="Save & apply changes to export edited PDF"
           >
-            <Highlighter size={15} />
-            <span>Annotate</span>
-            <ChevronDown size={12} className="opacity-70" />
+            {exporting ? (
+              <>
+                <RefreshCw size={13} className="animate-spin" />
+                <span className="hidden sm:inline">Applying...</span>
+              </>
+            ) : (
+              <>
+                <CheckCheck size={14} />
+                <span>Apply changes</span>
+              </>
+            )}
           </button>
-
-          {annotateMenuOpen && (
-            <div className="absolute left-0 top-full mt-1.5 z-50 w-36 rounded-2xl border border-slate-200 bg-white p-1.5 shadow-xl dark:border-slate-700 dark:bg-slate-800 space-y-1 text-xs">
-              <button
-                type="button"
-                onClick={() => {
-                  setActiveTool("highlight");
-                  setAnnotateMenuOpen(false);
-                  notify("Highlight tool active: Drag over text or area to highlight", "info");
-                }}
-                className={`w-full flex items-center gap-2 px-2.5 py-1.5 rounded-xl font-bold text-left cursor-pointer ${
-                  activeTool === "highlight"
-                    ? "bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300"
-                    : "hover:bg-slate-100 dark:hover:bg-slate-700"
-                }`}
-              >
-                <Highlighter size={14} className="text-amber-500" />
-                <span>Highlight</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setActiveTool("draw");
-                  setAnnotateMenuOpen(false);
-                  notify("Freehand Pen active: Draw anywhere on document", "info");
-                }}
-                className={`w-full flex items-center gap-2 px-2.5 py-1.5 rounded-xl font-bold text-left cursor-pointer ${
-                  activeTool === "draw"
-                    ? "bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300"
-                    : "hover:bg-slate-100 dark:hover:bg-slate-700"
-                }`}
-              >
-                <PenTool size={14} className="text-blue-500" />
-                <span>Draw Pen</span>
-              </button>
-            </div>
-          )}
         </div>
 
-        {/* 7. Shapes */}
-        <div className="relative shrink-0">
-          <button
-            type="button"
-            onClick={() => setShapesMenuOpen((o) => !o)}
-            className={`flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-              ["rectangle", "circle", "line", "arrow"].includes(activeTool)
-                ? "bg-emerald-600 text-white shadow-md shadow-emerald-500/25"
-                : "text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800"
-            }`}
-            title="Add Rectangle, Circle, Line or Arrow"
-          >
-            <Square size={15} />
-            <span>Shapes</span>
-            <ChevronDown size={12} className="opacity-70" />
-          </button>
-
-          {shapesMenuOpen && (
-            <div className="absolute left-0 top-full mt-1.5 z-50 w-36 rounded-2xl border border-slate-200 bg-white p-1.5 shadow-xl dark:border-slate-700 dark:bg-slate-800 space-y-1 text-xs">
-              <button
-                type="button"
-                onClick={() => {
-                  setActiveTool("rectangle");
-                  setShapesMenuOpen(false);
-                }}
-                className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-xl font-bold hover:bg-slate-100 dark:hover:bg-slate-700 text-left cursor-pointer"
-              >
-                <Square size={14} />
-                <span>Rectangle</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setActiveTool("circle");
-                  setShapesMenuOpen(false);
-                }}
-                className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-xl font-bold hover:bg-slate-100 dark:hover:bg-slate-700 text-left cursor-pointer"
-              >
-                <Circle size={14} />
-                <span>Circle</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setActiveTool("line");
-                  setShapesMenuOpen(false);
-                }}
-                className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-xl font-bold hover:bg-slate-100 dark:hover:bg-slate-700 text-left cursor-pointer"
-              >
-                <Minus size={14} />
-                <span>Line</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setActiveTool("arrow");
-                  setShapesMenuOpen(false);
-                }}
-                className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-xl font-bold hover:bg-slate-100 dark:hover:bg-slate-700 text-left cursor-pointer"
-              >
-                <ArrowRight size={14} />
-                <span>Arrow</span>
-              </button>
-            </div>
-          )}
-        </div>
-
-        {/* 8. More (Find & Replace, Stamps, Redact) */}
-        <div className="relative shrink-0">
-          <button
-            type="button"
-            onClick={() => setMoreMenuOpen((o) => !o)}
-            className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-xs font-bold text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800 transition-all cursor-pointer"
-            title="More tools"
-          >
-            <span>More</span>
-            <ChevronDown size={12} className="opacity-70" />
-          </button>
-
-          {moreMenuOpen && (
-            <div className="absolute left-0 top-full mt-1.5 z-50 w-44 rounded-2xl border border-slate-200 bg-white p-1.5 shadow-xl dark:border-slate-700 dark:bg-slate-800 space-y-1 text-xs">
-              <button
-                type="button"
-                onClick={() => {
-                  setFindAndReplaceOpen(true);
-                  setMoreMenuOpen(false);
-                }}
-                className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-xl font-bold hover:bg-slate-100 dark:hover:bg-slate-700 text-left cursor-pointer"
-              >
-                <Replace size={14} className="text-blue-500" />
-                <span>Find & Replace</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setActiveTool("stamp");
-                  setMoreMenuOpen(false);
-                }}
-                className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-xl font-bold hover:bg-slate-100 dark:hover:bg-slate-700 text-left cursor-pointer"
-              >
-                <Stamp size={14} className="text-emerald-500" />
-                <span>Stamps</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setActiveTool("redact");
-                  setMoreMenuOpen(false);
-                }}
-                className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-xl font-bold hover:bg-slate-100 dark:hover:bg-slate-700 text-left cursor-pointer"
-              >
-                <EyeOff size={14} className="text-rose-500" />
-                <span>Permanent Redact</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  clearCurrentPageAnnotations();
-                  setMoreMenuOpen(false);
-                }}
-                className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-xl font-bold text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 text-left cursor-pointer"
-              >
-                <Eraser size={14} />
-                <span>Clear This Page</span>
-              </button>
-            </div>
-          )}
-        </div>
-
-        <div className="h-5 w-px bg-slate-200 dark:bg-white/[0.1] mx-1 ml-auto shrink-0" />
-
-        {/* Quick Text Detection Status */}
-        <button
-          type="button"
-          onClick={() => setDetectTextActive(!detectTextActive)}
-          className={`shrink-0 whitespace-nowrap flex items-center gap-1.5 rounded-xl px-2.5 py-1 text-xs font-bold transition-all cursor-pointer ${
-            detectTextActive
-              ? "bg-blue-50 text-blue-600 border border-blue-200 dark:bg-blue-950/40 dark:border-blue-800 dark:text-blue-400"
-              : "text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"
-          }`}
-          title="Toggle interactive bounding box hover on PDF text"
-        >
-          {detectTextActive ? <Eye size={13} /> : <EyeOff size={13} />}
-          <span className="text-[11px] hidden sm:inline">Detect Text</span>
-        </button>
-      </div>
-
-      {/* Contextual Properties Bar */}
-      <div className="flex items-center gap-2.5 sm:gap-3 rounded-2xl border border-slate-200/80 bg-slate-50/80 px-3 sm:px-4 py-2.5 dark:border-white/[0.06] dark:bg-slate-900/40 text-xs overflow-x-auto no-scrollbar flex-nowrap lg:flex-wrap">
-        {/* Color Palette for Text, Draw, Shapes */}
+        {/* Floating Contextual Properties Bar */}
         {(activeTool === "text" ||
+          activeTool === "editText" ||
           activeTool === "draw" ||
-          activeTool === "rectangle" ||
-          activeTool === "circle" ||
-          activeTool === "line" ||
-          activeTool === "arrow" ||
+          activeTool === "highlight" ||
+          activeTool === "erase" ||
+          ["rectangle", "circle", "line", "arrow"].includes(activeTool) ||
           selectedAnnotation) && (
-          <div className="flex items-center gap-2">
-            <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400">Color:</span>
-            <div className="flex items-center gap-1">
-              {COLOR_PALETTE.map((c) => (
-                <button
-                  key={c.hex}
-                  type="button"
-                  onClick={() => {
-                    setActiveColor(c.hex);
-                    if (selectedId) {
-                      setAnnotations((prev) =>
-                        prev.map((a) =>
-                          a.id === selectedId
-                            ? { ...a, textColor: c.hex, strokeColor: c.hex }
-                            : a
-                        )
-                      );
-                    }
-                  }}
-                  className={`h-5 w-5 rounded-full border border-slate-300 dark:border-slate-600 transition-transform ${
-                    activeColor === c.hex ? "scale-125 ring-2 ring-blue-500 ring-offset-1" : "hover:scale-110"
-                  }`}
-                  style={{ backgroundColor: c.hex }}
-                  title={c.name}
-                />
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Text Specific Options */}
-        {(activeTool === "text" || (selectedAnnotation && selectedAnnotation.type === "text")) && (
-          <>
-            <div className="h-4 w-px bg-slate-200 dark:bg-white/[0.1]" />
-            <div className="flex items-center gap-1.5">
-              <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400">Size:</span>
-              <div className="flex items-center">
-                <button
-                  type="button"
-                  onClick={() => {
-                    const currentSz = selectedAnnotation?.fontSize || fontSize;
-                    const nextSz = Math.max(6, currentSz - 1);
-                    setFontSize(nextSz);
-                    if (selectedId) {
-                      setAnnotations((prev) =>
-                        prev.map((a) => (a.id === selectedId ? { ...a, fontSize: nextSz } : a))
-                      );
-                    }
-                  }}
-                  className="rounded-l-lg border border-r-0 border-slate-200 bg-slate-50 p-1 text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700 cursor-pointer"
-                  title="Decrease font size (-1pt)"
-                >
-                  <Minus size={12} />
-                </button>
-                <select
-                  value={selectedAnnotation?.fontSize || fontSize}
-                  onChange={(e) => {
-                    const size = Number(e.target.value);
-                    setFontSize(size);
-                    if (selectedId) {
-                      setAnnotations((prev) =>
-                        prev.map((a) => (a.id === selectedId ? { ...a, fontSize: size } : a))
-                      );
-                    }
-                  }}
-                  className="border-y border-slate-200 bg-white px-2 py-1 text-xs font-bold text-slate-800 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
-                >
-                  {(() => {
-                    const activeSz = selectedAnnotation?.fontSize || fontSize;
-                    const allSizes = Array.from(
-                      new Set([6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 22, 24, 28, 32, 36, 40, 48, 64, activeSz])
-                    ).sort((a, b) => a - b);
-                    return allSizes.map((s) => (
-                      <option key={s} value={s}>
-                        {s}pt
-                      </option>
-                    ));
-                  })()}
-                </select>
-                <button
-                  type="button"
-                  onClick={() => {
-                    const currentSz = selectedAnnotation?.fontSize || fontSize;
-                    const nextSz = Math.min(120, currentSz + 1);
-                    setFontSize(nextSz);
-                    if (selectedId) {
-                      setAnnotations((prev) =>
-                        prev.map((a) => (a.id === selectedId ? { ...a, fontSize: nextSz } : a))
-                      );
-                    }
-                  }}
-                  className="rounded-r-lg border border-l-0 border-slate-200 bg-slate-50 p-1 text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700 cursor-pointer"
-                  title="Increase font size (+1pt)"
-                >
-                  <Plus size={12} />
-                </button>
+          <div className="rounded-full border border-slate-200/80 bg-white/95 px-3.5 py-1 shadow-xl backdrop-blur-xl dark:border-white/10 dark:bg-slate-900/95 flex items-center gap-2 sm:gap-2.5 text-xs overflow-x-auto no-scrollbar max-w-[96vw] animate-in fade-in slide-in-from-top-1 duration-150">
+            {/* Color Palette for Text, Draw, Shapes */}
+            {(activeTool === "text" ||
+              activeTool === "draw" ||
+              activeTool === "rectangle" ||
+              activeTool === "circle" ||
+              activeTool === "line" ||
+              activeTool === "arrow" ||
+              selectedAnnotation) && (
+              <div className="flex items-center gap-1.5 shrink-0">
+                <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400">Color:</span>
+                <div className="flex items-center gap-1">
+                  {COLOR_PALETTE.map((c) => (
+                    <button
+                      key={c.hex}
+                      type="button"
+                      onClick={() => {
+                        setActiveColor(c.hex);
+                        if (selectedId) {
+                          setAnnotations((prev) =>
+                            prev.map((a) =>
+                              a.id === selectedId
+                                ? { ...a, textColor: c.hex, strokeColor: c.hex }
+                                : a
+                            )
+                          );
+                        }
+                      }}
+                      className={`h-4.5 w-4.5 rounded-full border border-slate-300 dark:border-slate-600 transition-transform cursor-pointer ${
+                        activeColor === c.hex ? "scale-125 ring-2 ring-blue-500 ring-offset-1" : "hover:scale-110"
+                      }`}
+                      style={{ backgroundColor: c.hex }}
+                      title={c.name}
+                    />
+                  ))}
+                </div>
               </div>
-            </div>
+            )}
 
-            <div className="flex items-center gap-2">
-              <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400">Font:</span>
-              <select
-                value={selectedAnnotation?.fontFamily || fontFamily}
-                onChange={(e) => {
-                  const f = e.target.value as any;
-                  setFontFamily(f);
-                  if (selectedId) {
-                    setAnnotations((prev) =>
-                      prev.map((a) => (a.id === selectedId ? { ...a, fontFamily: f } : a))
-                    );
-                  }
-                }}
-                className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs font-bold text-slate-800 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
-              >
-                {selectedAnnotation?.actualFontName && (
-                  <option value={selectedAnnotation.fontFamily}>
-                    Original ({selectedAnnotation.actualFontName})
-                  </option>
-                )}
-                <option value="sans">Sans-Serif (Arial / Calibri / Helvetica)</option>
-                <option value="serif">Serif (Times New Roman / Georgia)</option>
-                <option value="mono">Monospace (Courier New / Consolas)</option>
-                <option value="cursive">Cursive (Script)</option>
-              </select>
-              {selectedAnnotation?.actualFontName && (
-                <span
-                  className="hidden sm:inline-block rounded-md bg-blue-500/10 px-1.5 py-0.5 text-[10px] font-bold text-blue-600 dark:bg-blue-500/20 dark:text-blue-300 truncate max-w-[130px]"
-                  title={`Original PDF typeface: ${selectedAnnotation.actualFontName}`}
-                >
-                  {selectedAnnotation.actualFontName}
-                </span>
-              )}
-            </div>
+            {/* Text Specific Options */}
+            {(activeTool === "text" || (selectedAnnotation && selectedAnnotation.type === "text")) && (
+              <>
+                <div className="h-4 w-px bg-slate-200 dark:bg-white/[0.1] shrink-0" />
+                <div className="flex items-center gap-1 shrink-0">
+                  <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400">Size:</span>
+                  <div className="flex items-center">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const currentSz = selectedAnnotation?.fontSize || fontSize;
+                        const nextSz = Math.max(6, currentSz - 1);
+                        setFontSize(nextSz);
+                        if (selectedId) {
+                          setAnnotations((prev) =>
+                            prev.map((a) => (a.id === selectedId ? { ...a, fontSize: nextSz } : a))
+                          );
+                        }
+                      }}
+                      className="rounded-l-full border border-r-0 border-slate-200 bg-slate-50 px-1.5 py-0.5 text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 cursor-pointer"
+                      title="Decrease font size (-1pt)"
+                    >
+                      <Minus size={11} />
+                    </button>
+                    <select
+                      value={selectedAnnotation?.fontSize || fontSize}
+                      onChange={(e) => {
+                        const size = Number(e.target.value);
+                        setFontSize(size);
+                        if (selectedId) {
+                          setAnnotations((prev) =>
+                            prev.map((a) => (a.id === selectedId ? { ...a, fontSize: size } : a))
+                          );
+                        }
+                      }}
+                      className="border-y border-slate-200 bg-white px-1.5 py-0.5 text-[11px] font-bold text-slate-800 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+                    >
+                      {(() => {
+                        const activeSz = selectedAnnotation?.fontSize || fontSize;
+                        const allSizes = Array.from(
+                          new Set([6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 22, 24, 28, 32, 36, 40, 48, 64, activeSz])
+                        ).sort((a, b) => a - b);
+                        return allSizes.map((s) => (
+                          <option key={s} value={s}>
+                            {s}pt
+                          </option>
+                        ));
+                      })()}
+                    </select>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const currentSz = selectedAnnotation?.fontSize || fontSize;
+                        const nextSz = Math.min(120, currentSz + 1);
+                        setFontSize(nextSz);
+                        if (selectedId) {
+                          setAnnotations((prev) =>
+                            prev.map((a) => (a.id === selectedId ? { ...a, fontSize: nextSz } : a))
+                          );
+                        }
+                      }}
+                      className="rounded-r-full border border-l-0 border-slate-200 bg-slate-50 px-1.5 py-0.5 text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 cursor-pointer"
+                      title="Increase font size (+1pt)"
+                    >
+                      <Plus size={11} />
+                    </button>
+                  </div>
+                </div>
 
-            <button
-              type="button"
-              onClick={() => {
-                const currentBold = selectedAnnotation ? selectedAnnotation.fontWeight === "bold" : isBold;
-                const nextBold = !currentBold;
-                setIsBold(nextBold);
-                if (selectedId) {
-                  setAnnotations((prev) =>
-                    prev.map((a) => (a.id === selectedId ? { ...a, fontWeight: nextBold ? "bold" : "normal" } : a))
-                  );
-                }
-              }}
-              className={`h-7 w-7 rounded-lg border font-black transition-all ${
-                (selectedAnnotation ? selectedAnnotation.fontWeight === "bold" : isBold)
-                  ? "border-blue-500 bg-blue-600 text-white shadow-xs"
-                  : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300"
-              }`}
-              title="Toggle Bold"
-            >
-              B
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                const currentItalic = selectedAnnotation ? selectedAnnotation.fontStyle === "italic" : isItalic;
-                const nextItalic = !currentItalic;
-                setIsItalic(nextItalic);
-                if (selectedId) {
-                  setAnnotations((prev) =>
-                    prev.map((a) => (a.id === selectedId ? { ...a, fontStyle: nextItalic ? "italic" : "normal" } : a))
-                  );
-                }
-              }}
-              className={`h-7 w-7 rounded-lg border italic font-serif font-bold transition-all ${
-                (selectedAnnotation ? selectedAnnotation.fontStyle === "italic" : isItalic)
-                  ? "border-blue-500 bg-blue-600 text-white shadow-xs"
-                  : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300"
-              }`}
-              title="Toggle Italic"
-            >
-              I
-            </button>
+                <div className="flex items-center gap-1 shrink-0">
+                  <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400">Font:</span>
+                  <select
+                    value={selectedAnnotation?.fontFamily || fontFamily}
+                    onChange={(e) => {
+                      const f = e.target.value as any;
+                      setFontFamily(f);
+                      if (selectedId) {
+                        setAnnotations((prev) =>
+                          prev.map((a) => (a.id === selectedId ? { ...a, fontFamily: f } : a))
+                        );
+                      }
+                    }}
+                    className="rounded-lg border border-slate-200 bg-white px-2 py-0.5 text-[11px] font-bold text-slate-800 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+                  >
+                    {selectedAnnotation?.actualFontName && (
+                      <option value={selectedAnnotation.fontFamily}>
+                        Original ({selectedAnnotation.actualFontName})
+                      </option>
+                    )}
+                    <option value="sans">Sans-Serif</option>
+                    <option value="serif">Serif</option>
+                    <option value="mono">Monospace</option>
+                    <option value="cursive">Cursive</option>
+                  </select>
+                </div>
 
-            {/* Whiteout / Background controls */}
-            <div className="h-4 w-px bg-slate-200 dark:bg-white/[0.1]" />
-            <div className="flex flex-wrap items-center gap-1.5">
-              <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400">Background:</span>
-              <button
-                type="button"
-                onClick={() => {
-                  if (selectedAnnotation && selectedAnnotation.type === "text") {
-                    const matchedBg = sampleBackgroundColor(
-                      selectedAnnotation.xNorm,
-                      selectedAnnotation.yNorm,
-                      selectedAnnotation.widthNorm,
-                      selectedAnnotation.heightNorm
-                    );
-                    const txtColor = isColorDark(matchedBg) ? "#ffffff" : selectedAnnotation.textColor;
-                    setAnnotations((prev) =>
-                      prev.map((a) =>
-                        a.id === selectedId
-                          ? {
-                              ...a,
-                              underlayWhiteout: true,
-                              whiteoutColor: matchedBg,
-                              textHighlightColor: matchedBg,
-                              textColor: txtColor
-                            }
-                          : a
-                      )
-                    );
-                    notify(`Auto-matched text background to ${matchedBg.toUpperCase()}`, "success");
-                  } else {
-                    notify("Select a text box on the page to auto-match its background", "info");
-                  }
-                }}
-                className="flex items-center gap-1 rounded-lg px-2 py-0.5 text-[10px] font-bold border border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100 dark:bg-blue-950/30 dark:text-blue-300 dark:border-blue-900/50"
-                title="Automatically match background color directly under this text"
-              >
-                <Sparkles size={10} />
-                <span>Auto-Match</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setIsEyedropperActive((prev) => !prev);
-                  if (!isEyedropperActive) {
-                    notify("Click anywhere on PDF to pick background color for this text", "info");
-                  }
-                }}
-                className={`flex items-center gap-1 rounded-lg px-2 py-0.5 text-[10px] font-bold border transition-all ${
-                  isEyedropperActive
-                    ? "bg-amber-500 text-white border-amber-600 shadow-xs ring-2 ring-amber-400/50 animate-pulse"
-                    : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700"
-                }`}
-                title="Pick exact color from anywhere on the document"
-              >
-                <Pipette size={10} />
-                <span>Pick</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  if (selectedId) {
-                    setAnnotations((prev) =>
-                      prev.map((a) =>
-                        a.id === selectedId
-                          ? { ...a, underlayWhiteout: true, whiteoutColor: "#ffffff", textHighlightColor: "#ffffff" }
-                          : a
-                      )
-                    );
-                  }
-                }}
-                className={`rounded-lg px-2 py-0.5 text-[10px] font-bold border transition-all ${
-                  selectedAnnotation?.underlayWhiteout &&
-                  (!selectedAnnotation?.whiteoutColor || selectedAnnotation?.whiteoutColor === "#ffffff")
-                    ? "bg-white text-blue-600 border-blue-500 ring-2 ring-blue-500/20 shadow-xs"
-                    : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700"
-                }`}
-                title="Whiteout background (erases original PDF text)"
-              >
-                White
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  if (selectedId) {
-                    setAnnotations((prev) =>
-                      prev.map((a) =>
-                        a.id === selectedId
-                          ? { ...a, underlayWhiteout: true, whiteoutColor: "#fef9c3", textHighlightColor: "#fef9c3" }
-                          : a
-                      )
-                    );
-                  }
-                }}
-                className={`rounded-lg px-2 py-0.5 text-[10px] font-bold border transition-all ${
-                  selectedAnnotation?.whiteoutColor === "#fef9c3"
-                    ? "bg-yellow-100 text-yellow-800 border-yellow-400 ring-2 ring-yellow-400/20 shadow-xs"
-                    : "bg-yellow-50 text-yellow-700 border-yellow-200 hover:bg-yellow-100 dark:bg-yellow-950/30 dark:text-yellow-300 dark:border-yellow-900/50"
-                }`}
-                title="Warm paper tint"
-              >
-                Warm
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  if (selectedId) {
-                    setAnnotations((prev) =>
-                      prev.map((a) =>
-                        a.id === selectedId
-                          ? { ...a, underlayWhiteout: false, textHighlightColor: "transparent" }
-                          : a
-                      )
-                    );
-                  }
-                }}
-                className={`rounded-lg px-2 py-0.5 text-[10px] font-bold border transition-all ${
-                  !selectedAnnotation?.underlayWhiteout && selectedAnnotation?.textHighlightColor === "transparent"
-                    ? "bg-slate-200 text-slate-800 border-slate-400 dark:bg-slate-700 dark:text-white"
-                    : "bg-transparent text-slate-500 border-slate-200 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-400"
-                }`}
-                title="Clear background"
-              >
-                Clear
-              </button>
-              {/* Custom Underlay Color */}
-              <label
-                className="relative flex h-5 w-5 cursor-pointer items-center justify-center rounded-md border border-slate-300 bg-linear-to-br from-red-400 via-green-400 to-blue-400 shadow-2xs hover:scale-105"
-                title="Custom background color"
-              >
-                <input
-                  type="color"
-                  value={selectedAnnotation?.whiteoutColor || "#ffffff"}
-                  onChange={(e) => {
-                    const col = e.target.value;
+                <button
+                  type="button"
+                  onClick={() => {
+                    const currentBold = selectedAnnotation ? selectedAnnotation.fontWeight === "bold" : isBold;
+                    const nextBold = !currentBold;
+                    setIsBold(nextBold);
                     if (selectedId) {
                       setAnnotations((prev) =>
                         prev.map((a) =>
-                          a.id === selectedId
-                            ? { ...a, underlayWhiteout: true, whiteoutColor: col, textHighlightColor: col }
-                            : a
+                          a.id === selectedId ? { ...a, fontWeight: nextBold ? "bold" : "normal" } : a
                         )
                       );
                     }
                   }}
-                  className="absolute inset-0 cursor-pointer opacity-0"
-                />
-              </label>
-            </div>
+                  className={`h-6 w-6 rounded-md font-black text-xs transition-colors cursor-pointer ${
+                    (selectedAnnotation ? selectedAnnotation.fontWeight === "bold" : isBold)
+                      ? "bg-slate-900 text-white dark:bg-white dark:text-slate-900"
+                      : "border border-slate-200 text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-200"
+                  }`}
+                  title="Bold (Ctrl+B)"
+                >
+                  B
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    const currentItalic = selectedAnnotation ? selectedAnnotation.fontStyle === "italic" : isItalic;
+                    const nextItalic = !currentItalic;
+                    setIsItalic(nextItalic);
+                    if (selectedId) {
+                      setAnnotations((prev) =>
+                        prev.map((a) =>
+                          a.id === selectedId ? { ...a, fontStyle: nextItalic ? "italic" : "normal" } : a
+                        )
+                      );
+                    }
+                  }}
+                  className={`h-6 w-6 rounded-md italic font-black text-xs transition-colors cursor-pointer ${
+                    (selectedAnnotation ? selectedAnnotation.fontStyle === "italic" : isItalic)
+                      ? "bg-slate-900 text-white dark:bg-white dark:text-slate-900"
+                      : "border border-slate-200 text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-200"
+                  }`}
+                  title="Italic (Ctrl+I)"
+                >
+                  I
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    const currentWhiteout = selectedAnnotation
+                      ? selectedAnnotation.underlayWhiteout !== false
+                      : true;
+                    const nextWhiteout = !currentWhiteout;
+                    if (selectedId) {
+                      setAnnotations((prev) =>
+                        prev.map((a) =>
+                          a.id === selectedId ? { ...a, underlayWhiteout: nextWhiteout } : a
+                        )
+                      );
+                    }
+                  }}
+                  className={`rounded-full px-2 py-0.5 text-[10px] font-bold transition-all cursor-pointer ${
+                    (selectedAnnotation ? selectedAnnotation.underlayWhiteout !== false : true)
+                      ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300"
+                      : "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400"
+                  }`}
+                  title="Toggle whiteout background to conceal original PDF text under this edit"
+                >
+                  {(selectedAnnotation ? selectedAnnotation.underlayWhiteout !== false : true)
+                    ? "Hide BG: ON"
+                    : "Hide BG: OFF"}
+                </button>
+              </>
+            )}
+
+            {/* Erase / Logo Remover Options */}
+            {(activeTool === "erase" || (selectedAnnotation && selectedAnnotation.type === "erase")) && (
+              <>
+                <div className="h-4 w-px bg-slate-200 dark:bg-white/[0.1] shrink-0" />
+                <button
+                  type="button"
+                  onClick={() => {
+                    const nextMatch = !eraseColorAutoMatch;
+                    setEraseColorAutoMatch(nextMatch);
+                    if (nextMatch && selectedAnnotation && selectedAnnotation.type === "erase") {
+                      const sampled = sampleBackgroundColor(
+                        selectedAnnotation.xNorm,
+                        selectedAnnotation.yNorm,
+                        selectedAnnotation.widthNorm,
+                        selectedAnnotation.heightNorm
+                      );
+                      setAnnotations((prev) =>
+                        prev.map((a) => (a.id === selectedAnnotation.id ? { ...a, fillColor: sampled } : a))
+                      );
+                      notify(`Auto-matched background to ${sampled.toUpperCase()}`, "success");
+                    }
+                  }}
+                  className={`flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-bold transition-all cursor-pointer border ${
+                    eraseColorAutoMatch
+                      ? "bg-blue-600 text-white border-blue-600 shadow-xs"
+                      : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700"
+                  }`}
+                  title="Automatically samples surrounding background color so erasures blend seamlessly"
+                >
+                  <Sparkles size={11} />
+                  <span>Auto-Match BG {eraseColorAutoMatch ? "ON" : "OFF"}</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsEyedropperActive((prev) => !prev);
+                    if (!isEyedropperActive) {
+                      notify("Eyedropper active: Click anywhere on the PDF page to sample its color", "info");
+                    }
+                  }}
+                  className={`flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-bold transition-all cursor-pointer border ${
+                    isEyedropperActive
+                      ? "bg-amber-500 text-white border-amber-600 shadow-xs ring-2 ring-amber-400/50 animate-pulse"
+                      : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700"
+                  }`}
+                  title="Pick exact background color from anywhere on the document"
+                >
+                  <Pipette size={11} />
+                  <span>{isEyedropperActive ? "Sampling..." : "Pick Color"}</span>
+                </button>
+
+                {selectedAnnotation && selectedAnnotation.type === "erase" && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const patch = generateBackgroundInpaintPatch(
+                        selectedAnnotation.xNorm,
+                        selectedAnnotation.yNorm,
+                        selectedAnnotation.widthNorm,
+                        selectedAnnotation.heightNorm
+                      );
+                      setAnnotations((prev) =>
+                        prev.map((a) =>
+                          a.id === selectedAnnotation.id
+                            ? { ...a, imageDataUrl: patch || undefined, eraseMode: "inpaint" }
+                            : a
+                        )
+                      );
+                      notify("Background cleanly reconstructed!", "success");
+                    }}
+                    className="flex items-center gap-1 rounded-full bg-emerald-600 text-white px-2.5 py-0.5 text-[11px] font-bold hover:bg-emerald-500 shadow-xs cursor-pointer"
+                    title="Re-sample surrounding background and seamlessly blend without affecting background"
+                  >
+                    <Wand2 size={11} />
+                    <span>Re-Clean BG</span>
+                  </button>
+                )}
+              </>
+            )}
+
+            {/* Pen & Shapes Stroke Width */}
+            {(activeTool === "draw" ||
+              ["rectangle", "circle", "line", "arrow"].includes(activeTool)) && (
+              <>
+                <div className="h-4 w-px bg-slate-200 dark:bg-white/[0.1] shrink-0" />
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400">Width:</span>
+                  <input
+                    type="range"
+                    min={1}
+                    max={16}
+                    value={strokeWidth}
+                    onChange={(e) => setStrokeWidth(Number(e.target.value))}
+                    className="h-1.5 w-16 rounded-lg bg-slate-200 accent-blue-600 dark:bg-slate-700 cursor-pointer"
+                  />
+                  <span className="font-mono text-[10px] font-bold">{strokeWidth}px</span>
+                </div>
+              </>
+            )}
+
+            {/* Highlight Color */}
+            {activeTool === "highlight" && (
+              <>
+                <div className="h-4 w-px bg-slate-200 dark:bg-white/[0.1] shrink-0" />
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400">Marker:</span>
+                  <div className="flex items-center gap-1">
+                    {HIGHLIGHT_COLORS.map((hc) => (
+                      <button
+                        key={hc.hex}
+                        type="button"
+                        onClick={() => setHighlightColor(hc.hex)}
+                        className={`h-4.5 w-6 rounded-sm border border-slate-300 dark:border-slate-600 transition-transform cursor-pointer ${
+                          highlightColor === hc.hex ? "scale-110 ring-2 ring-blue-500" : "hover:scale-105"
+                        }`}
+                        style={{ backgroundColor: hc.hex }}
+                        title={hc.name}
+                      />
+                    ))}
+                  </div>
+                </div>
+              </>
+            )}
 
             {selectedAnnotation?.originalText !== undefined && (
               <div className="flex items-center gap-1.5 pl-1 border-l border-slate-200 dark:border-white/[0.1]">
@@ -2810,340 +2798,63 @@ export default function PdfEditorView({
                 </button>
               </div>
             )}
-          </>
-        )}
 
-        {/* Pen & Shapes Stroke Width */}
-        {(activeTool === "draw" ||
-          activeTool === "rectangle" ||
-          activeTool === "circle" ||
-          activeTool === "line" ||
-          activeTool === "arrow") && (
-          <>
-            <div className="h-4 w-px bg-slate-200 dark:bg-white/[0.1]" />
-            <div className="flex items-center gap-2">
-              <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400">Thickness:</span>
-              <input
-                type="range"
-                min={1}
-                max={16}
-                value={strokeWidth}
-                onChange={(e) => setStrokeWidth(Number(e.target.value))}
-                className="h-1.5 w-24 rounded-lg bg-slate-200 accent-blue-600 dark:bg-slate-700"
-              />
-              <span className="font-mono text-[11px] font-bold">{strokeWidth}px</span>
-            </div>
-          </>
-        )}
-
-        {/* Highlight Colors */}
-        {activeTool === "highlight" && (
-          <div className="flex items-center gap-2">
-            <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400">Marker Color:</span>
-            <div className="flex items-center gap-1.5">
-              {HIGHLIGHT_COLORS.map((hc) => (
+            {/* Selected Annotation Actions */}
+            {selectedAnnotation && (
+              <div className="ml-auto flex items-center gap-1 shrink-0">
                 <button
-                  key={hc.hex}
                   type="button"
-                  onClick={() => setHighlightColor(hc.hex)}
-                  className={`h-5 w-7 rounded border border-slate-300 transition-transform ${
-                    highlightColor === hc.hex ? "ring-2 ring-blue-500 scale-110" : ""
-                  }`}
-                  style={{ backgroundColor: hc.hex }}
-                  title={hc.name}
-                />
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Redaction Options */}
-        {activeTool === "redact" && (
-          <div className="flex items-center gap-2">
-            <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400">Redaction Type:</span>
-            <button
-              type="button"
-              onClick={() => setRedactColor("#000000")}
-              className={`rounded-lg px-2.5 py-1 text-[11px] font-bold ${
-                redactColor === "#000000"
-                  ? "bg-black text-white ring-2 ring-blue-500"
-                  : "bg-slate-200 text-slate-800 dark:bg-slate-800 dark:text-slate-200"
-              }`}
-            >
-              Blackout
-            </button>
-            <button
-              type="button"
-              onClick={() => setRedactColor("#ffffff")}
-              className={`rounded-lg px-2.5 py-1 text-[11px] font-bold border ${
-                redactColor === "#ffffff"
-                  ? "bg-white text-slate-900 ring-2 ring-blue-500 border-blue-500"
-                  : "bg-slate-100 text-slate-800 border-slate-300 dark:bg-slate-800 dark:text-slate-200"
-              }`}
-            >
-              Whiteout
-            </button>
-            <span className="text-[10px] text-slate-400 ml-2 italic">
-              Permanently burns into PDF output to conceal sensitive data
-            </span>
-          </div>
-        )}
-
-        {/* Stamps Selector */}
-        {activeTool === "stamp" && (
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400">Preset:</span>
-            <div className="flex flex-wrap items-center gap-1.5">
-              {STAMP_PRESETS.map((s) => (
-                <button
-                  key={s.label}
-                  type="button"
-                  onClick={() => setSelectedStamp(s)}
-                  className={`rounded-lg border px-2 py-0.5 text-[10px] font-black tracking-wider transition-all ${
-                    selectedStamp.label === s.label
-                      ? "ring-2 ring-blue-500 scale-105"
-                      : "opacity-80 hover:opacity-100"
-                  }`}
-                  style={{ color: s.color, borderColor: s.color }}
+                  onClick={() => duplicateAnnotation(selectedAnnotation.id)}
+                  className="flex items-center gap-1 rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[10px] font-bold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 cursor-pointer"
+                  title="Duplicate (Ctrl+D)"
                 >
-                  {s.label}
+                  <Copy size={11} />
+                  <span>Duplicate</span>
                 </button>
-              ))}
-            </div>
-            <input
-              type="text"
-              placeholder="Or Custom Stamp Text..."
-              value={customStampText}
-              onChange={(e) => setCustomStampText(e.target.value)}
-              className="rounded-lg border border-slate-200 bg-white px-2.5 py-0.5 text-[11px] font-bold text-slate-800 placeholder:text-slate-400 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
-            />
-          </div>
-        )}
-
-        {/* Erase / Logo Remover Options */}
-        {(activeTool === "erase" || (selectedAnnotation && selectedAnnotation.type === "erase")) && (
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 flex items-center gap-1">
-              <Eraser size={12} className="text-rose-500" />
-              Erase Match:
-            </span>
-
-            {/* Auto Match Background Toggle */}
-            <button
-              type="button"
-              onClick={() => {
-                const nextMatch = !eraseColorAutoMatch;
-                setEraseColorAutoMatch(nextMatch);
-                if (nextMatch && selectedAnnotation && selectedAnnotation.type === "erase") {
-                  const sampled = sampleBackgroundColor(
-                    selectedAnnotation.xNorm,
-                    selectedAnnotation.yNorm,
-                    selectedAnnotation.widthNorm,
-                    selectedAnnotation.heightNorm
-                  );
-                  setAnnotations((prev) =>
-                    prev.map((a) => (a.id === selectedAnnotation.id ? { ...a, fillColor: sampled } : a))
-                  );
-                  notify(`Auto-matched background to ${sampled.toUpperCase()}`, "success");
-                }
-              }}
-              className={`flex items-center gap-1 rounded-lg px-2.5 py-1 text-[11px] font-bold transition-all border ${
-                eraseColorAutoMatch
-                  ? "bg-blue-600 text-white border-blue-600 shadow-xs"
-                  : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700"
-              }`}
-              title="Automatically samples surrounding background color so erasures blend seamlessly"
-            >
-              <Sparkles size={11} />
-              <span>Auto-Match BG {eraseColorAutoMatch ? "ON" : "OFF"}</span>
-            </button>
-
-            {/* Background Preservation Badge */}
-            <span className="inline-flex items-center gap-1 rounded-lg bg-emerald-50 px-2.5 py-1 text-[11px] font-bold text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 border border-emerald-200/80 dark:border-emerald-800/50">
-              <Sparkles size={12} className="text-emerald-600" />
-              <span>Background Preserved</span>
-            </span>
-
-            {/* Re-Clean Background Button for selected erase annotation */}
-            {selectedAnnotation && selectedAnnotation.type === "erase" && (
-              <button
-                type="button"
-                onClick={() => {
-                  const patch = generateBackgroundInpaintPatch(
-                    selectedAnnotation.xNorm,
-                    selectedAnnotation.yNorm,
-                    selectedAnnotation.widthNorm,
-                    selectedAnnotation.heightNorm
-                  );
-                  setAnnotations((prev) =>
-                    prev.map((a) =>
-                      a.id === selectedAnnotation.id
-                        ? { ...a, imageDataUrl: patch || undefined, eraseMode: "inpaint" }
-                        : a
-                    )
-                  );
-                  notify("Background cleanly reconstructed!", "success");
-                }}
-                className="flex items-center gap-1 rounded-lg bg-emerald-600 text-white px-2.5 py-1 text-[11px] font-bold hover:bg-emerald-500 shadow-xs cursor-pointer"
-                title="Re-sample surrounding background and seamlessly blend without affecting background"
-              >
-                <Wand2 size={11} />
-                <span>Re-Clean BG</span>
-              </button>
+                <button
+                  type="button"
+                  onClick={() => deleteAnnotation(selectedAnnotation.id)}
+                  className="flex items-center gap-1 rounded-full border border-rose-200 bg-rose-50 px-2 py-0.5 text-[10px] font-bold text-rose-600 hover:bg-rose-100 dark:border-rose-900/40 dark:bg-rose-950/30 dark:text-rose-400 cursor-pointer"
+                  title="Delete (Backspace/Delete)"
+                >
+                  <Trash2 size={11} />
+                  <span>Delete</span>
+                </button>
+              </div>
             )}
-
-            {/* Eyedropper Color Picker */}
-            <button
-              type="button"
-              onClick={() => {
-                setIsEyedropperActive((prev) => !prev);
-                if (!isEyedropperActive) {
-                  notify("Eyedropper active: Click anywhere on the PDF page to sample its color", "info");
-                }
-              }}
-              className={`flex items-center gap-1 rounded-lg px-2.5 py-1 text-[11px] font-bold transition-all border ${
-                isEyedropperActive
-                  ? "bg-amber-500 text-white border-amber-600 shadow-xs ring-2 ring-amber-400/50 animate-pulse"
-                  : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700"
-              }`}
-              title="Pick exact background color from anywhere on the document"
-            >
-              <Pipette size={12} />
-              <span>{isEyedropperActive ? "Sampling..." : "Pick Color"}</span>
-            </button>
-
-            {/* Erase Color Presets */}
-            <div className="flex items-center gap-1 pl-1 border-l border-slate-200 dark:border-white/[0.1]">
-              {[
-                { name: "Pure White", hex: "#ffffff" },
-                { name: "Warm Cream", hex: "#fef9c3" },
-                { name: "Off-White", hex: "#f8fafc" },
-                { name: "Light Gray", hex: "#e2e8f0" },
-                { name: "Dark Header", hex: "#0f172a" }
-              ].map((c) => {
-                const currentColor =
-                  selectedAnnotation?.type === "erase"
-                    ? selectedAnnotation.fillColor || "#ffffff"
-                    : eraseColor;
-                const isSelected = currentColor.toLowerCase() === c.hex.toLowerCase();
-                return (
-                  <button
-                    key={c.hex}
-                    type="button"
-                    onClick={() => {
-                      setEraseColor(c.hex);
-                      setEraseColorAutoMatch(false);
-                      if (selectedAnnotation && selectedAnnotation.type === "erase") {
-                        setAnnotations((prev) =>
-                          prev.map((a) => (a.id === selectedAnnotation.id ? { ...a, fillColor: c.hex } : a))
-                        );
-                      }
-                    }}
-                    className={`h-5 w-5 rounded-md border border-slate-300 shadow-2xs transition-transform ${
-                      isSelected ? "ring-2 ring-blue-500 scale-110" : "hover:scale-105"
-                    }`}
-                    style={{ backgroundColor: c.hex }}
-                    title={c.name}
-                  />
-                );
-              })}
-
-              {/* Custom Color Picker Input */}
-              <label
-                className="relative flex h-5 w-5 cursor-pointer items-center justify-center rounded-md border border-slate-300 bg-linear-to-br from-red-400 via-green-400 to-blue-400 shadow-2xs hover:scale-105"
-                title="Choose custom background color"
-              >
-                <input
-                  type="color"
-                  value={
-                    selectedAnnotation?.type === "erase"
-                      ? selectedAnnotation.fillColor || "#ffffff"
-                      : eraseColor
-                  }
-                  onChange={(e) => {
-                    const col = e.target.value;
-                    setEraseColor(col);
-                    setEraseColorAutoMatch(false);
-                    if (selectedAnnotation && selectedAnnotation.type === "erase") {
-                      setAnnotations((prev) =>
-                        prev.map((a) => (a.id === selectedAnnotation.id ? { ...a, fillColor: col } : a))
-                      );
-                    }
-                  }}
-                  className="absolute inset-0 cursor-pointer opacity-0"
-                />
-              </label>
-            </div>
-
-            {selectedAnnotation && selectedAnnotation.type === "erase" && (
-              <button
-                type="button"
-                onClick={() => {
-                  const sampled = sampleBackgroundColor(
-                    selectedAnnotation.xNorm,
-                    selectedAnnotation.yNorm,
-                    selectedAnnotation.widthNorm,
-                    selectedAnnotation.heightNorm
-                  );
-                  setAnnotations((prev) =>
-                    prev.map((a) => (a.id === selectedAnnotation.id ? { ...a, fillColor: sampled } : a))
-                  );
-                  setEraseColor(sampled);
-                  notify(`Re-sampled background: ${sampled.toUpperCase()}`, "success");
-                }}
-                className="rounded-lg border border-slate-200 bg-white px-2 py-0.5 text-[10px] font-bold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
-                title="Re-sample background color directly under this patch"
-              >
-                Re-sample BG
-              </button>
-            )}
-          </div>
-        )}
-
-        {/* Selected Annotation Actions */}
-        {selectedAnnotation && (
-          <div className="ml-auto flex items-center gap-1.5">
-            <button
-              type="button"
-              onClick={() => duplicateAnnotation(selectedAnnotation.id)}
-              className="flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2 py-1 text-[11px] font-bold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
-              title="Duplicate (Ctrl+D)"
-            >
-              <Copy size={12} />
-              <span>Duplicate</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => deleteAnnotation(selectedAnnotation.id)}
-              className="flex items-center gap-1 rounded-lg border border-rose-200 bg-rose-50 px-2 py-1 text-[11px] font-bold text-rose-600 hover:bg-rose-100 dark:border-rose-900/40 dark:bg-rose-950/30 dark:text-rose-400"
-              title="Delete (Backspace/Delete)"
-            >
-              <Trash2 size={12} />
-              <span>Delete</span>
-            </button>
           </div>
         )}
       </div>
 
-      {/* Main Workspace Layout (Sidebar Rail + Stage) */}
-      <div className="flex flex-col lg:flex-row items-start gap-4">
-        {/* Mobile Toggle for Page Rail & Text Inspector */}
-        <div className="flex lg:hidden items-center justify-between w-full">
-          <button
-            type="button"
-            onClick={() => setMobileSidebarOpen(!mobileSidebarOpen)}
-            className="inline-flex items-center gap-2 rounded-2xl border border-slate-200/80 bg-white/90 px-3.5 py-2 text-xs font-bold text-slate-700 shadow-xs hover:bg-slate-100 dark:border-white/[0.08] dark:bg-slate-900/80 dark:text-slate-200"
-          >
-            <Layers size={14} className="text-blue-600" />
-            <span>{mobileSidebarOpen ? "Hide Pages & Text Inspector" : `Show Pages (${pagesPlan.length}) & Text Inspector`}</span>
-            <ChevronDown size={14} className={`transition-transform duration-200 ${mobileSidebarOpen ? "rotate-180" : ""}`} />
-          </button>
-        </div>
+      {/* Slide-over Pages Drawer & Text Inspector */}
+      {sidebarOpen && (
+        <div className="fixed inset-0 z-50 flex">
+          <div
+            className="fixed inset-0 bg-slate-950/40 backdrop-blur-xs transition-opacity animate-in fade-in duration-200"
+            onClick={() => setSidebarOpen(false)}
+          />
+          <div className="relative z-10 w-80 max-w-[88vw] h-full bg-white/95 dark:bg-slate-900/95 backdrop-blur-2xl border-r border-slate-200/80 dark:border-white/10 p-4 shadow-2xl flex flex-col space-y-3 overflow-y-auto animate-in slide-in-from-left duration-200">
+            {/* Drawer Header */}
+            <div className="flex items-center justify-between pb-2 border-b border-slate-200/70 dark:border-white/10">
+              <div className="flex items-center gap-2">
+                <Layers size={17} className="text-blue-600" />
+                <span className="font-extrabold text-sm text-slate-800 dark:text-white">Document Drawer</span>
+                <span className="rounded-full bg-blue-50 dark:bg-blue-950/60 px-2 py-0.5 text-xs font-bold text-blue-600 dark:text-blue-400">
+                  {pagesPlan.length} page(s)
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSidebarOpen(false)}
+                className="grid h-7 w-7 place-items-center rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 dark:hover:text-white cursor-pointer"
+                title="Close drawer"
+              >
+                <X size={16} />
+              </button>
+            </div>
 
-        {/* Left Page Rail / Text Inspector */}
-        <div className={`${sidebarOpen ? (mobileSidebarOpen ? "block" : "hidden lg:block") : (mobileSidebarOpen ? "block" : "hidden")} w-full lg:w-56 shrink-0 rounded-3xl border border-slate-200/80 bg-white/70 p-3 shadow-sm backdrop-blur-md dark:border-white/[0.08] dark:bg-slate-900/50 space-y-2.5`}>
-          {/* Tabs: Pages vs Text */}
-          <div className="flex items-center rounded-xl bg-slate-100 p-1 dark:bg-slate-800">
+            {/* Tabs: Pages vs Text */}
+            <div className="flex items-center rounded-xl bg-slate-100 p-1 dark:bg-slate-800">
             <button
               type="button"
               onClick={() => setSidebarTab("pages")}
@@ -3478,10 +3189,12 @@ export default function PdfEditorView({
             </div>
           )}
         </div>
+      </div>
+      )}
 
-        {/* Center Stage: Page Canvas & Overlays */}
-        <div className="flex-1 w-full flex flex-col items-center overflow-x-auto">
-          <div className="relative p-3 sm:p-6 rounded-3xl border border-slate-200/80 bg-slate-100/60 dark:border-white/[0.08] dark:bg-slate-950/40 w-full flex flex-col items-center">
+      {/* Maximum Viewport Center Stage: Page Canvas & Overlays */}
+      <div className="w-full flex flex-col items-center justify-start min-h-[calc(100vh-140px)] py-1 sm:py-2 px-1 overflow-x-auto">
+        <div className="relative p-2 sm:p-4 rounded-3xl bg-slate-100/50 dark:bg-slate-950/40 w-full flex flex-col items-center">
             {loadingPage && (
               <div className="absolute inset-0 z-20 flex items-center justify-center bg-white/60 dark:bg-slate-950/60 backdrop-blur-xs rounded-3xl">
                 <div className="flex items-center gap-2 rounded-2xl bg-white px-4 py-2 shadow-lg dark:bg-slate-900 border border-slate-200 dark:border-white/[0.1]">
@@ -4255,10 +3968,9 @@ export default function PdfEditorView({
             </div>
           </div>
         </div>
-      </div>
 
-      {/* Sejda Style Sticky Bottom Action Bar */}
-      <div className="sticky bottom-4 z-40 mx-auto max-w-4xl rounded-2xl border border-slate-200/90 bg-white/95 p-2.5 shadow-2xl backdrop-blur-md dark:border-white/[0.1] dark:bg-slate-900/95 flex flex-wrap items-center justify-between gap-3">
+      {/* Floating Bottom Navigation & Export Dock */}
+      <div className="sticky bottom-3 z-30 mx-auto w-fit max-w-[96vw] rounded-full border border-slate-200/90 bg-white/95 px-3 py-1.5 shadow-2xl backdrop-blur-xl dark:border-white/10 dark:bg-slate-900/95 flex items-center justify-between gap-2 sm:gap-3">
         {/* Left: Page Navigation */}
         <div className="flex items-center gap-1 sm:gap-2">
           <button
