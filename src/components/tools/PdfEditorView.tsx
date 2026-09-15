@@ -231,6 +231,7 @@ export default function PdfEditorView({
 
   // Signature Modal state
   const [showSignModal, setShowSignModal] = useState(false);
+  const [showDeleteLastPageModal, setShowDeleteLastPageModal] = useState(false);
   const [signDrawPoints, setSignDrawPoints] = useState<{ x: number; y: number }[]>([]);
   const [isSignDrawing, setIsSignDrawing] = useState(false);
   const signCanvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -1117,9 +1118,40 @@ export default function PdfEditorView({
     notify(`Duplicated Page ${activePageIndex + 1}`, "success");
   };
 
+  const handleCloseDocument = () => {
+    setInfo(null);
+    setPagesPlan([]);
+    setAnnotations([]);
+    setHistory([]);
+    setRedoStack([]);
+    setSelectedId(null);
+    setEditingTextId(null);
+    setPageImage(null);
+    setExtractedTexts({});
+    setExtractedImages({});
+    setDeletedImageNames([]);
+    notify("Document removed. You can now upload a new file.", "info");
+  };
+
+  const handleReplaceWithBlankPage = () => {
+    const blankPlan: EditorPagePlanItem = {
+      id: `blank-${uid("blank")}`,
+      originalPage: null,
+      rotation: 0
+    };
+    setPagesPlan([blankPlan]);
+    setAnnotations([]);
+    setHistory([]);
+    setRedoStack([]);
+    setSelectedId(null);
+    setEditingTextId(null);
+    setActivePageIndex(0);
+    notify("Replaced with a clean blank page.", "success");
+  };
+
   const deleteCurrentPage = () => {
     if (pagesPlan.length <= 1) {
-      notify("Cannot delete the only page in the document.", "error");
+      setShowDeleteLastPageModal(true);
       return;
     }
     const nextPages = pagesPlan.filter((_, idx) => idx !== activePageIndex);
@@ -1780,6 +1812,15 @@ export default function PdfEditorView({
               <span className="rounded-full bg-slate-100 dark:bg-slate-800 px-2 py-0.5 text-[10px] font-bold text-slate-600 dark:text-slate-300">
                 {formatBytes(info.file.size)}
               </span>
+              <button
+                type="button"
+                onClick={handleCloseDocument}
+                className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2 py-0.5 text-[10px] font-bold text-slate-600 hover:text-rose-600 hover:border-rose-300 hover:bg-rose-50 dark:border-white/[0.1] dark:bg-slate-800 dark:text-slate-300 dark:hover:text-rose-400 transition-colors cursor-pointer"
+                title="Close and remove this document"
+              >
+                <X size={12} />
+                <span>Remove</span>
+              </button>
             </div>
             <p className="text-[11px] text-slate-500 dark:text-slate-400">
               Page {activePageIndex + 1} of {pagesPlan.length} • {pageAnnotations.length} annotation(s)
@@ -2737,9 +2778,8 @@ export default function PdfEditorView({
                               e.stopPropagation();
                               deleteCurrentPage();
                             }}
-                            disabled={pagesPlan.length <= 1}
-                            className="p-1 rounded-md text-slate-500 hover:text-rose-600 disabled:opacity-30"
-                            title="Delete Page"
+                            className="p-1 rounded-md text-slate-500 hover:text-rose-600 transition-colors cursor-pointer"
+                            title={pagesPlan.length <= 1 ? "Delete Page / Remove Document" : "Delete Page"}
                           >
                             <Trash2 size={12} />
                           </button>
@@ -2961,6 +3001,74 @@ export default function PdfEditorView({
 
         {/* Center Stage: Page Canvas & Overlays */}
         <div className="flex-1 w-full flex flex-col items-center overflow-x-auto">
+          {/* Quick Page Action Bar */}
+          <div className="mb-2.5 flex flex-wrap items-center justify-between gap-2 w-full max-w-[900px] px-1 text-xs">
+            <div className="flex items-center gap-2 text-slate-700 dark:text-slate-200 font-bold">
+              <span>Page {activePageIndex + 1} of {pagesPlan.length}</span>
+              {pagesPlan.length > 1 && (
+                <div className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={() => setActivePageIndex((p) => Math.max(0, p - 1))}
+                    disabled={activePageIndex === 0}
+                    className="p-1 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-30 dark:border-white/[0.08] dark:bg-slate-800 cursor-pointer"
+                    title="Previous Page"
+                  >
+                    <ChevronLeft size={13} />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setActivePageIndex((p) => Math.min(pagesPlan.length - 1, p + 1))}
+                    disabled={activePageIndex === pagesPlan.length - 1}
+                    className="p-1 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-30 dark:border-white/[0.08] dark:bg-slate-800 cursor-pointer"
+                    title="Next Page"
+                  >
+                    <ChevronRight size={13} />
+                  </button>
+                </div>
+              )}
+            </div>
+
+            <div className="flex items-center gap-1 sm:gap-1.5 flex-wrap">
+              <button
+                type="button"
+                onClick={rotateCurrentPage}
+                className="inline-flex items-center gap-1 rounded-xl border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-bold text-slate-700 hover:bg-slate-50 dark:border-white/[0.08] dark:bg-slate-800 dark:text-slate-200 cursor-pointer"
+                title="Rotate this page 90°"
+              >
+                <RotateCw size={12} />
+                <span className="hidden xs:inline">Rotate</span>
+              </button>
+              <button
+                type="button"
+                onClick={duplicateCurrentPage}
+                className="inline-flex items-center gap-1 rounded-xl border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-bold text-slate-700 hover:bg-slate-50 dark:border-white/[0.08] dark:bg-slate-800 dark:text-slate-200 cursor-pointer"
+                title="Duplicate this page"
+              >
+                <Copy size={12} />
+                <span className="hidden xs:inline">Duplicate</span>
+              </button>
+              <button
+                type="button"
+                onClick={addBlankPage}
+                className="inline-flex items-center gap-1 rounded-xl border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-bold text-blue-600 hover:bg-blue-50 dark:border-white/[0.08] dark:bg-slate-800 dark:text-blue-400 cursor-pointer"
+                title="Insert blank page"
+              >
+                <Plus size={12} />
+                <span className="hidden xs:inline">Add Page</span>
+              </button>
+              <button
+                type="button"
+                onClick={deleteCurrentPage}
+                className="inline-flex items-center gap-1 rounded-xl border border-rose-200 bg-rose-50 px-2.5 py-1 text-[11px] font-bold text-rose-600 hover:bg-rose-100 dark:border-rose-900/40 dark:bg-rose-950/30 dark:text-rose-400 transition-colors cursor-pointer"
+                title={pagesPlan.length <= 1 ? "Delete Page / Remove Document" : "Delete Page"}
+              >
+                <Trash2 size={12} />
+                <span>{pagesPlan.length <= 1 ? "Delete / Remove Page" : "Delete Page"}</span>
+              </button>
+            </div>
+          </div>
+
           <div className="relative p-2 sm:p-4 rounded-3xl border border-slate-200/80 bg-slate-100/60 dark:border-white/[0.08] dark:bg-slate-950/40 w-full flex justify-center">
             {loadingPage && (
               <div className="absolute inset-0 z-20 flex items-center justify-center bg-white/60 dark:bg-slate-950/60 backdrop-blur-xs rounded-3xl">
@@ -3774,6 +3882,65 @@ export default function PdfEditorView({
               <CheckCheck size={14} />
               <span>Replace All ({getFindMatches().length})</span>
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Last Page Confirmation Modal */}
+      {showDeleteLastPageModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-xs animate-in fade-in duration-150">
+          <div className="relative w-full max-w-sm rounded-3xl border border-slate-200 bg-white p-6 shadow-2xl dark:border-white/[0.1] dark:bg-slate-900 dark:text-white space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl bg-rose-100 text-rose-600 dark:bg-rose-950/50 dark:text-rose-400">
+                <Trash2 size={20} />
+              </div>
+              <div>
+                <h3 className="text-sm font-bold text-slate-900 dark:text-white">
+                  Delete Remaining Page?
+                </h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  This is the last page in the document.
+                </p>
+              </div>
+            </div>
+
+            <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
+              Deleting this page will remove the current document content. What would you like to do?
+            </p>
+
+            <div className="flex flex-col gap-2 pt-1">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowDeleteLastPageModal(false);
+                  handleCloseDocument();
+                }}
+                className="w-full flex items-center justify-center gap-2 rounded-xl bg-rose-600 px-4 py-2.5 text-xs font-bold text-white shadow-md shadow-rose-500/20 hover:bg-rose-700 transition-all cursor-pointer"
+              >
+                <Trash2 size={14} />
+                <span>Remove Document & Start Fresh</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setShowDeleteLastPageModal(false);
+                  handleReplaceWithBlankPage();
+                }}
+                className="w-full flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-xs font-bold text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 transition-all cursor-pointer"
+              >
+                <Plus size={14} />
+                <span>Clear to Empty Blank Page</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setShowDeleteLastPageModal(false)}
+                className="w-full py-1.5 text-xs font-bold text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors cursor-pointer"
+              >
+                Cancel
+              </button>
+            </div>
           </div>
         </div>
       )}
