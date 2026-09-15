@@ -48,6 +48,7 @@ import {
   ZoomOut
 } from "lucide-react";
 import UploadZone from "../UploadZone";
+import QuillPdfTextEditor from "./QuillPdfTextEditor";
 import {
   EditorPagePlanItem,
   EditorPoint,
@@ -3778,65 +3779,22 @@ export default function PdfEditorView({
                         }}
                       >
                         {isEditing ? (
-                          <textarea
-                            ref={textInputRef}
-                            value={ann.text || ""}
-                            onChange={(e) => {
-                              const newText = e.target.value;
-                              const fontStr = getAnnotationCssFont(ann);
-                              const measuredW = measureTextWidthNorm(
-                                newText,
-                                ann.fontSize || 14,
-                                fontStr,
-                                ann.fontWeight || "normal",
-                                ann.fontStyle || "normal",
-                                pageDimensions.width || 595
-                              );
-                              const lineCount = (newText.match(/\n/g) || []).length + 1;
-                              const singleLineHeightNorm = ((ann.fontSize || 14) * 1.35) / (pageDimensions.height || 842);
-                              const neededHeightNorm = Math.max(
-                                ann.originalBounds?.heightNorm || 0,
-                                ann.heightNorm,
-                                singleLineHeightNorm * lineCount
-                              );
-
+                          <QuillPdfTextEditor
+                            annotation={ann}
+                            zoomScale={zoomScale}
+                            pageWidth={pageDimensions.width || 595}
+                            pageHeight={pageDimensions.height || 842}
+                            cssFontFamily={getAnnotationCssFont(ann)}
+                            onUpdate={(updated) => {
                               setAnnotations((prev) =>
-                                prev.map((a) => {
-                                  if (a.id !== ann.id) return a;
-                                  const minRequiredW = a.originalBounds?.widthNorm || 0;
-                                  const expandedW = Math.max(minRequiredW, measuredW);
-                                  return {
-                                    ...a,
-                                    text: newText,
-                                    widthNorm: Math.min(0.99 - a.xNorm, Math.max(a.widthNorm, expandedW)),
-                                    heightNorm: neededHeightNorm
-                                  };
-                                })
+                                prev.map((a) => (a.id === ann.id ? { ...a, ...updated } : a))
                               );
+                              if (updated.fontSize) setFontSize(updated.fontSize);
+                              if (updated.fontWeight) setIsBold(updated.fontWeight === "bold");
+                              if (updated.fontStyle) setIsItalic(updated.fontStyle === "italic");
+                              if (updated.textColor) setActiveColor(updated.textColor);
                             }}
-                            onKeyDown={(e) => {
-                              if (e.key === "Enter" && !e.shiftKey) {
-                                e.preventDefault();
-                                setEditingTextId(null);
-                              } else if (e.key === "Escape") {
-                                e.preventDefault();
-                                setEditingTextId(null);
-                              }
-                            }}
-                            onBlur={() => setEditingTextId(null)}
-                            style={{
-                              backgroundColor:
-                                ann.underlayWhiteout !== false
-                                  ? ann.whiteoutColor || "#ffffff"
-                                  : "transparent",
-                              whiteSpace: "pre-wrap",
-                              wordBreak: "break-word",
-                              lineHeight: "1.15",
-                              padding: "0 2px",
-                              margin: 0
-                            }}
-                            className="h-full w-full resize-none outline-hidden font-inherit text-inherit border-none"
-                            autoFocus
+                            onFinish={() => setEditingTextId(null)}
                           />
                         ) : (
                           <span

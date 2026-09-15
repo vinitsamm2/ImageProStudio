@@ -215,7 +215,8 @@ export default defineConfig({
           "vendor-pdfjs": ["pdfjs-dist"],
           "vendor-motion": ["framer-motion"],
           "vendor-jszip": ["jszip"],
-          "vendor-icons": ["lucide-react"]
+          "vendor-icons": ["lucide-react"],
+          "vendor-quill": ["quill"]
         }
       }
     }
