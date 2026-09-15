@@ -1640,6 +1640,12 @@ export interface PdfAnnotation {
   whiteoutColor?: string; // custom whiteout/patch background color (default #ffffff)
   isOriginalTextEdit?: boolean; // true if this annotation modifies/replaces original PDF text
   originalText?: string; // original unedited text for comparison
+  originalBounds?: {
+    xNorm: number;
+    yNorm: number;
+    widthNorm: number;
+    heightNorm: number;
+  };
 
   // Line / Stroke / Shape properties
   strokeColor?: string;
@@ -1812,8 +1818,9 @@ export async function compileEditedPdf(
       switch (ann.type) {
         case "text": {
           const hasWhiteout =
-            ann.underlayWhiteout ||
+            ann.underlayWhiteout !== false ||
             ann.isOriginalTextEdit ||
+            Boolean(ann.originalBounds) ||
             (ann.textHighlightColor && ann.textHighlightColor !== "transparent");
           const whiteoutBg =
             ann.whiteoutColor ||
@@ -1822,8 +1829,18 @@ export async function compileEditedPdf(
               : "#ffffff");
 
           if (hasWhiteout) {
+            const origX = (ann.originalBounds?.xNorm ?? ann.xNorm) * width;
+            const origY = (ann.originalBounds?.yNorm ?? ann.yNorm) * height;
+            const origW = (ann.originalBounds?.widthNorm ?? ann.widthNorm) * width;
+            const origH = (ann.originalBounds?.heightNorm ?? ann.heightNorm) * height;
+
+            const minX = Math.min(ax, origX) - 3;
+            const minY = Math.min(ay, origY) - 3;
+            const maxX = Math.max(ax + aw, origX + origW) + 3;
+            const maxY = Math.max(ay + ah, origY + origH) + 3;
+
             ctx.fillStyle = whiteoutBg;
-            ctx.fillRect(ax - 2, ay - 2, aw + 4, ah + 4);
+            ctx.fillRect(minX, minY, Math.max(4, maxX - minX), Math.max(4, maxY - minY));
           }
 
           if (ann.text && ann.text.length > 0) {

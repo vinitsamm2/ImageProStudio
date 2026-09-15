@@ -197,6 +197,7 @@ export default function PdfEditorView({
 
   // Left sidebar tab: "pages" | "text"
   const [sidebarTab, setSidebarTab] = useState<"pages" | "text">("pages");
+  const [sidebarOpen, setSidebarOpen] = useState<boolean>(true);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState<boolean>(false);
   const [textSearchQuery, setTextSearchQuery] = useState<string>("");
 
@@ -311,8 +312,15 @@ export default function PdfEditorView({
         rotation: 0
       }));
       setPagesPlan(plan);
-      if (typeof window !== "undefined" && window.innerWidth < 640) {
-        setZoomScale(Math.max(0.45, Math.min(1.0, Number(((window.innerWidth - 48) / 595).toFixed(2)))));
+      if (typeof window !== "undefined") {
+        const isSmall = window.innerWidth < 1024;
+        if (isSmall) {
+          setSidebarOpen(false);
+          setMobileSidebarOpen(false);
+        }
+        const availWidth = Math.min(window.innerWidth - (isSmall ? 40 : 280) - 48, 1000);
+        const autoFit = Math.max(0.45, Math.min(1.15, Number((availWidth / 595).toFixed(2))));
+        setZoomScale(autoFit);
       }
       notify(`Loaded PDF with ${pdf.pages} page(s). Click any text or pick a tool to start editing!`, "info");
     } catch (err) {
@@ -347,6 +355,12 @@ export default function PdfEditorView({
             setPageImage(res.dataUrl);
             setPageDimensions({ width: Math.round(res.width), height: Math.round(res.height) });
             setLoadingPage(false);
+            if (typeof window !== "undefined" && res.width > 0) {
+              const isSmall = window.innerWidth < 1024;
+              const availWidth = Math.min(window.innerWidth - (isSmall ? 40 : 280) - 48, 1000);
+              const autoFit = Math.max(0.45, Math.min(1.15, Number((availWidth / res.width).toFixed(2))));
+              setZoomScale((prev) => (Math.abs(prev - 1.0) < 0.05 ? autoFit : prev));
+            }
           }
         })
         .catch((err) => {
@@ -794,6 +808,18 @@ export default function PdfEditorView({
     notify("Action redone", "info");
   }, [redoStack, annotations, notify]);
 
+  const handleFitToWidth = useCallback(() => {
+    if (!pageDimensions.width || typeof window === "undefined") return;
+    const isSmall = window.innerWidth < 1024;
+    const availWidth = Math.min(
+      window.innerWidth - (sidebarOpen && !isSmall ? 260 : 48) - 32,
+      1200
+    );
+    const fit = Math.max(0.4, Math.min(1.4, Number((availWidth / pageDimensions.width).toFixed(2))));
+    setZoomScale(fit);
+    notify(`Zoom adjusted to fit width (${Math.round(fit * 100)}%)`, "info");
+  }, [pageDimensions.width, sidebarOpen, notify]);
+
   // Keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -891,8 +917,11 @@ export default function PdfEditorView({
     const existing = annotations.find(
       (a) =>
         a.pageIndex === activePageIndex &&
-        Math.abs(a.xNorm - item.xNorm) < 0.015 &&
-        Math.abs(a.yNorm - item.yNorm) < 0.015
+        ((a.originalBounds &&
+          Math.abs(a.originalBounds.xNorm - item.xNorm) < 0.02 &&
+          Math.abs(a.originalBounds.yNorm - item.yNorm) < 0.02) ||
+          (Math.abs(a.xNorm - item.xNorm) < 0.015 &&
+           Math.abs(a.yNorm - item.yNorm) < 0.015))
     );
     if (existing) {
       setSelectedId(existing.id);
@@ -925,14 +954,16 @@ export default function PdfEditorView({
       item.heightNorm,
       ((item.fontSize || 14) * 1.35) / pageDimensions.height
     );
-    const boxWidthNorm = Math.max(item.widthNorm, 0.04);
+    const boxWidthNorm = Math.max(item.widthNorm + 0.006, 0.04);
+    const startXNorm = Math.max(0, item.xNorm - 0.003);
+    const startYNorm = Math.max(0, item.yNorm - 0.002);
 
     const newAnn: PdfAnnotation = {
       id: uid("txt-edit"),
       pageIndex: activePageIndex,
       type: "text",
-      xNorm: item.xNorm,
-      yNorm: item.yNorm,
+      xNorm: startXNorm,
+      yNorm: startYNorm,
       widthNorm: boxWidthNorm,
       heightNorm: boxHeightNorm,
       text: item.text,
@@ -946,7 +977,13 @@ export default function PdfEditorView({
       underlayWhiteout: true,
       whiteoutColor: matchedBg,
       isOriginalTextEdit: true,
-      originalText: item.text
+      originalText: item.text,
+      originalBounds: {
+        xNorm: startXNorm,
+        yNorm: startYNorm,
+        widthNorm: boxWidthNorm,
+        heightNorm: Math.max(item.heightNorm + 0.004, boxHeightNorm)
+      }
     };
 
     // Synchronize toolbar controls so active state matches clicked text
@@ -1298,35 +1335,39 @@ export default function PdfEditorView({
 
     if (activeTool === "text") {
       // Check if clicking on or near an existing detected text item to match its font style and size!
-      const matchedItem = findTextItemAtPoint(xNorm, yNorm);
+      const matchedItem = findTextItemAtPoint(xNorm, yNorm, 0.05);
       if (matchedItem) {
         handleEditDetectedText(matchedItem);
         return;
       }
 
-      // Add text box at clicked location with current active font properties
-      const boxHeightNorm = Math.max(0.06, ((fontSize || 14) * 1.35) / pageDimensions.height);
+      // Add text box at clicked location with clean opaque background to prevent overlapping
+      const boxHeightNorm = Math.max(0.045, ((fontSize || 14) * 1.35) / pageDimensions.height);
+      const sampledBg = sampleBackgroundColor(Math.max(0, xNorm - 0.01), Math.max(0, yNorm - 0.01), 0.22, 0.05) || "#ffffff";
       const newTextAnn: PdfAnnotation = {
         id: uid("text"),
         pageIndex: activePageIndex,
         type: "text",
         xNorm: Math.min(0.75, xNorm),
         yNorm: Math.min(0.9, yNorm),
-        widthNorm: 0.28,
+        widthNorm: 0.24,
         heightNorm: boxHeightNorm,
-        text: "Click to edit text",
+        text: "Type here",
         fontSize,
         fontFamily,
         fontWeight: isBold ? "bold" : "normal",
         fontStyle: isItalic ? "italic" : "normal",
         textColor: activeColor,
-        textHighlightColor: textHighlight
+        underlayWhiteout: true,
+        whiteoutColor: sampledBg,
+        textHighlightColor: sampledBg
       };
       pushHistory([...annotations, newTextAnn]);
       setSelectedId(newTextAnn.id);
       setEditingTextId(newTextAnn.id);
       setActiveTool("select");
-      notify("Text added. Type to edit content.", "info");
+      notify("Text box placed. Type to edit content.", "info");
+      setTimeout(() => textInputRef.current?.focus(), 50);
       return;
     }
 
@@ -1972,17 +2013,28 @@ export default function PdfEditorView({
           </button>
           <button
             type="button"
-            onClick={() => {
-              if (pageDimensions.width > 0 && typeof window !== "undefined") {
-                const availWidth = Math.min(window.innerWidth - 48, 1200);
-                const fit = Math.max(0.4, Math.min(1.2, Number((availWidth / pageDimensions.width).toFixed(2))));
-                setZoomScale(fit);
-              }
-            }}
-            className="hidden xs:inline-flex items-center gap-1 rounded-xl border border-slate-200 bg-white px-2 h-8 text-[11px] font-bold text-slate-700 hover:bg-slate-50 dark:border-white/[0.08] dark:bg-slate-800 dark:text-slate-200"
+            onClick={handleFitToWidth}
+            className="hidden xs:inline-flex items-center gap-1 rounded-xl border border-slate-200 bg-white px-2.5 h-8 text-[11px] font-bold text-slate-700 hover:bg-slate-50 dark:border-white/[0.08] dark:bg-slate-800 dark:text-slate-200 shadow-2xs"
             title="Fit to screen width"
           >
             Fit
+          </button>
+
+          <div className="h-5 w-px bg-slate-200 dark:bg-white/[0.1] mx-0.5" />
+
+          {/* Sidebar Pages Toggle */}
+          <button
+            type="button"
+            onClick={() => setSidebarOpen((v) => !v)}
+            className={`hidden sm:inline-flex items-center gap-1.5 rounded-xl border px-2.5 h-8 text-[11px] font-bold transition-all shadow-2xs ${
+              sidebarOpen
+                ? "border-blue-500/50 bg-blue-50/80 text-blue-600 dark:bg-blue-950/40 dark:text-blue-400"
+                : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50 dark:border-white/[0.08] dark:bg-slate-800 dark:text-slate-200"
+            }`}
+            title={sidebarOpen ? "Hide Left Sidebar (Page Thumbnails)" : "Show Left Sidebar (Page Thumbnails)"}
+          >
+            <Layers size={13} />
+            <span>{sidebarOpen ? "Hide Pages" : `Pages (${pagesPlan.length})`}</span>
           </button>
 
           <div className="h-5 w-px bg-slate-200 dark:bg-white/[0.1] mx-0.5" />
@@ -3075,7 +3127,7 @@ export default function PdfEditorView({
         </div>
 
         {/* Left Page Rail / Text Inspector */}
-        <div className={`${mobileSidebarOpen ? "block" : "hidden lg:block"} w-full lg:w-56 shrink-0 rounded-3xl border border-slate-200/80 bg-white/70 p-3 shadow-sm backdrop-blur-md dark:border-white/[0.08] dark:bg-slate-900/50 space-y-2.5`}>
+        <div className={`${sidebarOpen ? (mobileSidebarOpen ? "block" : "hidden lg:block") : (mobileSidebarOpen ? "block" : "hidden")} w-full lg:w-56 shrink-0 rounded-3xl border border-slate-200/80 bg-white/70 p-3 shadow-sm backdrop-blur-md dark:border-white/[0.08] dark:bg-slate-900/50 space-y-2.5`}>
           {/* Tabs: Pages vs Text */}
           <div className="flex items-center rounded-xl bg-slate-100 p-1 dark:bg-slate-800">
             <button
@@ -3415,7 +3467,7 @@ export default function PdfEditorView({
 
         {/* Center Stage: Page Canvas & Overlays */}
         <div className="flex-1 w-full flex flex-col items-center overflow-x-auto">
-          <div className="relative p-2 sm:p-4 rounded-3xl border border-slate-200/80 bg-slate-100/60 dark:border-white/[0.08] dark:bg-slate-950/40 w-full flex justify-center">
+          <div className="relative p-3 sm:p-6 rounded-3xl border border-slate-200/80 bg-slate-100/60 dark:border-white/[0.08] dark:bg-slate-950/40 w-full flex flex-col items-center">
             {loadingPage && (
               <div className="absolute inset-0 z-20 flex items-center justify-center bg-white/60 dark:bg-slate-950/60 backdrop-blur-xs rounded-3xl">
                 <div className="flex items-center gap-2 rounded-2xl bg-white px-4 py-2 shadow-lg dark:bg-slate-900 border border-slate-200 dark:border-white/[0.1]">
@@ -3427,8 +3479,8 @@ export default function PdfEditorView({
 
             {/* Sejda Style Page Header Action Strip */}
             <div
-              className="flex items-center justify-between pb-2 text-xs font-semibold text-slate-500 dark:text-slate-400"
-              style={{ width: `${Math.round(pageDimensions.width * zoomScale)}px` }}
+              className="flex items-center justify-between pb-2.5 text-xs font-semibold text-slate-500 dark:text-slate-400 w-full"
+              style={{ width: `${Math.round(pageDimensions.width * zoomScale)}px`, maxWidth: "100%" }}
             >
               <span className="flex items-center gap-1.5 font-bold text-slate-700 dark:text-slate-200">
                 <span>Page {activePageIndex + 1}</span>
@@ -3483,7 +3535,7 @@ export default function PdfEditorView({
               onPointerDown={handleStagePointerDown}
               onPointerMove={handleStagePointerMove}
               onPointerUp={handleStagePointerUp}
-              className={`relative overflow-hidden rounded-2xl shadow-xl border border-slate-200/80 bg-white dark:border-white/[0.1] select-none transition-transform duration-100 ${
+              className={`relative overflow-hidden rounded-sm shadow-2xl border border-slate-300 dark:border-slate-700 bg-white select-none transition-all duration-75 ${
                 isEyedropperActive
                   ? "cursor-crosshair"
                   : activeTool === "select"
@@ -3495,7 +3547,8 @@ export default function PdfEditorView({
               style={{
                 width: `${Math.round(pageDimensions.width * zoomScale)}px`,
                 minHeight: `${Math.round(pageDimensions.height * zoomScale)}px`,
-                aspectRatio: `${pageDimensions.width} / ${pageDimensions.height}`
+                aspectRatio: `${pageDimensions.width} / ${pageDimensions.height}`,
+                maxWidth: "100%"
               }}
             >
               {/* Eyedropper sampling indicator banner */}
@@ -3522,8 +3575,11 @@ export default function PdfEditorView({
                   {(extractedTexts[activePageIndex] || []).map((item) => {
                     const isAlreadyEdited = pageAnnotations.some(
                       (a) =>
-                        Math.abs(a.xNorm - item.xNorm) < 0.015 &&
-                        Math.abs(a.yNorm - item.yNorm) < 0.015
+                        (a.originalBounds &&
+                          Math.abs(a.originalBounds.xNorm - item.xNorm) < 0.025 &&
+                          Math.abs(a.originalBounds.yNorm - item.yNorm) < 0.025) ||
+                        (Math.abs(a.xNorm - item.xNorm) < 0.02 &&
+                          Math.abs(a.yNorm - item.yNorm) < 0.02)
                     );
                     if (isAlreadyEdited) return null;
 
@@ -3690,10 +3746,25 @@ export default function PdfEditorView({
                       }
                     }}
                   >
+                    {/* If this annotation replaces original PDF text, render an underlay whiteout over original bounds */}
+                    {ann.type === "text" && ann.originalBounds && (
+                      <div
+                        className="absolute pointer-events-none rounded-xs"
+                        style={{
+                          left: `${((ann.originalBounds.xNorm - ann.xNorm) / ann.widthNorm) * 100}%`,
+                          top: `${((ann.originalBounds.yNorm - ann.yNorm) / ann.heightNorm) * 100}%`,
+                          width: `${(ann.originalBounds.widthNorm / ann.widthNorm) * 100}%`,
+                          height: `${(ann.originalBounds.heightNorm / ann.heightNorm) * 100}%`,
+                          backgroundColor: ann.whiteoutColor || "#ffffff",
+                          zIndex: -1
+                        }}
+                      />
+                    )}
+
                     {/* Render according to type */}
                     {ann.type === "text" && (
                       <div
-                        className="h-full w-full overflow-visible p-0 leading-tight flex items-start"
+                        className="h-full w-full overflow-visible p-0 leading-tight flex items-start rounded-xs"
                         style={{
                           fontSize: `${(ann.fontSize || 16) * zoomScale}px`,
                           fontFamily: getAnnotationCssFont(ann),
@@ -3701,7 +3772,7 @@ export default function PdfEditorView({
                           fontStyle: ann.fontStyle || "normal",
                           color: ann.textColor || "#0f172a",
                           backgroundColor:
-                            ann.underlayWhiteout
+                            ann.underlayWhiteout !== false
                               ? ann.whiteoutColor || "#ffffff"
                               : ann.textHighlightColor || "transparent"
                         }}
@@ -3723,16 +3794,21 @@ export default function PdfEditorView({
                               );
                               const lineCount = (newText.match(/\n/g) || []).length + 1;
                               const singleLineHeightNorm = ((ann.fontSize || 14) * 1.35) / (pageDimensions.height || 842);
-                              const neededHeightNorm = Math.max(ann.heightNorm, singleLineHeightNorm * lineCount);
+                              const neededHeightNorm = Math.max(
+                                ann.originalBounds?.heightNorm || 0,
+                                ann.heightNorm,
+                                singleLineHeightNorm * lineCount
+                              );
 
                               setAnnotations((prev) =>
                                 prev.map((a) => {
                                   if (a.id !== ann.id) return a;
-                                  const expandedW = Math.max(a.widthNorm, measuredW);
+                                  const minRequiredW = a.originalBounds?.widthNorm || 0;
+                                  const expandedW = Math.max(minRequiredW, measuredW);
                                   return {
                                     ...a,
                                     text: newText,
-                                    widthNorm: Math.min(0.99 - a.xNorm, expandedW),
+                                    widthNorm: Math.min(0.99 - a.xNorm, Math.max(a.widthNorm, expandedW)),
                                     heightNorm: neededHeightNorm
                                   };
                                 })
@@ -3749,22 +3825,30 @@ export default function PdfEditorView({
                             }}
                             onBlur={() => setEditingTextId(null)}
                             style={{
+                              backgroundColor:
+                                ann.underlayWhiteout !== false
+                                  ? ann.whiteoutColor || "#ffffff"
+                                  : "transparent",
                               whiteSpace: "pre-wrap",
                               wordBreak: "break-word",
                               lineHeight: "1.15",
-                              padding: "0 1px",
+                              padding: "0 2px",
                               margin: 0
                             }}
-                            className="h-full w-full resize-none bg-transparent outline-hidden font-inherit text-inherit border-none"
+                            className="h-full w-full resize-none outline-hidden font-inherit text-inherit border-none"
                             autoFocus
                           />
                         ) : (
                           <span
                             style={{
+                              backgroundColor:
+                                ann.underlayWhiteout !== false
+                                  ? ann.whiteoutColor || "#ffffff"
+                                  : "transparent",
                               whiteSpace: "pre-wrap",
                               wordBreak: "break-word",
                               lineHeight: "1.15",
-                              padding: "0 1px"
+                              padding: "0 2px"
                             }}
                             className="inline-block w-full"
                           >
