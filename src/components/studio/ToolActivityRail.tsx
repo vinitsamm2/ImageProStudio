@@ -449,6 +449,12 @@ export default function ToolActivityRail({
             <p className="mt-1 text-[9px] font-bold text-emerald-600 dark:text-emerald-400">
               100% Free • Unlimited Use
             </p>
+            <div className="sidebar-copyright text-[10px] leading-snug text-slate-400 dark:text-slate-500 mt-2 pt-2 border-t border-slate-200/60 dark:border-white/[0.05]">
+              <p>&copy; {new Date().getFullYear()} ImagePro Studio. All rights reserved.</p>
+              <p className="mt-0.5 text-[8.5px] leading-tight text-slate-400/80 dark:text-slate-500/80">
+                Your files are processed locally in your browser and never stored on any server.
+              </p>
+            </div>
           </div>
         )}
       </div>

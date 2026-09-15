@@ -3,98 +3,99 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="description" content="Edit, compress, resize, and convert images & PDFs directly in your browser with ImagePro Studio. 100% private with zero server uploads. Free, fast, and unlimited." />
-    <meta name="keywords" content="online bulk image resizer without upload, free client-side image editor, convert png to webp browser tool, pdf to word docx converter without upload, word to pdf in-browser vector converter, compress pdf under 200kb, 35x45mm passport photo maker, signature resize 10kb 20kb, upsc exam photo resizer, client side pdf editor" />
-    <meta name="author" content="Vinit Sammir, Software Engineer - Cognizant" />
-    <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1" />
-    <link rel="canonical" href="https://image-pro-studio.vercel.app/" />
 
-    <!-- Open Graph (Facebook / LinkedIn) -->
+    <!-- Basic SEO -->
+    <title>ImagePro Studio — Free In-Browser Image & PDF Editor</title>
+    <meta name="description" content="Free, 100% private in-browser image and PDF studio. Convert, compress, resize, merge, and edit PDFs and images with no server uploads." />
+    <meta name="keywords" content="image editor, pdf editor, image compressor, pdf compressor, image resizer, image to pdf, pdf to word, word to pdf, pdf merger, pdf splitter, passport photo maker, 35x45mm photo, signature resizer, convert png to webp, client-side image editor, private pdf tools" />
+    <meta name="author" content="Vinit Sammir, Software Engineer" />
+    <meta name="robots" content="index, follow" />
+    <link rel="canonical" href="https://www.imageprostudio.in/" />
+
+    <!-- Open Graph / Social Sharing -->
     <meta property="og:type" content="website" />
-    <meta property="og:url" content="https://image-pro-studio.vercel.app/" />
-    <meta property="og:title" content="ImagePro Studio — Free In-Browser Image & PDF Editor, Compressor, Converter" />
-    <meta property="og:description" content="Edit, compress, and convert images and PDFs directly in your browser. 100% private, zero server uploads, free and unlimited." />
+    <meta property="og:url" content="https://www.imageprostudio.in/" />
+    <meta property="og:title" content="ImagePro Studio — Free In-Browser Image & PDF Editor" />
+    <meta property="og:description" content="100% in-browser PDF and image processing tools. Zero file upload to servers." />
+    <meta property="og:image" content="https://www.imageprostudio.in/preview-banner.png" />
     <meta property="og:site_name" content="ImagePro Studio" />
 
     <!-- Twitter Cards -->
     <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:url" content="https://www.imageprostudio.in/" />
     <meta name="twitter:title" content="ImagePro Studio — Free In-Browser Image & PDF Editor" />
-    <meta name="twitter:description" content="100% private client-side image and PDF tools for students and professionals. Zero server uploads." />
+    <meta name="twitter:description" content="100% in-browser PDF and image processing tools. Zero file upload to servers." />
+    <meta name="twitter:image" content="https://www.imageprostudio.in/preview-banner.png" />
 
     <!-- Google Site Verification -->
     <meta name="google-site-verification" content="aFd7qf-WGY73o5kIHoPUY_jJW8pIAMJEhOaRZ62fd-k" />
 
-    <!-- Structured Data (JSON-LD) for SoftwareApplication & FAQPage -->
+    <!-- Google AdSense -->
+    <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-5853403690463089" crossorigin="anonymous"></script>
+
+    <!-- Schema.org Structured Data: WebApplication -->
     <script type="application/ld+json">
     {
       "@context": "https://schema.org",
-      "@graph": [
+      "@type": "WebApplication",
+      "name": "ImagePro Studio",
+      "url": "https://www.imageprostudio.in/",
+      "applicationCategory": "MultimediaApplication",
+      "operatingSystem": "All",
+      "offers": {
+        "@type": "Offer",
+        "price": "0",
+        "priceCurrency": "USD"
+      }
+    }
+    </script>
+
+    <!-- Schema.org Structured Data: FAQPage -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "FAQPage",
+      "@id": "https://www.imageprostudio.in/#faq",
+      "mainEntity": [
         {
-          "@type": "WebApplication",
-          "@id": "https://image-pro-studio.vercel.app/#webapp",
-          "name": "ImagePro Studio",
-          "url": "https://image-pro-studio.vercel.app/",
-          "description": "Free in-browser image and PDF editor, compressor, resizer, and converter operating 100% client-side with zero server uploads.",
-          "applicationCategory": "MultimediaApplication, UtilitiesApplication",
-          "operatingSystem": "All (Web Browser)",
-          "browserRequirements": "Requires JavaScript. Requires HTML5 Canvas & WebAssembly.",
-          "offers": {
-            "@type": "Offer",
-            "price": "0",
-            "priceCurrency": "USD"
-          },
-          "author": {
-            "@type": "Person",
-            "name": "Vinit Sammir",
-            "jobTitle": "Software Engineer",
-            "sameAs": "https://www.linkedin.com/in/vinit-sammir"
+          "@type": "Question",
+          "name": "How does ImagePro Studio process files without uploading to a server?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "ImagePro Studio uses modern browser technologies including WebAssembly, HTML5 Canvas API, and pdf-lib. All compression, resizing, format conversion, and PDF editing happen 100% in your device's memory. Zero bytes of your files or personal documents ever leave your computer or phone."
           }
         },
         {
-          "@type": "FAQPage",
-          "@id": "https://image-pro-studio.vercel.app/#faq",
-          "mainEntity": [
-            {
-              "@type": "Question",
-              "name": "How does ImagePro Studio process files without uploading to a server?",
-              "acceptedAnswer": {
-                "@type": "Answer",
-                "text": "ImagePro Studio uses modern browser technologies including WebAssembly, HTML5 Canvas API, and pdf-lib. All compression, resizing, format conversion, and PDF editing happen 100% in your device's memory. Zero bytes of your files or personal documents ever leave your computer or phone."
-              }
-            },
-            {
-              "@type": "Question",
-              "name": "What image and document formats are supported?",
-              "acceptedAnswer": {
-                "@type": "Answer",
-                "text": "ImagePro Studio supports images in JPG, JPEG, PNG, WebP, AVIF, SVG, BMP, TIFF, and GIF. For documents, it supports full editing, compression, watermarking, signing, and two-way conversion between PDF and Microsoft Word (.docx, .doc, .docm, .dot, .dotx, .dotm)."
-              }
-            },
-            {
-              "@type": "Question",
-              "name": "Can I use ImagePro Studio for competitive examination and govt job application forms?",
-              "acceptedAnswer": {
-                "@type": "Answer",
-                "text": "Yes. ImagePro Studio has specialized presets for Indian and international examination portals including UPSC, SSC, NEET, JEE, GATE, IBPS, State PSCs, and universities. You can resize photos to exact 35×45mm dimensions, scale signatures to 10–20KB, and compress PDF marksheets under 200KB or 100KB with guaranteed acceptance."
-              }
-            },
-            {
-              "@type": "Question",
-              "name": "Is ImagePro Studio free to use? Are there file limits or paywalls?",
-              "acceptedAnswer": {
-                "@type": "Answer",
-                "text": "ImagePro Studio is 100% free and unlimited forever. There are no subscriptions, account registrations, credit cards, or daily file limits."
-              }
-            },
-            {
-              "@type": "Question",
-              "name": "How do I convert PDF to Word (.docx, .doc) or Word to PDF?",
-              "acceptedAnswer": {
-                "@type": "Answer",
-                "text": "Select the 'PDF to Word' or 'Word to PDF' tool, upload your document, choose your desired target format or typography settings, and download your converted file instantly—with headings, paragraphs, and lists preserved."
-              }
-            }
-          ]
+          "@type": "Question",
+          "name": "What image and document formats are supported?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "ImagePro Studio supports images in JPG, JPEG, PNG, WebP, AVIF, SVG, BMP, TIFF, and GIF. For documents, it supports full editing, compression, watermarking, signing, and two-way conversion between PDF and Microsoft Word (.docx, .doc, .docm, .dot, .dotx, .dotm)."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Can I use ImagePro Studio for competitive examination and govt job application forms?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Yes. ImagePro Studio has specialized presets for Indian and international examination portals including UPSC, SSC, NEET, JEE, GATE, IBPS, State PSCs, and universities. You can resize photos to exact 35×45mm dimensions, scale signatures to 10–20KB, and compress PDF marksheets under 200KB or 100KB with guaranteed acceptance."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Is ImagePro Studio free to use? Are there file limits or paywalls?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "ImagePro Studio is 100% free and unlimited forever. There are no subscriptions, account registrations, credit cards, or daily file limits."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "How do I convert PDF to Word (.docx, .doc) or Word to PDF?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Select the 'PDF to Word' or 'Word to PDF' tool, upload your document, choose your desired target format or typography settings, and download your converted file instantly—with headings, paragraphs, and lists preserved."
+          }
         }
       ]
     }
@@ -104,12 +105,184 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2306b6d4' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z'/%3E%3C/svg%3E" />
-    <title>ImagePro Studio — Free In-Browser Image & PDF Editor, Compressor, Converter (100% Private)</title>
-    <!-- Google AdSense -->
-    <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-5853403690463089" crossorigin="anonymous"></script>
   </head>
   <body class="antialiased selection:bg-cyan-500/20 selection:text-cyan-600 dark:selection:bg-cyan-500/30 dark:selection:text-cyan-300">
-    <div id="root"></div>
+    <!-- Static Crawlable Semantic HTML Content for Search Engine Crawlers & Fast First Paint -->
+    <div id="root">
+      <div class="static-seo-wrapper" style="max-width: 1200px; margin: 0 auto; padding: 2rem 1.5rem; font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif; color: #0f172a; line-height: 1.6;">
+        <header style="text-align: center; margin-bottom: 3rem; padding-bottom: 2rem; border-bottom: 1px solid #e2e8f0;">
+          <p style="font-weight: 800; font-size: 0.85rem; letter-spacing: 0.1em; text-transform: uppercase; color: #0891b2; margin-bottom: 0.5rem;">
+            100% Private Client-Side Studio
+          </p>
+          <h1 style="font-size: 2.25rem; font-weight: 800; line-height: 1.2; margin: 0 0 1rem 0; color: #0f172a;">
+            ImagePro Studio — Free In-Browser Image &amp; PDF Editor
+          </h1>
+          <p style="font-size: 1.1rem; color: #475569; max-width: 800px; margin: 0 auto;">
+            Free, 100% private in-browser image and PDF studio. Convert, compress, resize, merge, and edit PDFs and images with no server uploads.
+          </p>
+        </header>
+
+        <section style="margin-bottom: 3.5rem;">
+          <h2 style="font-size: 1.5rem; font-weight: 700; margin-bottom: 1.5rem; color: #1e293b;">
+            Comprehensive Suite of PDF &amp; Image Processing Tools
+          </h2>
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1.25rem;">
+            <article style="padding: 1.25rem; border: 1px solid #e2e8f0; border-radius: 1rem; background: #ffffff;">
+              <h3 style="font-size: 1.1rem; font-weight: 700; margin: 0 0 0.5rem 0; color: #0f172a;">PDF Editor</h3>
+              <p style="font-size: 0.9rem; color: #64748b; margin: 0;">
+                Full in-browser PDF editor: annotate, draw, highlight, redact sensitive data, insert stamps, shapes, text, and images.
+              </p>
+            </article>
+
+            <article style="padding: 1.25rem; border: 1px solid #e2e8f0; border-radius: 1rem; background: #ffffff;">
+              <h3 style="font-size: 1.1rem; font-weight: 700; margin: 0 0 0.5rem 0; color: #0f172a;">Image to PDF</h3>
+              <p style="font-size: 0.9rem; color: #64748b; margin: 0;">
+                Convert JPG, PNG, and WebP pictures into clean documents. Set page sizes (A4, A3, Letter), margins, and export a unified PDF.
+              </p>
+            </article>
+
+            <article style="padding: 1.25rem; border: 1px solid #e2e8f0; border-radius: 1rem; background: #ffffff;">
+              <h3 style="font-size: 1.1rem; font-weight: 700; margin: 0 0 0.5rem 0; color: #0f172a;">Image Compressor</h3>
+              <p style="font-size: 0.9rem; color: #64748b; margin: 0;">
+                Compress JPEG, PNG, and WebP images to exact target sizes (e.g. 20KB, 50KB, 100KB) with real-time visual quality preview.
+              </p>
+            </article>
+
+            <article style="padding: 1.25rem; border: 1px solid #e2e8f0; border-radius: 1rem; background: #ffffff;">
+              <h3 style="font-size: 1.1rem; font-weight: 700; margin: 0 0 0.5rem 0; color: #0f172a;">Image Resizer</h3>
+              <p style="font-size: 0.9rem; color: #64748b; margin: 0;">
+                Resize images by pixels, mm, cm, inches, or percentage with aspect ratio lock and custom DPI. Includes 35×45mm passport presets.
+              </p>
+            </article>
+
+            <article style="padding: 1.25rem; border: 1px solid #e2e8f0; border-radius: 1rem; background: #ffffff;">
+              <h3 style="font-size: 1.1rem; font-weight: 700; margin: 0 0 0.5rem 0; color: #0f172a;">PDF Compressor</h3>
+              <p style="font-size: 0.9rem; color: #64748b; margin: 0;">
+                Compress PDF documents under 200KB or 100KB for government job portals and university admission uploads.
+              </p>
+            </article>
+
+            <article style="padding: 1.25rem; border: 1px solid #e2e8f0; border-radius: 1rem; background: #ffffff;">
+              <h3 style="font-size: 1.1rem; font-weight: 700; margin: 0 0 0.5rem 0; color: #0f172a;">PDF to Word / DOCX</h3>
+              <p style="font-size: 0.9rem; color: #64748b; margin: 0;">
+                Export PDF documents into 6 Microsoft Word formats (.docx, .doc, .docm, .dot, .dotx, .dotm) with structure intact.
+              </p>
+            </article>
+
+            <article style="padding: 1.25rem; border: 1px solid #e2e8f0; border-radius: 1rem; background: #ffffff;">
+              <h3 style="font-size: 1.1rem; font-weight: 700; margin: 0 0 0.5rem 0; color: #0f172a;">Word to PDF</h3>
+              <p style="font-size: 0.9rem; color: #64748b; margin: 0;">
+                Transform Word documents (.docx, .doc) into crisp vector PDF documents with headings and formatting preserved.
+              </p>
+            </article>
+
+            <article style="padding: 1.25rem; border: 1px solid #e2e8f0; border-radius: 1rem; background: #ffffff;">
+              <h3 style="font-size: 1.1rem; font-weight: 700; margin: 0 0 0.5rem 0; color: #0f172a;">PDF Splitter &amp; Merger</h3>
+              <p style="font-size: 0.9rem; color: #64748b; margin: 0;">
+                Combine multiple PDFs or extract pages and split documents with zero loss of vector clarity.
+              </p>
+            </article>
+
+            <article style="padding: 1.25rem; border: 1px solid #e2e8f0; border-radius: 1rem; background: #ffffff;">
+              <h3 style="font-size: 1.1rem; font-weight: 700; margin: 0 0 0.5rem 0; color: #0f172a;">Sign &amp; Watermark PDF</h3>
+              <p style="font-size: 0.9rem; color: #64748b; margin: 0;">
+                Add digital signatures, draw signatures directly, and insert text or image watermarks to protect confidential files.
+              </p>
+            </article>
+
+            <article style="padding: 1.25rem; border: 1px solid #e2e8f0; border-radius: 1rem; background: #ffffff;">
+              <h3 style="font-size: 1.1rem; font-weight: 700; margin: 0 0 0.5rem 0; color: #0f172a;">PDF to Image &amp; Image Converter</h3>
+              <p style="font-size: 0.9rem; color: #64748b; margin: 0;">
+                Extract high-resolution JPG/PNG images from PDF pages and batch convert between JPG, PNG, WebP, AVIF, SVG, BMP, and GIF.
+              </p>
+            </article>
+          </div>
+        </section>
+
+        <section style="margin-bottom: 3.5rem;">
+          <h2 style="font-size: 1.5rem; font-weight: 700; margin-bottom: 1.5rem; color: #1e293b;">
+            Key Features &amp; Technical Capabilities
+          </h2>
+          <ul style="list-style: none; padding: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1rem;">
+            <li style="padding: 1rem; background: #f8fafc; border-radius: 0.75rem;">
+              <strong style="color: #0f172a;">🔒 Zero Server Uploads:</strong>
+              <p style="font-size: 0.875rem; color: #475569; margin: 0.25rem 0 0 0;">All compression, resizing, and PDF editing execute 100% in your browser memory via WebAssembly and Canvas.</p>
+            </li>
+            <li style="padding: 1rem; background: #f8fafc; border-radius: 0.75rem;">
+              <strong style="color: #0f172a;">🎓 Exam &amp; Govt Job Presets:</strong>
+              <p style="font-size: 0.875rem; color: #475569; margin: 0.25rem 0 0 0;">Specialized presets for UPSC, SSC, NEET, JEE, GATE, and university portals: 35×45mm photos, 10–20KB signatures, and &lt;200KB PDFs.</p>
+            </li>
+            <li style="padding: 1rem; background: #f8fafc; border-radius: 0.75rem;">
+              <strong style="color: #0f172a;">⚡ Instant Local Speed:</strong>
+              <p style="font-size: 0.875rem; color: #475569; margin: 0.25rem 0 0 0;">No queues, no server upload delays, and zero network buffering. Processing completes in milliseconds.</p>
+            </li>
+            <li style="padding: 1rem; background: #f8fafc; border-radius: 0.75rem;">
+              <strong style="color: #0f172a;">✨ 100% Free &amp; Unlimited:</strong>
+              <p style="font-size: 0.875rem; color: #475569; margin: 0.25rem 0 0 0;">No watermarks, no account registration, no credit cards, and no daily usage caps.</p>
+            </li>
+          </ul>
+        </section>
+
+        <section style="margin-bottom: 2rem;">
+          <h2 style="font-size: 1.5rem; font-weight: 700; margin-bottom: 1.5rem; color: #1e293b;">
+            Frequently Asked Questions
+          </h2>
+          <div style="display: flex; flex-direction: column; gap: 1rem;">
+            <div style="padding: 1.25rem; border: 1px solid #e2e8f0; border-radius: 0.75rem; background: #ffffff;">
+              <h3 style="font-size: 1rem; font-weight: 700; margin: 0 0 0.5rem 0; color: #0f172a;">How does ImagePro Studio process files without uploading to a server?</h3>
+              <p style="font-size: 0.875rem; color: #475569; margin: 0;">ImagePro Studio executes all operations directly within your web browser using HTML5 Canvas, WebAssembly, and pdf-lib. Zero bytes of your files or documents ever leave your computer or smartphone.</p>
+            </div>
+
+            <div style="padding: 1.25rem; border: 1px solid #e2e8f0; border-radius: 0.75rem; background: #ffffff;">
+              <h3 style="font-size: 1rem; font-weight: 700; margin: 0 0 0.5rem 0; color: #0f172a;">Can I resize photos and signatures for UPSC, SSC, NEET, and JEE forms?</h3>
+              <p style="font-size: 0.875rem; color: #475569; margin: 0;">Yes! ImagePro Studio includes one-click presets for competitive exams and government recruitment portals (UPSC, SSC, NEET, JEE, GATE, IBPS, State PSCs, Universities). You can crop and resize passport photos to exact 35×45mm dimensions, compress signatures to 10–20KB, and shrink PDF marksheets under 200KB or 100KB with 100% portal acceptance.</p>
+            </div>
+
+            <div style="padding: 1.25rem; border: 1px solid #e2e8f0; border-radius: 0.75rem; background: #ffffff;">
+              <h3 style="font-size: 1rem; font-weight: 700; margin: 0 0 0.5rem 0; color: #0f172a;">What image and document formats are supported?</h3>
+              <p style="font-size: 0.875rem; color: #475569; margin: 0;">For images, ImagePro supports JPG, JPEG, PNG, WebP, AVIF, SVG, BMP, TIFF, and GIF format conversions and compression. For documents, it provides comprehensive editing, annotating, signing, watermarking, compressing, and two-way conversion between PDF and Microsoft Word formats (.docx, .doc, .docm, .dot, .dotx, .dotm).</p>
+            </div>
+
+            <div style="padding: 1.25rem; border: 1px solid #e2e8f0; border-radius: 0.75rem; background: #ffffff;">
+              <h3 style="font-size: 1rem; font-weight: 700; margin: 0 0 0.5rem 0; color: #0f172a;">How do I convert PDF to Word DOCX without uploading files?</h3>
+              <p style="font-size: 0.875rem; color: #475569; margin: 0;">Launch the 'PDF to Word' tool, drag and drop your PDF, and select your preferred output format (.docx, .doc, .docm, .dot, .dotx, .dotm). The in-browser engine parses text runs, reconstructs paragraphs, identifies headings (H1–H3), formats lists, and builds a native Word document directly in your browser with zero server contact.</p>
+            </div>
+
+            <div style="padding: 1.25rem; border: 1px solid #e2e8f0; border-radius: 0.75rem; background: #ffffff;">
+              <h3 style="font-size: 1rem; font-weight: 700; margin: 0 0 0.5rem 0; color: #0f172a;">How do I convert Word (.docx, .doc) files to PDF in-browser?</h3>
+              <p style="font-size: 0.875rem; color: #475569; margin: 0;">Open the 'Word to PDF' tool, upload your .docx or .doc file, adjust optional layout settings (A4 or US Letter, margins, font family, line spacing, and page numbers), and click 'Convert to PDF'. True vector text and images are typeset into a downloadable PDF that stays crisp at any zoom level.</p>
+            </div>
+
+            <div style="padding: 1.25rem; border: 1px solid #e2e8f0; border-radius: 0.75rem; background: #ffffff;">
+              <h3 style="font-size: 1rem; font-weight: 700; margin: 0 0 0.5rem 0; color: #0f172a;">Is ImagePro Studio completely free? Are there file limits or subscriptions?</h3>
+              <p style="font-size: 0.875rem; color: #475569; margin: 0;">ImagePro Studio is 100% free and unlimited forever. There are no subscriptions, account registrations, credit cards, watermarks added to your outputs, or daily file limits.</p>
+            </div>
+          </div>
+        </section>
+
+        <footer style="margin-top: 3rem; padding-top: 1.5rem; border-top: 1px solid #e2e8f0; text-align: center;">
+          <div class="sidebar-copyright text-xs text-slate-400 mt-2">
+            <p>&copy; <span id="current-year">2026</span> ImagePro Studio. All rights reserved.</p>
+            <p style="font-size: 0.8rem; color: #94a3b8; margin-top: 0.25rem;">Your files are processed locally in your browser and never stored on any server.</p>
+          </div>
+        </footer>
+      </div>
+    </div>
+
+    <!-- Fallback for JavaScript-disabled crawlers and browsers -->
+    <noscript>
+      <div style="max-width: 900px; margin: 2rem auto; padding: 1.5rem; background: #fef2f2; border: 1px solid #f87171; border-radius: 0.75rem; color: #991b1b; font-family: sans-serif;">
+        <h2 style="margin-top: 0;">JavaScript Required for Full Interactive Tools</h2>
+        <p>ImagePro Studio performs 100% in-browser image and PDF processing using WebAssembly and client-side HTML5 Canvas. Please enable JavaScript in your browser to interactively edit, compress, and convert files.</p>
+        <p>&copy; 2026 ImagePro Studio. All rights reserved. Your files are processed locally in your browser and never stored on any server.</p>
+      </div>
+    </noscript>
+
+    <script>
+      // Keeps the copyright year current automatically
+      const yearEl = document.getElementById('current-year');
+      if (yearEl) yearEl.textContent = new Date().getFullYear();
+    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
