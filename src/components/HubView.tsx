@@ -22,6 +22,7 @@ import {
 import { useState } from "react";
 import OmniDropzone from "./OmniDropzone";
 import { TOOLS, ToolCategory, ToolId } from "./ToolGrid";
+import BrandLogo from "./ui/BrandLogo";
 
 type HubViewProps = {
   onLaunchTool: (id: ToolId) => void;
@@ -47,8 +48,17 @@ export default function HubView({ onLaunchTool, onOmniRoute, onOpenAbout }: HubV
       <section className="relative pt-6 sm:pt-10">
         <div className="mx-auto max-w-4xl text-center space-y-6">
           <motion.div
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="flex justify-center"
+          >
+            <BrandLogo size={52} showText subtitle="The In-Browser Media Workstation" />
+          </motion.div>
+
+          <motion.div
             initial={{ opacity: 0, y: 15 }}
             animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.04 }}
             className="inline-flex items-center gap-2 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-4 py-1.5 text-xs font-bold text-emerald-700 dark:text-emerald-300 shadow-sm"
           >
             <GraduationCap size={15} className="text-emerald-500 animate-pulse" />

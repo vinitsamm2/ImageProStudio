@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
+  <defs>
+    <linearGradient id="favGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#06b6d4" />
+      <stop offset="50%" stop-color="#14b8a6" />
+      <stop offset="100%" stop-color="#6366f1" />
+    </linearGradient>
+    <linearGradient id="favBg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0f172a" />
+      <stop offset="100%" stop-color="#082038" />
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="16" fill="url(#favBg)" />
+  <rect width="64" height="64" rx="16" stroke="url(#favGrad)" stroke-width="2.5" />
+  <!-- Modern Camera Aperture & Shutter Mark -->
+  <path d="M18 24 C18 21, 20 19, 23 19 L27 19 L29 17 C30 16, 31 15, 33 15 L35 15 C37 15, 38 16, 39 17 L41 19 L45 19 C48 19, 50 21, 50 24 L50 42 C50 45, 48 47, 45 47 L23 47 C20 47, 18 45, 18 42 Z" stroke="url(#favGrad)" stroke-width="3.5" fill="#08182b" stroke-linejoin="round" />
+  <circle cx="34" cy="33" r="8" stroke="#22d3ee" stroke-width="2.5" />
+  <circle cx="34" cy="33" r="3.5" fill="#38bdf8" />
+  <!-- Star Sparkle -->
+  <path d="M48 13 C48.5 16, 50 17.5, 53 18 C50 18.5, 48.5 20, 48 23 C47.5 20, 46 18.5, 43 18 C46 17.5, 47.5 16, 48 13 Z" fill="#38bdf8" />
+</svg>

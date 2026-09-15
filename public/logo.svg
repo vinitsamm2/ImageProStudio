@@ -1,0 +1,114 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%" fill="none">
+  <defs>
+    <!-- Background Gradient -->
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0b1120" />
+      <stop offset="50%" stop-color="#07182e" />
+      <stop offset="100%" stop-color="#082b45" />
+    </linearGradient>
+
+    <!-- Border Gradient -->
+    <linearGradient id="borderGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#06b6d4" />
+      <stop offset="50%" stop-color="#14b8a6" />
+      <stop offset="100%" stop-color="#6366f1" />
+    </linearGradient>
+
+    <!-- Primary Glyph Gradient -->
+    <linearGradient id="glyphGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#22d3ee" />
+      <stop offset="40%" stop-color="#06b6d4" />
+      <stop offset="100%" stop-color="#3b82f6" />
+    </linearGradient>
+
+    <!-- Accent Accent Glow -->
+    <linearGradient id="accentGrad" x1="0%" y1="100%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#a855f7" />
+      <stop offset="50%" stop-color="#6366f1" />
+      <stop offset="100%" stop-color="#38bdf8" />
+    </linearGradient>
+
+    <!-- Aperture Core Gradient -->
+    <linearGradient id="coreGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#38bdf8" />
+      <stop offset="100%" stop-color="#10b981" />
+    </linearGradient>
+
+    <!-- Drop Shadow Filter -->
+    <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="16" result="blur" />
+      <feComposite in="SourceGraphic" in2="blur" operator="over" />
+    </filter>
+
+    <filter id="softGlow" x="-10%" y="-10%" width="120%" height="120%">
+      <feGaussianBlur stdDeviation="8" result="blur" />
+      <feComposite in="SourceGraphic" in2="blur" operator="over" />
+    </filter>
+  </defs>
+
+  <!-- Ambient Outer Glow -->
+  <rect x="56" y="56" width="400" height="400" rx="100" fill="url(#glyphGrad)" opacity="0.18" filter="url(#glow)" />
+
+  <!-- Base Squircle Container -->
+  <rect x="48" y="48" width="416" height="416" rx="96" fill="url(#bgGrad)" />
+  <rect x="48" y="48" width="416" height="416" rx="96" stroke="url(#borderGrad)" stroke-width="8" stroke-opacity="0.8" />
+
+  <!-- Diagonal Sub-Grid Tech Lines (Discreet) -->
+  <g opacity="0.08" stroke="#38bdf8" stroke-width="2">
+    <line x1="48" y1="180" x2="464" y2="180" />
+    <line x1="48" y1="332" x2="464" y2="332" />
+    <line x1="180" y1="48" x2="180" y2="464" />
+    <line x1="332" y1="48" x2="332" y2="464" />
+  </g>
+
+  <!-- Dynamic Vector PDF / Image Badge Graphic -->
+  <!-- Left Side: Modern Camera Lens & Aperture Geometry -->
+  <g filter="url(#softGlow)">
+    <!-- Camera Body Silhouette / In-Browser Frame -->
+    <path d="M140 180 C140 156, 156 140, 180 140 L212 140 L226 122 C232 114, 242 110, 252 110 L260 110 C270 110, 280 114, 286 122 L300 140 L332 140 C356 140, 372 156, 372 180 L372 320 C372 344, 356 360, 332 360 L180 360 C156 360, 140 344, 140 320 Z" 
+          stroke="url(#glyphGrad)" 
+          stroke-width="18" 
+          stroke-linecap="round" 
+          stroke-linejoin="round"
+          fill="#0c192e" 
+          fill-opacity="0.6" />
+
+    <!-- Top Flash / Sensor Dot -->
+    <circle cx="188" cy="180" r="10" fill="url(#accentGrad)" />
+
+    <!-- Central Camera Aperture & Shutter Rings -->
+    <circle cx="256" cy="250" r="64" stroke="url(#glyphGrad)" stroke-width="16" />
+    <circle cx="256" cy="250" r="46" stroke="url(#accentGrad)" stroke-width="6" stroke-dasharray="16 8" opacity="0.8" />
+    <circle cx="256" cy="250" r="28" fill="url(#coreGrad)" />
+    
+    <!-- Shutter Aperture Blades -->
+    <path d="M256 222 L274 250 L256 268 L238 250 Z" fill="#0b1120" opacity="0.6" />
+    <circle cx="256" cy="250" r="12" fill="#ffffff" opacity="0.9" />
+
+    <!-- Top-Right Sparkle Star (Pro Tool Accent) -->
+    <g transform="translate(366, 126)">
+      <!-- 4-Point Star Burst -->
+      <path d="M0 -34 C1 -12, 12 -1, 34 0 C12 1, 1 12, 0 34 C-1 12, -12 1, -34 0 C-12 -1, -1 -12, 0 -34 Z" fill="url(#glyphGrad)" />
+      <circle cx="0" cy="0" r="6" fill="#ffffff" />
+    </g>
+
+    <!-- Bottom-Left Dynamic PDF Document Sheet Badge -->
+    <g transform="translate(112, 280)">
+      <rect x="0" y="0" width="84" height="106" rx="14" fill="#07162c" stroke="url(#borderGrad)" stroke-width="8" />
+      <path d="M54 0 L84 30 L54 30 Z" fill="url(#glyphGrad)" />
+      <!-- Horizontal Document Lines -->
+      <line x1="20" y1="46" x2="64" y2="46" stroke="#38bdf8" stroke-width="6" stroke-linecap="round" />
+      <line x1="20" y1="64" x2="52" y2="64" stroke="#2dd4bf" stroke-width="6" stroke-linecap="round" />
+      <line x1="20" y1="82" x2="42" y2="82" stroke="#818cf8" stroke-width="6" stroke-linecap="round" />
+    </g>
+
+    <!-- Speed / Client-Side Motion Streaks -->
+    <line x1="126" y1="210" x2="92" y2="210" stroke="#06b6d4" stroke-width="6" stroke-linecap="round" opacity="0.7" />
+    <line x1="126" y1="240" x2="80" y2="240" stroke="#06b6d4" stroke-width="6" stroke-linecap="round" opacity="0.5" />
+    <line x1="126" y1="270" x2="100" y2="270" stroke="#06b6d4" stroke-width="6" stroke-linecap="round" opacity="0.6" />
+
+    <line x1="386" y1="230" x2="420" y2="230" stroke="#6366f1" stroke-width="6" stroke-linecap="round" opacity="0.7" />
+    <line x1="386" y1="260" x2="432" y2="260" stroke="#6366f1" stroke-width="6" stroke-linecap="round" opacity="0.5" />
+    <line x1="386" y1="290" x2="412" y2="290" stroke="#6366f1" stroke-width="6" stroke-linecap="round" opacity="0.6" />
+  </g>
+</svg>

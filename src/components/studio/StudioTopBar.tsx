@@ -19,6 +19,7 @@ import { useState } from "react";
 import { ToolId } from "../ToolGrid";
 import { STUDIO_TOOLS } from "./ToolActivityRail";
 import FontSizeScaleControl from "../ui/FontSizeScaleControl";
+import BrandLogo from "../ui/BrandLogo";
 
 type StudioTopBarProps = {
   activeTool: ToolId;
@@ -63,6 +64,11 @@ export default function StudioTopBar({
         >
           <Menu size={18} />
         </button>
+
+        {/* Mobile Brand Logo */}
+        <div className="lg:hidden flex items-center shrink-0" title="ImagePro Studio">
+          <BrandLogo size={28} onClick={onToggleCatalog} />
+        </div>
 
         {/* Tool Dropdown Breadcrumb */}
         <div className="relative min-w-0">

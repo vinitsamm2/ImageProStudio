@@ -23,6 +23,7 @@ import {
 } from "lucide-react";
 import { ToolId } from "../ToolGrid";
 import { useState } from "react";
+import BrandLogo from "../ui/BrandLogo";
 
 export type ToolItemDef = {
   id: ToolId;
@@ -264,28 +265,18 @@ export default function ToolActivityRail({
               type="button"
               onClick={onToggleCatalog}
               className="flex items-center gap-2.5 text-left focus:outline-none group"
+              title="ImagePro Studio - Open Catalog"
             >
-              <div className="grid h-8 w-8 place-items-center rounded-xl bg-gradient-to-tr from-cyan-500 via-teal-500 to-indigo-500 text-white shadow-sm transition group-hover:scale-105">
-                <Wand2 size={16} />
-              </div>
-              <div>
-                <span className="font-extrabold tracking-tight text-slate-900 dark:text-white text-sm flex items-center gap-1">
-                  Image<span className="bg-gradient-to-r from-cyan-400 to-teal-400 bg-clip-text text-transparent">Pro</span>
-                  <span className="rounded bg-cyan-500/10 px-1.5 py-0.2 text-[9px] font-mono font-bold text-cyan-600 dark:text-cyan-400">
-                    STUDIO
-                  </span>
-                </span>
-                <p className="text-[10px] text-slate-400 font-medium">100% In-Browser</p>
-              </div>
+              <BrandLogo size={32} showText subtitle="100% In-Browser" />
             </button>
           ) : (
             <button
               type="button"
               onClick={onToggleCatalog}
-              title="ImagePro Studio"
-              className="mx-auto grid h-9 w-9 place-items-center rounded-xl bg-gradient-to-tr from-cyan-500 to-teal-500 text-white shadow-sm"
+              title="ImagePro Studio - Open Catalog"
+              className="mx-auto block p-0.5 rounded-xl transition hover:scale-105"
             >
-              <Wand2 size={16} />
+              <BrandLogo size={32} />
             </button>
           )}
 

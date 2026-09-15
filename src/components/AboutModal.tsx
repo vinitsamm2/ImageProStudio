@@ -19,6 +19,7 @@ import {
   Zap
 } from "lucide-react";
 import { useState } from "react";
+import BrandLogo from "./ui/BrandLogo";
 
 type AboutModalProps = {
   isOpen: boolean;
@@ -59,9 +60,7 @@ export default function AboutModal({ isOpen, onClose, onOpenTool }: AboutModalPr
           {/* Modal Header */}
           <div className="relative flex items-center justify-between border-b border-slate-200/80 px-6 py-4 dark:border-white/[0.08]">
             <div className="flex items-center gap-3">
-              <div className="grid h-10 w-10 place-items-center rounded-2xl bg-gradient-to-tr from-cyan-500 via-teal-500 to-indigo-500 text-white shadow-md shadow-cyan-500/25">
-                <Wand2 size={20} />
-              </div>
+              <BrandLogo size={42} />
               <div>
                 <div className="flex items-center gap-2">
                   <h2 className="text-lg font-extrabold tracking-tight text-slate-900 dark:text-white">
