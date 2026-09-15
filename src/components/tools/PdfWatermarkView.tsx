@@ -117,8 +117,12 @@ export default function PdfWatermarkView({
       });
       const generated = new File([blob], `${info.file.name.replace(/\.pdf$/i, "")}-watermarked.pdf`, { type: "application/pdf" });
       setWatermarkedFile(generated);
-      downloadBlob(blob, `${info.file.name.replace(/\.pdf$/i, "")}-watermarked.pdf`);
-      notify("Watermark successfully applied & PDF downloaded!", "success");
+      if (onShareFile) {
+        onShareFile(generated);
+      } else {
+        downloadBlob(blob, `${info.file.name.replace(/\.pdf$/i, "")}-watermarked.pdf`);
+      }
+      notify("Changes applied! Choose Download or QR Code.", "success");
     } catch (error) {
       notify(error instanceof Error ? error.message : "Could not apply watermark.", "error");
     } finally {
@@ -524,18 +528,18 @@ export default function PdfWatermarkView({
             onClick={run}
           >
             <Download size={16} />
-            {busy ? "Applying Watermark..." : "Stamp Watermark & Download PDF"}
+            {busy ? "Applying Changes..." : "Apply Changes & Watermark PDF"}
           </button>
 
           {watermarkedFile && (
             <div className="space-y-2 pt-2 border-t border-slate-200 dark:border-slate-800">
               <button
                 type="button"
-                onClick={() => downloadBlob(watermarkedFile, watermarkedFile.name)}
+                onClick={() => (onShareFile ? onShareFile(watermarkedFile) : downloadBlob(watermarkedFile, watermarkedFile.name))}
                 className="btn-secondary w-full py-2.5 text-xs font-bold"
               >
                 <Download size={14} />
-                Download Watermarked PDF Again
+                Download / QR Code
               </button>
               {onShareFile && (
                 <button

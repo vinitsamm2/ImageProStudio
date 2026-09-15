@@ -3,13 +3,17 @@ import {
   ArrowLeftRight,
   ArrowRight,
   Check,
+  CheckCheck,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
   Copy,
   Download,
   Eraser,
+  Eye,
   EyeOff,
   FilePenLine,
+  FileSearch,
   FileSignature,
   FileText,
   Highlighter,
@@ -19,11 +23,15 @@ import {
   MousePointer,
   Move,
   PenTool,
+  PencilLine,
+  Pipette,
   Plus,
   QrCode,
   Redo2,
   RefreshCw,
+  Replace,
   RotateCw,
+  Search,
   ShieldCheck,
   Sparkles,
   Square,
@@ -33,6 +41,7 @@ import {
   Type,
   Undo2,
   Upload,
+  Wand2,
   X,
   ZoomIn,
   ZoomOut
@@ -43,11 +52,16 @@ import {
   EditorPoint,
   PdfAnnotation,
   PdfAnnotationType,
+  PdfExtractedImageItem,
+  PdfExtractedTextItem,
   PdfFileInfo,
   compileEditedPdf,
   downloadBlob,
+  extractPdfPageImages,
+  extractPdfPageTextItems,
   formatBytes,
   readPdfInfo,
+  renderPdfPageDetails,
   renderPdfPageToDataUrl,
   uid
 } from "../../lib/files";
@@ -56,6 +70,9 @@ type ToastNotify = (text: string, kind?: "success" | "error" | "info") => void;
 
 type ToolMode =
   | "select"
+  | "editText"
+  | "eraseAndType"
+  | "erase"
   | "text"
   | "draw"
   | "highlight"
@@ -117,6 +134,38 @@ export default function PdfEditorView({
   const [loadingPage, setLoadingPage] = useState<boolean>(false);
   const [zoomScale, setZoomScale] = useState<number>(1.0);
 
+  // Dynamic page dimensions (for pixel-perfect non-A4 scaling)
+  const [pageDimensions, setPageDimensions] = useState<{ width: number; height: number }>({
+    width: 595,
+    height: 842
+  });
+
+  // Extracted PDF text per page (cached)
+  const [extractedTexts, setExtractedTexts] = useState<Record<number, PdfExtractedTextItem[]>>({});
+  const [loadingText, setLoadingText] = useState<boolean>(false);
+  const [detectTextActive, setDetectTextActive] = useState<boolean>(true);
+  const [hoveredTextId, setHoveredTextId] = useState<string | null>(null);
+
+  // Extracted PDF images/logos per page (cached)
+  const [extractedImages, setExtractedImages] = useState<Record<number, PdfExtractedImageItem[]>>({});
+  const [loadingImages, setLoadingImages] = useState<boolean>(false);
+  const [hoveredImageId, setHoveredImageId] = useState<string | null>(null);
+  const [selectedImageItem, setSelectedImageItem] = useState<PdfExtractedImageItem | null>(null);
+  const [deletedImageNames, setDeletedImageNames] = useState<string[]>([]);
+  const [detectedItemType, setDetectedItemType] = useState<"text" | "images">("text");
+
+  // Left sidebar tab: "pages" | "text"
+  const [sidebarTab, setSidebarTab] = useState<"pages" | "text">("pages");
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState<boolean>(false);
+  const [textSearchQuery, setTextSearchQuery] = useState<string>("");
+
+  // Find & Replace state
+  const [findAndReplaceOpen, setFindAndReplaceOpen] = useState<boolean>(false);
+  const [findQuery, setFindQuery] = useState<string>("");
+  const [replaceQuery, setReplaceQuery] = useState<string>("");
+  const [findCaseSensitive, setFindCaseSensitive] = useState<boolean>(false);
+  const [findScope, setFindScope] = useState<"page" | "all">("page");
+
   // Annotations & History
   const [annotations, setAnnotations] = useState<PdfAnnotation[]>([]);
   const [history, setHistory] = useState<PdfAnnotation[][]>([]);
@@ -136,6 +185,10 @@ export default function PdfEditorView({
   const [textHighlight, setTextHighlight] = useState<string>("transparent");
   const [highlightColor, setHighlightColor] = useState<string>(HIGHLIGHT_COLORS[0].hex);
   const [redactColor, setRedactColor] = useState<string>("#000000");
+  const [eraseColor, setEraseColor] = useState<string>("#ffffff");
+  const [eraseColorAutoMatch, setEraseColorAutoMatch] = useState<boolean>(true);
+  const [isEyedropperActive, setIsEyedropperActive] = useState<boolean>(false);
+  const pageCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const [selectedStamp, setSelectedStamp] = useState<{ label: string; color: string }>(STAMP_PRESETS[0]);
   const [customStampText, setCustomStampText] = useState<string>("");
 
@@ -197,6 +250,13 @@ export default function PdfEditorView({
       setRedoStack([]);
       setSelectedId(null);
       setEditedFile(null);
+      setExtractedTexts({});
+      setExtractedImages({});
+      setDeletedImageNames([]);
+      setSelectedImageItem(null);
+      setFindAndReplaceOpen(false);
+      setFindQuery("");
+      setReplaceQuery("");
 
       const plan: EditorPagePlanItem[] = Array.from({ length: pdf.pages }, (_, i) => ({
         id: `page-${i + 1}-${uid("plan")}`,
@@ -204,7 +264,10 @@ export default function PdfEditorView({
         rotation: 0
       }));
       setPagesPlan(plan);
-      notify(`Loaded PDF with ${pdf.pages} page(s). Pick a tool to start editing!`, "info");
+      if (typeof window !== "undefined" && window.innerWidth < 640) {
+        setZoomScale(Math.max(0.45, Math.min(1.0, Number(((window.innerWidth - 48) / 595).toFixed(2)))));
+      }
+      notify(`Loaded PDF with ${pdf.pages} page(s). Click any text or pick a tool to start editing!`, "info");
     } catch (err) {
       console.error(err);
       notify("Could not read PDF document. Please check the file.", "error");
@@ -217,7 +280,7 @@ export default function PdfEditorView({
     }
   }, [initialFiles]);
 
-  // Render current page preview
+  // Render current page preview & extract text
   useEffect(() => {
     if (!info || pagesPlan.length === 0) {
       setPageImage(null);
@@ -231,10 +294,11 @@ export default function PdfEditorView({
     setLoadingPage(true);
 
     if (currentPlan.originalPage !== null) {
-      renderPdfPageToDataUrl(info.file, currentPlan.originalPage, 1.5, currentPlan.rotation)
-        .then((url) => {
+      renderPdfPageDetails(info.file, currentPlan.originalPage, 1.5, currentPlan.rotation)
+        .then((res) => {
           if (!isCancelled) {
-            setPageImage(url);
+            setPageImage(res.dataUrl);
+            setPageDimensions({ width: Math.round(res.width), height: Math.round(res.height) });
             setLoadingPage(false);
           }
         })
@@ -245,6 +309,38 @@ export default function PdfEditorView({
             setLoadingPage(false);
           }
         });
+
+      // Extract text items if not already cached for this page
+      if (!extractedTexts[activePageIndex]) {
+        setLoadingText(true);
+        extractPdfPageTextItems(info.file, currentPlan.originalPage, currentPlan.rotation)
+          .then((items) => {
+            if (!isCancelled) {
+              setExtractedTexts((prev) => ({ ...prev, [activePageIndex]: items }));
+              setLoadingText(false);
+            }
+          })
+          .catch((err) => {
+            console.warn("Failed extracting page text:", err);
+            if (!isCancelled) setLoadingText(false);
+          });
+      }
+
+      // Extract embedded images/logos if not already cached for this page
+      if (!extractedImages[activePageIndex]) {
+        setLoadingImages(true);
+        extractPdfPageImages(info.file, currentPlan.originalPage, currentPlan.rotation)
+          .then((imgs) => {
+            if (!isCancelled) {
+              setExtractedImages((prev) => ({ ...prev, [activePageIndex]: imgs }));
+              setLoadingImages(false);
+            }
+          })
+          .catch((err) => {
+            console.warn("Failed extracting page images:", err);
+            if (!isCancelled) setLoadingImages(false);
+          });
+      }
     } else {
       // Blank page: generate a blank white preview dataUrl
       const c = document.createElement("canvas");
@@ -256,6 +352,7 @@ export default function PdfEditorView({
         ctx.fillRect(0, 0, c.width, c.height);
       }
       setPageImage(c.toDataURL("image/jpeg"));
+      setPageDimensions({ width: 595, height: 842 });
       setLoadingPage(false);
     }
 
@@ -263,6 +360,366 @@ export default function PdfEditorView({
       isCancelled = true;
     };
   }, [info, activePageIndex, pagesPlan]);
+
+  // Maintain an offscreen canvas synchronized with the current page image for instant pixel sampling
+  useEffect(() => {
+    if (!pageImage) {
+      pageCanvasRef.current = null;
+      return;
+    }
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    img.onload = () => {
+      const canvas = document.createElement("canvas");
+      canvas.width = img.naturalWidth || img.width;
+      canvas.height = img.naturalHeight || img.height;
+      const ctx = canvas.getContext("2d", { willReadFrequently: true });
+      if (ctx) {
+        ctx.drawImage(img, 0, 0);
+        pageCanvasRef.current = canvas;
+      }
+    };
+    img.src = pageImage;
+  }, [pageImage]);
+
+  // Sample exact color at normalized point (0..1)
+  const getPixelColorAtPoint = useCallback((xNorm: number, yNorm: number): string => {
+    const canvas = pageCanvasRef.current;
+    if (!canvas) return "#ffffff";
+    const ctx = canvas.getContext("2d", { willReadFrequently: true });
+    if (!ctx) return "#ffffff";
+    const px = Math.floor(Math.max(0, Math.min(canvas.width - 1, xNorm * canvas.width)));
+    const py = Math.floor(Math.max(0, Math.min(canvas.height - 1, yNorm * canvas.height)));
+    try {
+      const p = ctx.getImageData(px, py, 1, 1).data;
+      const r = p[0].toString(16).padStart(2, "0");
+      const g = p[1].toString(16).padStart(2, "0");
+      const b = p[2].toString(16).padStart(2, "0");
+      return `#${r}${g}${b}`;
+    } catch {
+      return "#ffffff";
+    }
+  }, []);
+
+  // Compute dominant background color around/outside a given normalized box
+  const sampleBackgroundColor = useCallback(
+    (xNorm: number, yNorm: number, wNorm: number, hNorm: number): string => {
+      const canvas = pageCanvasRef.current;
+      if (!canvas) return "#ffffff";
+      const ctx = canvas.getContext("2d", { willReadFrequently: true });
+      if (!ctx) return "#ffffff";
+
+      const cw = canvas.width;
+      const ch = canvas.height;
+      const px = Math.floor(xNorm * cw);
+      const py = Math.floor(yNorm * ch);
+      const pw = Math.max(2, Math.floor(wNorm * cw));
+      const ph = Math.max(2, Math.floor(hNorm * ch));
+
+      // Sample boundary points just outside or on the margin
+      const samplePoints: { x: number; y: number }[] = [];
+      const margin = 3;
+
+      const stepsX = Math.min(24, Math.max(4, Math.floor(pw / 8)));
+      for (let i = 0; i <= stepsX; i++) {
+        const sx = Math.floor(px + (pw * i) / stepsX);
+        samplePoints.push({ x: sx, y: Math.max(0, py - margin) });
+        samplePoints.push({ x: sx, y: Math.min(ch - 1, py + ph + margin) });
+      }
+
+      const stepsY = Math.min(24, Math.max(4, Math.floor(ph / 8)));
+      for (let j = 0; j <= stepsY; j++) {
+        const sy = Math.floor(py + (ph * j) / stepsY);
+        samplePoints.push({ x: Math.max(0, px - margin), y: sy });
+        samplePoints.push({ x: Math.min(cw - 1, px + pw + margin), y: sy });
+      }
+
+      samplePoints.push({ x: Math.max(0, px - margin), y: Math.max(0, py - margin) });
+      samplePoints.push({ x: Math.min(cw - 1, px + pw + margin), y: Math.max(0, py - margin) });
+      samplePoints.push({ x: Math.max(0, px - margin), y: Math.min(ch - 1, py + ph + margin) });
+      samplePoints.push({ x: Math.min(cw - 1, px + pw + margin), y: Math.min(ch - 1, py + ph + margin) });
+
+      const colorCounts: Record<string, { count: number; r: number; g: number; b: number }> = {};
+      for (const pt of samplePoints) {
+        const clampedX = Math.max(0, Math.min(cw - 1, pt.x));
+        const clampedY = Math.max(0, Math.min(ch - 1, pt.y));
+        try {
+          const d = ctx.getImageData(clampedX, clampedY, 1, 1).data;
+          const qr = Math.round(d[0] / 6) * 6;
+          const qg = Math.round(d[1] / 6) * 6;
+          const qb = Math.round(d[2] / 6) * 6;
+          const key = `${qr},${qg},${qb}`;
+          if (!colorCounts[key]) {
+            colorCounts[key] = { count: 1, r: d[0], g: d[1], b: d[2] };
+          } else {
+            colorCounts[key].count++;
+          }
+        } catch {
+          // ignore
+        }
+      }
+
+      let bestKey = "";
+      let maxCount = -1;
+      for (const key in colorCounts) {
+        if (colorCounts[key].count > maxCount) {
+          maxCount = colorCounts[key].count;
+          bestKey = key;
+        }
+      }
+
+      if (bestKey && colorCounts[bestKey]) {
+        const c = colorCounts[bestKey];
+        const r = Math.max(0, Math.min(255, c.r)).toString(16).padStart(2, "0");
+        const g = Math.max(0, Math.min(255, c.g)).toString(16).padStart(2, "0");
+        const b = Math.max(0, Math.min(255, c.b)).toString(16).padStart(2, "0");
+        return `#${r}${g}${b}`;
+      }
+
+      return "#ffffff";
+    },
+    []
+  );
+
+  const isColorDark = (hex: string): boolean => {
+    const clean = hex.replace("#", "");
+    if (clean.length < 6) return false;
+    const r = parseInt(clean.substring(0, 2), 16) || 0;
+    const g = parseInt(clean.substring(2, 4), 16) || 0;
+    const b = parseInt(clean.substring(4, 6), 16) || 0;
+    const lum = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+    return lum < 0.55;
+  };
+
+  // Sample actual ink/text color inside bounding box with highest contrast against background
+  const sampleTextColor = useCallback(
+    (xNorm: number, yNorm: number, wNorm: number, hNorm: number, bgHex: string): string => {
+      const canvas = pageCanvasRef.current;
+      if (!canvas) return isColorDark(bgHex) ? "#ffffff" : "#0f172a";
+      const ctx = canvas.getContext("2d", { willReadFrequently: true });
+      if (!ctx) return isColorDark(bgHex) ? "#ffffff" : "#0f172a";
+
+      const cw = canvas.width;
+      const ch = canvas.height;
+      const px = Math.floor(xNorm * cw);
+      const py = Math.floor(yNorm * ch);
+      const pw = Math.max(4, Math.floor(wNorm * cw));
+      const ph = Math.max(4, Math.floor(hNorm * ch));
+
+      const cleanBg = bgHex.replace("#", "");
+      const bgR = parseInt(cleanBg.substring(0, 2), 16) || 255;
+      const bgG = parseInt(cleanBg.substring(2, 4), 16) || 255;
+      const bgB = parseInt(cleanBg.substring(4, 6), 16) || 255;
+
+      try {
+        const imgData = ctx.getImageData(px, py, pw, ph).data;
+        let maxContrast = -1;
+        let bestR = isColorDark(bgHex) ? 255 : 15;
+        let bestG = isColorDark(bgHex) ? 255 : 23;
+        let bestB = isColorDark(bgHex) ? 255 : 42;
+
+        for (let i = 0; i < imgData.length; i += 16) {
+          const r = imgData[i];
+          const g = imgData[i + 1];
+          const b = imgData[i + 2];
+          const dist = Math.hypot(r - bgR, g - bgG, b - bgB);
+          if (dist > maxContrast && dist > 40) {
+            maxContrast = dist;
+            bestR = r;
+            bestG = g;
+            bestB = b;
+          }
+        }
+
+        if (maxContrast > 50) {
+          const hexR = bestR.toString(16).padStart(2, "0");
+          const hexG = bestG.toString(16).padStart(2, "0");
+          const hexB = bestB.toString(16).padStart(2, "0");
+          return `#${hexR}${hexG}${hexB}`;
+        }
+      } catch {
+        // ignore
+      }
+
+      return isColorDark(bgHex) ? "#ffffff" : "#0f172a";
+    },
+    []
+  );
+
+  // Generate seamless background-reconstructed patch so erasing or deleting a logo does NOT remove background
+  const generateBackgroundInpaintPatch = useCallback(
+    (xNorm: number, yNorm: number, wNorm: number, hNorm: number): string => {
+      const canvas = pageCanvasRef.current;
+      if (!canvas) return "";
+      const ctx = canvas.getContext("2d", { willReadFrequently: true });
+      if (!ctx) return "";
+
+      const cw = canvas.width;
+      const ch = canvas.height;
+      const rx = Math.max(0, Math.min(cw - 1, Math.floor(xNorm * cw)));
+      const ry = Math.max(0, Math.min(ch - 1, Math.floor(yNorm * ch)));
+      const rw = Math.max(4, Math.min(cw - rx, Math.ceil(wNorm * cw)));
+      const rh = Math.max(4, Math.min(ch - ry, Math.ceil(hNorm * ch)));
+
+      try {
+        const patchCanvas = document.createElement("canvas");
+        patchCanvas.width = rw;
+        patchCanvas.height = rh;
+        const patchCtx = patchCanvas.getContext("2d");
+        if (!patchCtx) return "";
+
+        const ring = Math.min(8, Math.max(2, Math.round(Math.min(rw, rh) * 0.08)));
+        const sampleX = Math.max(0, rx - ring);
+        const sampleY = Math.max(0, ry - ring);
+        const sampleW = Math.min(cw - sampleX, rw + ring * 2);
+        const sampleH = Math.min(ch - sampleY, rh + ring * 2);
+
+        const srcData = ctx.getImageData(sampleX, sampleY, sampleW, sampleH).data;
+
+        const getSamplePixel = (sx: number, sy: number) => {
+          const cx = Math.max(0, Math.min(sampleW - 1, sx));
+          const cy = Math.max(0, Math.min(sampleH - 1, sy));
+          const idx = (cy * sampleW + cx) * 4;
+          return [srcData[idx], srcData[idx + 1], srcData[idx + 2], srcData[idx + 3]];
+        };
+
+        const patchImgData = patchCtx.createImageData(rw, rh);
+        const dest = patchImgData.data;
+        const relX = rx - sampleX;
+        const relY = ry - sampleY;
+
+        for (let y = 0; y < rh; y++) {
+          const wy = rh > 1 ? y / (rh - 1) : 0.5;
+          for (let x = 0; x < rw; x++) {
+            const wx = rw > 1 ? x / (rw - 1) : 0.5;
+
+            const t = getSamplePixel(relX + x, Math.max(0, relY - 1));
+            const b = getSamplePixel(relX + x, Math.min(sampleH - 1, relY + rh));
+            const l = getSamplePixel(Math.max(0, relX - 1), relY + y);
+            const r = getSamplePixel(Math.min(sampleW - 1, relX + rw), relY + y);
+
+            const dIdx = (y * rw + x) * 4;
+            for (let c = 0; c < 3; c++) {
+              const vVal = t[c] * (1 - wy) + b[c] * wy;
+              const hVal = l[c] * (1 - wx) + r[c] * wx;
+              dest[dIdx + c] = Math.round((vVal + hVal) / 2);
+            }
+            dest[dIdx + 3] = 255;
+          }
+        }
+
+        patchCtx.putImageData(patchImgData, 0, 0);
+        return patchCanvas.toDataURL("image/png");
+      } catch (err) {
+        console.warn("Could not generate seamless background patch:", err);
+        return "";
+      }
+    },
+    []
+  );
+
+  // Directly delete logo / graphic while preserving the background 100%
+  const handleDeleteLogo = useCallback(
+    (target: {
+      xNorm: number;
+      yNorm: number;
+      widthNorm: number;
+      heightNorm: number;
+      name?: string;
+      id?: string;
+    }) => {
+      // 1. Generate seamless background patch for this exact region
+      const patchDataUrl = generateBackgroundInpaintPatch(
+        target.xNorm,
+        target.yNorm,
+        target.widthNorm,
+        target.heightNorm
+      );
+      const bg = sampleBackgroundColor(
+        target.xNorm,
+        target.yNorm,
+        target.widthNorm,
+        target.heightNorm
+      );
+
+      // 2. Identify matching extracted PDF image(s) on current page
+      const currentImages = extractedImages[activePageIndex] || [];
+      const matchedImage = currentImages.find(
+        (img) =>
+          (target.name && img.name === target.name) ||
+          (Math.abs(img.xNorm - target.xNorm) < 0.05 &&
+            Math.abs(img.yNorm - target.yNorm) < 0.05 &&
+            Math.abs(img.widthNorm - target.widthNorm) < 0.08)
+      );
+
+      const targetName = matchedImage?.name || target.name;
+      if (targetName) {
+        setDeletedImageNames((prev) =>
+          prev.includes(targetName) ? prev : [...prev, targetName]
+        );
+      }
+
+      // 3. Create clean inpaint annotation to conceal the logo and reconstruct the background seamlessly
+      const newAnn: PdfAnnotation = {
+        id: uid("logo-clean"),
+        pageIndex: activePageIndex,
+        type: "erase",
+        eraseMode: "inpaint",
+        deletedImageName: targetName,
+        xNorm: target.xNorm,
+        yNorm: target.yNorm,
+        widthNorm: target.widthNorm,
+        heightNorm: target.heightNorm,
+        fillColor: bg,
+        imageDataUrl: patchDataUrl || undefined
+      };
+
+      setHistory((prev) => [...prev.slice(-30), annotations]);
+      setRedoStack([]);
+      setAnnotations([...annotations, newAnn]);
+      setSelectedId(newAnn.id);
+      setSelectedImageItem(null);
+      notify("Logo removed cleanly without affecting background!", "success");
+    },
+    [
+      generateBackgroundInpaintPatch,
+      sampleBackgroundColor,
+      extractedImages,
+      activePageIndex,
+      annotations,
+      notify
+    ]
+  );
+
+  // Find nearest or overlapping detected text item on current page
+  const findTextItemAtPoint = useCallback(
+    (xNorm: number, yNorm: number, tolerance = 0.03): PdfExtractedTextItem | null => {
+      const items = extractedTexts[activePageIndex] || [];
+      for (const item of items) {
+        if (
+          xNorm >= item.xNorm - 0.01 &&
+          xNorm <= item.xNorm + item.widthNorm + 0.01 &&
+          yNorm >= item.yNorm - 0.012 &&
+          yNorm <= item.yNorm + item.heightNorm + 0.012
+        ) {
+          return item;
+        }
+      }
+      let closest: PdfExtractedTextItem | null = null;
+      let minDist = tolerance;
+      for (const item of items) {
+        const centerX = item.xNorm + item.widthNorm / 2;
+        const centerY = item.yNorm + item.heightNorm / 2;
+        const dist = Math.hypot(xNorm - centerX, yNorm - centerY);
+        if (dist < minDist) {
+          minDist = dist;
+          closest = item;
+        }
+      }
+      return closest;
+    },
+    [extractedTexts, activePageIndex]
+  );
 
   // Push history snapshot
   const pushHistory = useCallback((nextState: PdfAnnotation[]) => {
@@ -308,13 +765,25 @@ export default function PdfEditorView({
       } else if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "y") {
         e.preventDefault();
         handleRedo();
+      } else if ((e.metaKey || e.ctrlKey) && (e.key.toLowerCase() === "f" || e.key.toLowerCase() === "h")) {
+        e.preventDefault();
+        setFindAndReplaceOpen((prev) => !prev);
       } else if (e.key === "Delete" || e.key === "Backspace") {
-        if (selectedId && !editingTextId) {
+        if (selectedImageItem) {
+          e.preventDefault();
+          handleDeleteLogo(selectedImageItem);
+        } else if (selectedId && !editingTextId) {
           e.preventDefault();
           deleteAnnotation(selectedId);
         }
       } else if (e.key.toLowerCase() === "v") {
         setActiveTool("select");
+      } else if (e.key.toLowerCase() === "e") {
+        setActiveTool("editText");
+      } else if (e.key.toLowerCase() === "w") {
+        setActiveTool("eraseAndType");
+      } else if (e.key.toLowerCase() === "x") {
+        setActiveTool("erase");
       } else if (e.key.toLowerCase() === "t") {
         setActiveTool("text");
       } else if (e.key.toLowerCase() === "p") {
@@ -326,7 +795,271 @@ export default function PdfEditorView({
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [selectedId, editingTextId, handleUndo, handleRedo]);
+  }, [selectedId, selectedImageItem, editingTextId, handleUndo, handleRedo, handleDeleteLogo]);
+
+  // Handle editing detected text in place with exact font size and style matching
+  const handleEditDetectedText = (item: PdfExtractedTextItem) => {
+    // Check if an annotation already exists at this exact position
+    const existing = annotations.find(
+      (a) =>
+        a.pageIndex === activePageIndex &&
+        Math.abs(a.xNorm - item.xNorm) < 0.015 &&
+        Math.abs(a.yNorm - item.yNorm) < 0.015
+    );
+    if (existing) {
+      setSelectedId(existing.id);
+      setEditingTextId(existing.id);
+      if (existing.fontSize) setFontSize(existing.fontSize);
+      if (existing.fontFamily) setFontFamily(existing.fontFamily);
+      setIsBold(existing.fontWeight === "bold");
+      setIsItalic(existing.fontStyle === "italic");
+      if (existing.textColor) setActiveColor(existing.textColor);
+      setTimeout(() => textInputRef.current?.focus(), 50);
+      return;
+    }
+
+    const matchedBg = sampleBackgroundColor(
+      item.xNorm,
+      item.yNorm,
+      Math.max(0.04, item.widthNorm),
+      Math.max(0.022, item.heightNorm)
+    );
+
+    const matchedTextColor = sampleTextColor(
+      item.xNorm,
+      item.yNorm,
+      item.widthNorm,
+      item.heightNorm,
+      matchedBg
+    );
+
+    const boxHeightNorm = Math.max(
+      item.heightNorm,
+      ((item.fontSize || 14) * 1.35) / pageDimensions.height
+    );
+    const boxWidthNorm = Math.max(item.widthNorm, 0.04);
+
+    const newAnn: PdfAnnotation = {
+      id: uid("txt-edit"),
+      pageIndex: activePageIndex,
+      type: "text",
+      xNorm: item.xNorm,
+      yNorm: item.yNorm,
+      widthNorm: boxWidthNorm,
+      heightNorm: boxHeightNorm,
+      text: item.text,
+      fontSize: item.fontSize,
+      fontFamily: item.fontFamily,
+      fontWeight: item.fontWeight,
+      fontStyle: item.fontStyle,
+      actualFontName: item.actualFontName,
+      textColor: matchedTextColor,
+      textHighlightColor: matchedBg,
+      underlayWhiteout: true,
+      whiteoutColor: matchedBg,
+      isOriginalTextEdit: true,
+      originalText: item.text
+    };
+
+    // Synchronize toolbar controls so active state matches clicked text
+    setFontSize(item.fontSize);
+    setFontFamily(item.fontFamily);
+    setIsBold(item.fontWeight === "bold");
+    setIsItalic(item.fontStyle === "italic");
+    setActiveColor(matchedTextColor);
+
+    pushHistory([...annotations, newAnn]);
+    setSelectedId(newAnn.id);
+    setEditingTextId(newAnn.id);
+    setActiveTool("select");
+    const fontDesc = `${item.actualFontName || item.fontFamily} ${item.fontSize}pt${item.fontWeight === "bold" ? " Bold" : ""}${item.fontStyle === "italic" ? " Italic" : ""}`;
+    notify(`Editing text (Matched: ${fontDesc})`, "info");
+    setTimeout(() => textInputRef.current?.focus(), 50);
+  };
+
+  // Convert all detected text on current page to editable blocks
+  const handleMakeAllTextEditable = () => {
+    const pageItems = extractedTexts[activePageIndex] || [];
+    if (pageItems.length === 0) {
+      notify("No text detected on this page", "info");
+      return;
+    }
+
+    const newAnns: PdfAnnotation[] = [];
+    for (const item of pageItems) {
+      const alreadyExists = annotations.some(
+        (a) =>
+          a.pageIndex === activePageIndex &&
+          Math.abs(a.xNorm - item.xNorm) < 0.015 &&
+          Math.abs(a.yNorm - item.yNorm) < 0.015
+      );
+      if (!alreadyExists) {
+        const matchedBg = sampleBackgroundColor(
+          item.xNorm,
+          item.yNorm,
+          Math.max(0.04, item.widthNorm),
+          Math.max(0.022, item.heightNorm)
+        );
+        const matchedTextColor = sampleTextColor(
+          item.xNorm,
+          item.yNorm,
+          item.widthNorm,
+          item.heightNorm,
+          matchedBg
+        );
+        const boxHeightNorm = Math.max(
+          item.heightNorm,
+          ((item.fontSize || 14) * 1.35) / pageDimensions.height
+        );
+        newAnns.push({
+          id: uid("txt-all"),
+          pageIndex: activePageIndex,
+          type: "text",
+          xNorm: item.xNorm,
+          yNorm: item.yNorm,
+          widthNorm: Math.max(0.04, item.widthNorm),
+          heightNorm: boxHeightNorm,
+          text: item.text,
+          fontSize: item.fontSize,
+          fontFamily: item.fontFamily,
+          fontWeight: item.fontWeight,
+          fontStyle: item.fontStyle,
+          actualFontName: item.actualFontName,
+          textColor: matchedTextColor,
+          textHighlightColor: matchedBg,
+          underlayWhiteout: true,
+          whiteoutColor: matchedBg,
+          isOriginalTextEdit: true,
+          originalText: item.text
+        });
+      }
+    }
+
+    if (newAnns.length > 0) {
+      pushHistory([...annotations, ...newAnns]);
+      notify(`Converted ${newAnns.length} text blocks on page to editable with matched fonts!`, "success");
+    } else {
+      notify("All text blocks on this page are already editable", "info");
+    }
+  };
+
+  const escapeRegex = (str: string) => str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+  const getFindMatches = () => {
+    if (!findQuery.trim()) return [];
+    const query = findQuery.trim();
+    const flags = findCaseSensitive ? "g" : "gi";
+    const regex = new RegExp(escapeRegex(query), flags);
+
+    const matches: Array<{
+      pageIndex: number;
+      text: string;
+      item?: PdfExtractedTextItem;
+      ann?: PdfAnnotation;
+    }> = [];
+
+    if (findScope === "page") {
+      for (const a of annotations.filter((x) => x.pageIndex === activePageIndex)) {
+        if (a.text && regex.test(a.text)) {
+          matches.push({ pageIndex: activePageIndex, text: a.text, ann: a });
+        }
+      }
+      for (const item of extractedTexts[activePageIndex] || []) {
+        if (regex.test(item.text)) {
+          matches.push({ pageIndex: activePageIndex, text: item.text, item });
+        }
+      }
+    } else {
+      for (const a of annotations) {
+        if (a.text && regex.test(a.text)) {
+          matches.push({ pageIndex: a.pageIndex, text: a.text, ann: a });
+        }
+      }
+      for (const [pIdxStr, items] of Object.entries(extractedTexts)) {
+        const pIdx = Number(pIdxStr);
+        for (const item of items) {
+          if (regex.test(item.text)) {
+            matches.push({ pageIndex: pIdx, text: item.text, item });
+          }
+        }
+      }
+    }
+    return matches;
+  };
+
+  const handleReplaceAll = () => {
+    if (!findQuery.trim()) return;
+    const matches = getFindMatches();
+    if (matches.length === 0) {
+      notify(`No matches found for "${findQuery}"`, "info");
+      return;
+    }
+
+    const query = findQuery.trim();
+    const flags = findCaseSensitive ? "g" : "gi";
+    const regex = new RegExp(escapeRegex(query), flags);
+
+    let nextAnns = [...annotations];
+    let replacedCount = 0;
+
+    for (const match of matches) {
+      if (match.ann) {
+        nextAnns = nextAnns.map((a) => {
+          if (a.id === match.ann!.id) {
+            replacedCount++;
+            return {
+              ...a,
+              text: (a.text || "").replace(regex, replaceQuery),
+              underlayWhiteout: true,
+              whiteoutColor: a.whiteoutColor || "#ffffff"
+            };
+          }
+          return a;
+        });
+      } else if (match.item) {
+        const item = match.item;
+        replacedCount++;
+        const newText = item.text.replace(regex, replaceQuery);
+        const matchedBg =
+          match.pageIndex === activePageIndex
+            ? sampleBackgroundColor(
+                item.xNorm,
+                item.yNorm,
+                Math.max(0.04, item.widthNorm),
+                Math.max(0.022, item.heightNorm)
+              )
+            : "#ffffff";
+        let textColor = item.color || "#0f172a";
+        if (isColorDark(matchedBg) && (!item.color || !isColorDark(item.color))) {
+          textColor = "#ffffff";
+        }
+        nextAnns.push({
+          id: uid("txt-replace"),
+          pageIndex: match.pageIndex,
+          type: "text",
+          xNorm: item.xNorm,
+          yNorm: item.yNorm,
+          widthNorm: Math.max(0.04, item.widthNorm),
+          heightNorm: Math.max(0.022, item.heightNorm),
+          text: newText,
+          fontSize: item.fontSize,
+          fontFamily: item.fontFamily,
+          fontWeight: item.fontWeight,
+          fontStyle: item.fontStyle,
+          textColor,
+          textHighlightColor: matchedBg,
+          underlayWhiteout: true,
+          whiteoutColor: matchedBg,
+          isOriginalTextEdit: true,
+          originalText: item.text
+        });
+      }
+    }
+
+    pushHistory(nextAnns);
+    notify(`Replaced ${replacedCount} occurrence(s) with "${replaceQuery}"`, "success");
+    setFindAndReplaceOpen(false);
+  };
 
   // Delete single annotation
   const deleteAnnotation = (id: string) => {
@@ -421,7 +1154,38 @@ export default function PdfEditorView({
     const xNorm = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
     const yNorm = Math.max(0, Math.min(1, (e.clientY - rect.top) / rect.height));
 
-    if (activeTool === "select") {
+    if (isEyedropperActive) {
+      const pickedColor = getPixelColorAtPoint(xNorm, yNorm);
+      setEraseColor(pickedColor);
+      setActiveColor(pickedColor);
+      setIsEyedropperActive(false);
+
+      if (selectedId) {
+        setAnnotations((prev) =>
+          prev.map((a) => {
+            if (a.id !== selectedId) return a;
+            if (a.type === "erase" || a.type === "redact" || a.type === "highlight") {
+              return { ...a, fillColor: pickedColor };
+            }
+            if (a.type === "text") {
+              const contrastColor = isColorDark(pickedColor) ? "#ffffff" : "#0f172a";
+              return {
+                ...a,
+                underlayWhiteout: true,
+                whiteoutColor: pickedColor,
+                textHighlightColor: pickedColor,
+                textColor: a.textColor === "#ffffff" || a.textColor === "#0f172a" ? contrastColor : a.textColor
+              };
+            }
+            return a;
+          })
+        );
+      }
+      notify(`Sampled color ${pickedColor.toUpperCase()} from document`, "success");
+      return;
+    }
+
+    if (activeTool === "select" || activeTool === "editText") {
       // If clicking outside any annotation, deselect
       if (!(e.target as HTMLElement).closest(".pdf-annotation-box")) {
         setSelectedId(null);
@@ -430,8 +1194,30 @@ export default function PdfEditorView({
       return;
     }
 
+    if (activeTool === "erase") {
+      setIsInteracting(true);
+      setInteractionStart({ x: xNorm, y: yNorm });
+      setTempShape({ x: xNorm, y: yNorm, w: 0, h: 0 });
+      return;
+    }
+
+    if (activeTool === "eraseAndType") {
+      setIsInteracting(true);
+      setInteractionStart({ x: xNorm, y: yNorm });
+      setTempShape({ x: xNorm, y: yNorm, w: 0, h: 0 });
+      return;
+    }
+
     if (activeTool === "text") {
-      // Add text box at clicked location
+      // Check if clicking on or near an existing detected text item to match its font style and size!
+      const matchedItem = findTextItemAtPoint(xNorm, yNorm);
+      if (matchedItem) {
+        handleEditDetectedText(matchedItem);
+        return;
+      }
+
+      // Add text box at clicked location with current active font properties
+      const boxHeightNorm = Math.max(0.06, ((fontSize || 14) * 1.35) / pageDimensions.height);
       const newTextAnn: PdfAnnotation = {
         id: uid("text"),
         pageIndex: activePageIndex,
@@ -439,7 +1225,7 @@ export default function PdfEditorView({
         xNorm: Math.min(0.75, xNorm),
         yNorm: Math.min(0.9, yNorm),
         widthNorm: 0.28,
-        heightNorm: 0.08,
+        heightNorm: boxHeightNorm,
         text: "Click to edit text",
         fontSize,
         fontFamily,
@@ -621,6 +1407,128 @@ export default function PdfEditorView({
     }
 
     if (tempShape && tempShape.w > 0.01 && tempShape.h > 0.01) {
+      if (activeTool === "erase") {
+        const fillColor = eraseColorAutoMatch
+          ? sampleBackgroundColor(tempShape.x, tempShape.y, tempShape.w, tempShape.h)
+          : eraseColor;
+        const patchDataUrl = generateBackgroundInpaintPatch(
+          tempShape.x,
+          tempShape.y,
+          tempShape.w,
+          tempShape.h
+        );
+
+        // Check if any extracted images intersect this erased area
+        const currentImages = extractedImages[activePageIndex] || [];
+        const intersectingImages = currentImages.filter(
+          (img) =>
+            img.xNorm < tempShape.x + tempShape.w &&
+            img.xNorm + img.widthNorm > tempShape.x &&
+            img.yNorm < tempShape.y + tempShape.h &&
+            img.yNorm + img.heightNorm > tempShape.y
+        );
+        if (intersectingImages.length > 0) {
+          const names = intersectingImages.map((i) => i.name);
+          setDeletedImageNames((prev) => Array.from(new Set([...prev, ...names])));
+        }
+
+        const newEraseAnn: PdfAnnotation = {
+          id: uid("erase"),
+          pageIndex: activePageIndex,
+          type: "erase",
+          eraseMode: "inpaint",
+          deletedImageName: intersectingImages[0]?.name,
+          xNorm: tempShape.x,
+          yNorm: tempShape.y,
+          widthNorm: tempShape.w,
+          heightNorm: tempShape.h,
+          fillColor,
+          imageDataUrl: patchDataUrl || undefined
+        };
+        pushHistory([...annotations, newEraseAnn]);
+        setSelectedId(newEraseAnn.id);
+        setActiveTool("select");
+        notify(
+          intersectingImages.length > 0
+            ? "Logo removed cleanly without affecting background!"
+            : "Area erased cleanly without affecting background!",
+          "success"
+        );
+        setTempShape(null);
+        setInteractionStart(null);
+        return;
+      }
+
+      if (activeTool === "eraseAndType") {
+        const bg = eraseColorAutoMatch
+          ? sampleBackgroundColor(tempShape.x, tempShape.y, tempShape.w, tempShape.h)
+          : eraseColor;
+
+        // Detect underlying text intersecting this erased box to inherit its font style & size!
+        const shapeRight = tempShape.x + tempShape.w;
+        const shapeBottom = tempShape.y + tempShape.h;
+        const overlapping = (extractedTexts[activePageIndex] || []).filter((item) => {
+          const itemRight = item.xNorm + item.widthNorm;
+          const itemBottom = item.yNorm + item.heightNorm;
+          return (
+            item.xNorm < shapeRight &&
+            itemRight > tempShape.x &&
+            item.yNorm < shapeBottom &&
+            itemBottom > tempShape.y
+          );
+        });
+
+        const targetItem = overlapping[0];
+        const targetFontSize = targetItem?.fontSize || fontSize;
+        const targetFontFamily = targetItem?.fontFamily || fontFamily;
+        const targetFontWeight = targetItem ? targetItem.fontWeight : isBold ? "bold" : "normal";
+        const targetFontStyle = targetItem ? targetItem.fontStyle : isItalic ? "italic" : "normal";
+        const targetActualFont = targetItem?.actualFontName;
+        const txtColor = sampleTextColor(tempShape.x, tempShape.y, tempShape.w, tempShape.h, bg);
+
+        // Synchronize active toolbar controls to the matched font
+        setFontSize(targetFontSize);
+        setFontFamily(targetFontFamily);
+        setIsBold(targetFontWeight === "bold");
+        setIsItalic(targetFontStyle === "italic");
+        setActiveColor(txtColor);
+
+        const newEraseAnn: PdfAnnotation = {
+          id: uid("txt-erase"),
+          pageIndex: activePageIndex,
+          type: "text",
+          xNorm: tempShape.x,
+          yNorm: tempShape.y,
+          widthNorm: Math.max(0.04, tempShape.w),
+          heightNorm: Math.max(
+            tempShape.h,
+            (targetFontSize * 1.35) / pageDimensions.height
+          ),
+          text: "",
+          fontSize: targetFontSize,
+          fontFamily: targetFontFamily,
+          fontWeight: targetFontWeight,
+          fontStyle: targetFontStyle,
+          actualFontName: targetActualFont,
+          textColor: txtColor,
+          textHighlightColor: bg,
+          underlayWhiteout: true,
+          whiteoutColor: bg,
+          isOriginalTextEdit: true,
+          originalText: targetItem?.text
+        };
+        pushHistory([...annotations, newEraseAnn]);
+        setSelectedId(newEraseAnn.id);
+        setEditingTextId(newEraseAnn.id);
+        setActiveTool("select");
+        const fontDesc = `${targetActualFont || targetFontFamily} ${targetFontSize}pt${targetFontWeight === "bold" ? " Bold" : ""}`;
+        notify(`Erased selection. Matched font: ${fontDesc}. Type replacement text.`, "success");
+        setTimeout(() => textInputRef.current?.focus(), 50);
+        setTempShape(null);
+        setInteractionStart(null);
+        return;
+      }
+
       let created: PdfAnnotation | null = null;
 
       if (activeTool === "highlight") {
@@ -749,15 +1657,19 @@ export default function PdfEditorView({
     setExporting(true);
     try {
       notify("Compiling vector annotations & PDF pages...", "info");
-      const blob = await compileEditedPdf(info.file, pagesPlan, annotations);
+      const blob = await compileEditedPdf(info.file, pagesPlan, annotations, deletedImageNames);
       const safeName = info.file.name.replace(/\.[^.]+$/, "");
       const outputFilename = `${safeName}-edited.pdf`;
 
       const finalFile = new File([blob], outputFilename, { type: "application/pdf" });
       setEditedFile(finalFile);
 
-      downloadBlob(blob, outputFilename);
-      notify("Edited PDF compiled & downloaded successfully!", "success");
+      if (onShareFile) {
+        onShareFile(finalFile);
+      } else {
+        downloadBlob(blob, outputFilename);
+      }
+      notify("Changes applied! Choose Download or QR Code.", "success");
     } catch (err) {
       console.error(err);
       notify("Failed to compile edited PDF. Please try again.", "error");
@@ -768,6 +1680,17 @@ export default function PdfEditorView({
 
   const selectedAnnotation = annotations.find((a) => a.id === selectedId);
   const pageAnnotations = annotations.filter((a) => a.pageIndex === activePageIndex);
+
+  // Synchronize toolbar controls with selected text annotation font style and size
+  useEffect(() => {
+    if (selectedAnnotation && selectedAnnotation.type === "text") {
+      if (selectedAnnotation.fontSize) setFontSize(selectedAnnotation.fontSize);
+      if (selectedAnnotation.fontFamily) setFontFamily(selectedAnnotation.fontFamily);
+      setIsBold(selectedAnnotation.fontWeight === "bold");
+      setIsItalic(selectedAnnotation.fontStyle === "italic");
+      if (selectedAnnotation.textColor) setActiveColor(selectedAnnotation.textColor);
+    }
+  }, [selectedId, selectedAnnotation]);
 
   if (!info) {
     return (
@@ -890,13 +1813,13 @@ export default function PdfEditorView({
           {/* Zoom Controls */}
           <button
             type="button"
-            onClick={() => setZoomScale((z) => Math.max(0.6, Number((z - 0.15).toFixed(2))))}
+            onClick={() => setZoomScale((z) => Math.max(0.4, Number((z - 0.15).toFixed(2))))}
             className="grid h-8 w-8 place-items-center rounded-xl border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 dark:border-white/[0.08] dark:bg-slate-800 dark:text-slate-200"
             title="Zoom Out"
           >
             <ZoomOut size={15} />
           </button>
-          <span className="min-w-[42px] text-center font-mono text-xs font-bold text-slate-700 dark:text-slate-300">
+          <span className="min-w-[40px] text-center font-mono text-xs font-bold text-slate-700 dark:text-slate-300">
             {Math.round(zoomScale * 100)}%
           </span>
           <button
@@ -907,8 +1830,40 @@ export default function PdfEditorView({
           >
             <ZoomIn size={15} />
           </button>
+          <button
+            type="button"
+            onClick={() => {
+              if (pageDimensions.width > 0 && typeof window !== "undefined") {
+                const availWidth = Math.min(window.innerWidth - 48, 1200);
+                const fit = Math.max(0.4, Math.min(1.2, Number((availWidth / pageDimensions.width).toFixed(2))));
+                setZoomScale(fit);
+              }
+            }}
+            className="hidden xs:inline-flex items-center gap-1 rounded-xl border border-slate-200 bg-white px-2 h-8 text-[11px] font-bold text-slate-700 hover:bg-slate-50 dark:border-white/[0.08] dark:bg-slate-800 dark:text-slate-200"
+            title="Fit to screen width"
+          >
+            Fit
+          </button>
 
           <div className="h-5 w-px bg-slate-200 dark:bg-white/[0.1] mx-0.5" />
+
+          {/* Find & Replace button */}
+          <button
+            type="button"
+            onClick={() => setFindAndReplaceOpen((o) => !o)}
+            className={`flex items-center gap-1.5 rounded-xl border px-3 h-8 text-xs font-bold transition-all ${
+              findAndReplaceOpen
+                ? "border-blue-500 bg-blue-50 text-blue-600 dark:bg-blue-950/40 dark:text-blue-400 shadow-xs ring-2 ring-blue-500/20"
+                : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50 dark:border-white/[0.08] dark:bg-slate-800 dark:text-slate-200"
+            }`}
+            title="Find & Replace text across PDF (Ctrl+F)"
+          >
+            <Replace size={14} className="text-blue-600 dark:text-blue-400" />
+            <span className="hidden sm:inline">Find & Replace</span>
+            <span className="text-[10px] font-mono px-1 rounded bg-slate-100 dark:bg-slate-700 text-slate-500">
+              ^F
+            </span>
+          </button>
 
           <button
             type="button"
@@ -924,10 +1879,13 @@ export default function PdfEditorView({
       </div>
 
       {/* Primary Tool Mode Selection Dock */}
-      <div className="flex flex-wrap items-center gap-1.5 rounded-2xl border border-slate-200/80 bg-white/70 p-2 shadow-sm backdrop-blur-md dark:border-white/[0.08] dark:bg-slate-900/60">
+      <div className="flex items-center gap-1.5 rounded-2xl border border-slate-200/80 bg-white/70 p-2 shadow-sm backdrop-blur-md dark:border-white/[0.08] dark:bg-slate-900/60 overflow-x-auto no-scrollbar flex-nowrap lg:flex-wrap">
         {[
           { id: "select" as const, label: "Select", icon: MousePointer, key: "V" },
-          { id: "text" as const, label: "Text", icon: Type, key: "T" },
+          { id: "editText" as const, label: "Edit Text", icon: Sparkles, key: "E", pro: true },
+          { id: "eraseAndType" as const, label: "Erase & Type", icon: PencilLine, key: "W", pro: true },
+          { id: "erase" as const, label: "Erase / Remove Logo", icon: Eraser, key: "X", pro: true },
+          { id: "text" as const, label: "Add Text", icon: Type, key: "T" },
           { id: "draw" as const, label: "Pen", icon: PenTool, key: "P" },
           { id: "highlight" as const, label: "Highlight", icon: Highlighter, key: "H" },
           { id: "rectangle" as const, label: "Rectangle", icon: Square },
@@ -940,6 +1898,8 @@ export default function PdfEditorView({
         ].map((tool) => {
           const Icon = tool.icon;
           const isCurrent = activeTool === tool.id;
+          const hasProBadge = "pro" in tool;
+
           return (
             <button
               key={tool.id}
@@ -952,15 +1912,22 @@ export default function PdfEditorView({
                   if (tool.id !== "select") setSelectedId(null);
                 }
               }}
-              className={`flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-bold transition-all ${
+              className={`relative shrink-0 whitespace-nowrap flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-bold transition-all ${
                 isCurrent
                   ? "bg-blue-600 text-white shadow-md shadow-blue-500/25"
                   : "text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
               }`}
             >
-              <Icon size={14} />
+              <Icon size={14} className={hasProBadge && !isCurrent ? "text-blue-600 dark:text-blue-400" : ""} />
               <span>{tool.label}</span>
-              {tool.key && (
+              {hasProBadge && (
+                <span className={`text-[9px] font-black px-1 rounded-sm ${
+                  isCurrent ? "bg-white/20 text-white" : "bg-blue-500/10 text-blue-600 dark:text-blue-400"
+                }`}>
+                  PRO
+                </span>
+              )}
+              {tool.key && !hasProBadge && (
                 <span className={`text-[10px] font-mono px-1 rounded ${
                   isCurrent ? "bg-white/20 text-white" : "bg-slate-200/60 text-slate-500 dark:bg-slate-800 dark:text-slate-400"
                 }`}>
@@ -972,7 +1939,7 @@ export default function PdfEditorView({
         })}
 
         {/* Upload Image Button */}
-        <label className="flex items-center gap-1.5 cursor-pointer rounded-xl px-3 py-1.5 text-xs font-bold text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800 transition-all">
+        <label className="shrink-0 whitespace-nowrap flex items-center gap-1.5 cursor-pointer rounded-xl px-3 py-1.5 text-xs font-bold text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800 transition-all">
           <ImageIcon size={14} />
           <span>Insert Image</span>
           <input
@@ -985,10 +1952,27 @@ export default function PdfEditorView({
             }}
           />
         </label>
+
+        <div className="h-5 w-px bg-slate-200 dark:bg-white/[0.1] mx-0.5 ml-auto hidden sm:block shrink-0" />
+
+        {/* Quick Text Detection Toggle */}
+        <button
+          type="button"
+          onClick={() => setDetectTextActive(!detectTextActive)}
+          className={`hidden sm:flex shrink-0 whitespace-nowrap items-center gap-1.5 rounded-xl px-2.5 py-1.5 text-xs font-bold transition-all ${
+            detectTextActive
+              ? "bg-blue-50 text-blue-600 border border-blue-200 dark:bg-blue-950/40 dark:border-blue-800 dark:text-blue-400"
+              : "text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"
+          }`}
+          title="Toggle interactive bounding box hover on PDF text"
+        >
+          {detectTextActive ? <Eye size={13} /> : <EyeOff size={13} />}
+          <span className="text-[11px]">{detectTextActive ? "Detect Text: ON" : "Detect Text: OFF"}</span>
+        </button>
       </div>
 
       {/* Contextual Properties Bar */}
-      <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-slate-200/80 bg-slate-50/80 px-4 py-2.5 dark:border-white/[0.06] dark:bg-slate-900/40 text-xs">
+      <div className="flex items-center gap-2.5 sm:gap-3 rounded-2xl border border-slate-200/80 bg-slate-50/80 px-3 sm:px-4 py-2.5 dark:border-white/[0.06] dark:bg-slate-900/40 text-xs overflow-x-auto no-scrollbar flex-nowrap lg:flex-wrap">
         {/* Color Palette for Text, Draw, Shapes */}
         {(activeTool === "text" ||
           activeTool === "draw" ||
@@ -1046,11 +2030,17 @@ export default function PdfEditorView({
                 }}
                 className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs font-bold text-slate-800 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
               >
-                {[10, 12, 14, 16, 18, 20, 24, 28, 32, 40, 48, 64].map((s) => (
-                  <option key={s} value={s}>
-                    {s}pt
-                  </option>
-                ))}
+                {(() => {
+                  const activeSz = selectedAnnotation?.fontSize || fontSize;
+                  const allSizes = Array.from(
+                    new Set([8, 9, 10, 11, 12, 13, 14, 15, 16, 18, 20, 22, 24, 28, 32, 36, 40, 48, 64, activeSz])
+                  ).sort((a, b) => a - b);
+                  return allSizes.map((s) => (
+                    <option key={s} value={s}>
+                      {s}pt
+                    </option>
+                  ));
+                })()}
               </select>
             </div>
 
@@ -1069,51 +2059,237 @@ export default function PdfEditorView({
                 }}
                 className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs font-bold text-slate-800 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
               >
-                <option value="sans">Sans (Inter)</option>
-                <option value="serif">Serif (Georgia)</option>
-                <option value="mono">Monospace</option>
+                <option value="sans">Sans (Arial / Inter)</option>
+                <option value="serif">Serif (Times / Georgia)</option>
+                <option value="mono">Monospace (Courier)</option>
                 <option value="cursive">Cursive (Script)</option>
               </select>
+              {selectedAnnotation?.actualFontName && (
+                <span
+                  className="hidden sm:inline-block rounded-md bg-blue-500/10 px-1.5 py-0.5 text-[10px] font-bold text-blue-600 dark:bg-blue-500/20 dark:text-blue-300 truncate max-w-[110px]"
+                  title={`Original PDF typeface: ${selectedAnnotation.actualFontName}`}
+                >
+                  {selectedAnnotation.actualFontName}
+                </span>
+              )}
             </div>
 
             <button
               type="button"
               onClick={() => {
-                const b = !isBold;
-                setIsBold(b);
+                const currentBold = selectedAnnotation ? selectedAnnotation.fontWeight === "bold" : isBold;
+                const nextBold = !currentBold;
+                setIsBold(nextBold);
                 if (selectedId) {
                   setAnnotations((prev) =>
-                    prev.map((a) => (a.id === selectedId ? { ...a, fontWeight: b ? "bold" : "normal" } : a))
+                    prev.map((a) => (a.id === selectedId ? { ...a, fontWeight: nextBold ? "bold" : "normal" } : a))
                   );
                 }
               }}
-              className={`h-7 w-7 rounded-lg border font-black ${
-                isBold
-                  ? "border-blue-500 bg-blue-50 text-blue-600 dark:bg-blue-950/40 dark:text-blue-400"
-                  : "border-slate-200 bg-white text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300"
+              className={`h-7 w-7 rounded-lg border font-black transition-all ${
+                (selectedAnnotation ? selectedAnnotation.fontWeight === "bold" : isBold)
+                  ? "border-blue-500 bg-blue-600 text-white shadow-xs"
+                  : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300"
               }`}
+              title="Toggle Bold"
             >
               B
             </button>
             <button
               type="button"
               onClick={() => {
-                const it = !isItalic;
-                setIsItalic(it);
+                const currentItalic = selectedAnnotation ? selectedAnnotation.fontStyle === "italic" : isItalic;
+                const nextItalic = !currentItalic;
+                setIsItalic(nextItalic);
                 if (selectedId) {
                   setAnnotations((prev) =>
-                    prev.map((a) => (a.id === selectedId ? { ...a, fontStyle: it ? "italic" : "normal" } : a))
+                    prev.map((a) => (a.id === selectedId ? { ...a, fontStyle: nextItalic ? "italic" : "normal" } : a))
                   );
                 }
               }}
-              className={`h-7 w-7 rounded-lg border italic font-serif font-bold ${
-                isItalic
-                  ? "border-blue-500 bg-blue-50 text-blue-600 dark:bg-blue-950/40 dark:text-blue-400"
-                  : "border-slate-200 bg-white text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300"
+              className={`h-7 w-7 rounded-lg border italic font-serif font-bold transition-all ${
+                (selectedAnnotation ? selectedAnnotation.fontStyle === "italic" : isItalic)
+                  ? "border-blue-500 bg-blue-600 text-white shadow-xs"
+                  : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300"
               }`}
+              title="Toggle Italic"
             >
               I
             </button>
+
+            {/* Whiteout / Background controls */}
+            <div className="h-4 w-px bg-slate-200 dark:bg-white/[0.1]" />
+            <div className="flex flex-wrap items-center gap-1.5">
+              <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400">Background:</span>
+              <button
+                type="button"
+                onClick={() => {
+                  if (selectedAnnotation && selectedAnnotation.type === "text") {
+                    const matchedBg = sampleBackgroundColor(
+                      selectedAnnotation.xNorm,
+                      selectedAnnotation.yNorm,
+                      selectedAnnotation.widthNorm,
+                      selectedAnnotation.heightNorm
+                    );
+                    const txtColor = isColorDark(matchedBg) ? "#ffffff" : selectedAnnotation.textColor;
+                    setAnnotations((prev) =>
+                      prev.map((a) =>
+                        a.id === selectedId
+                          ? {
+                              ...a,
+                              underlayWhiteout: true,
+                              whiteoutColor: matchedBg,
+                              textHighlightColor: matchedBg,
+                              textColor: txtColor
+                            }
+                          : a
+                      )
+                    );
+                    notify(`Auto-matched text background to ${matchedBg.toUpperCase()}`, "success");
+                  } else {
+                    notify("Select a text box on the page to auto-match its background", "info");
+                  }
+                }}
+                className="flex items-center gap-1 rounded-lg px-2 py-0.5 text-[10px] font-bold border border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100 dark:bg-blue-950/30 dark:text-blue-300 dark:border-blue-900/50"
+                title="Automatically match background color directly under this text"
+              >
+                <Sparkles size={10} />
+                <span>Auto-Match</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsEyedropperActive((prev) => !prev);
+                  if (!isEyedropperActive) {
+                    notify("Click anywhere on PDF to pick background color for this text", "info");
+                  }
+                }}
+                className={`flex items-center gap-1 rounded-lg px-2 py-0.5 text-[10px] font-bold border transition-all ${
+                  isEyedropperActive
+                    ? "bg-amber-500 text-white border-amber-600 shadow-xs ring-2 ring-amber-400/50 animate-pulse"
+                    : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700"
+                }`}
+                title="Pick exact color from anywhere on the document"
+              >
+                <Pipette size={10} />
+                <span>Pick</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (selectedId) {
+                    setAnnotations((prev) =>
+                      prev.map((a) =>
+                        a.id === selectedId
+                          ? { ...a, underlayWhiteout: true, whiteoutColor: "#ffffff", textHighlightColor: "#ffffff" }
+                          : a
+                      )
+                    );
+                  }
+                }}
+                className={`rounded-lg px-2 py-0.5 text-[10px] font-bold border transition-all ${
+                  selectedAnnotation?.underlayWhiteout &&
+                  (!selectedAnnotation?.whiteoutColor || selectedAnnotation?.whiteoutColor === "#ffffff")
+                    ? "bg-white text-blue-600 border-blue-500 ring-2 ring-blue-500/20 shadow-xs"
+                    : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700"
+                }`}
+                title="Whiteout background (erases original PDF text)"
+              >
+                White
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (selectedId) {
+                    setAnnotations((prev) =>
+                      prev.map((a) =>
+                        a.id === selectedId
+                          ? { ...a, underlayWhiteout: true, whiteoutColor: "#fef9c3", textHighlightColor: "#fef9c3" }
+                          : a
+                      )
+                    );
+                  }
+                }}
+                className={`rounded-lg px-2 py-0.5 text-[10px] font-bold border transition-all ${
+                  selectedAnnotation?.whiteoutColor === "#fef9c3"
+                    ? "bg-yellow-100 text-yellow-800 border-yellow-400 ring-2 ring-yellow-400/20 shadow-xs"
+                    : "bg-yellow-50 text-yellow-700 border-yellow-200 hover:bg-yellow-100 dark:bg-yellow-950/30 dark:text-yellow-300 dark:border-yellow-900/50"
+                }`}
+                title="Warm paper tint"
+              >
+                Warm
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (selectedId) {
+                    setAnnotations((prev) =>
+                      prev.map((a) =>
+                        a.id === selectedId
+                          ? { ...a, underlayWhiteout: false, textHighlightColor: "transparent" }
+                          : a
+                      )
+                    );
+                  }
+                }}
+                className={`rounded-lg px-2 py-0.5 text-[10px] font-bold border transition-all ${
+                  !selectedAnnotation?.underlayWhiteout && selectedAnnotation?.textHighlightColor === "transparent"
+                    ? "bg-slate-200 text-slate-800 border-slate-400 dark:bg-slate-700 dark:text-white"
+                    : "bg-transparent text-slate-500 border-slate-200 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-400"
+                }`}
+                title="Clear background"
+              >
+                Clear
+              </button>
+              {/* Custom Underlay Color */}
+              <label
+                className="relative flex h-5 w-5 cursor-pointer items-center justify-center rounded-md border border-slate-300 bg-linear-to-br from-red-400 via-green-400 to-blue-400 shadow-2xs hover:scale-105"
+                title="Custom background color"
+              >
+                <input
+                  type="color"
+                  value={selectedAnnotation?.whiteoutColor || "#ffffff"}
+                  onChange={(e) => {
+                    const col = e.target.value;
+                    if (selectedId) {
+                      setAnnotations((prev) =>
+                        prev.map((a) =>
+                          a.id === selectedId
+                            ? { ...a, underlayWhiteout: true, whiteoutColor: col, textHighlightColor: col }
+                            : a
+                        )
+                      );
+                    }
+                  }}
+                  className="absolute inset-0 cursor-pointer opacity-0"
+                />
+              </label>
+            </div>
+
+            {selectedAnnotation?.originalText !== undefined && (
+              <div className="flex items-center gap-1.5 pl-1 border-l border-slate-200 dark:border-white/[0.1]">
+                <span className="rounded-full bg-blue-500/10 px-2 py-0.5 text-[9px] font-bold text-blue-600 dark:text-blue-400">
+                  Edited Original
+                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (selectedId && selectedAnnotation.originalText !== undefined) {
+                      setAnnotations((prev) =>
+                        prev.map((a) =>
+                          a.id === selectedId ? { ...a, text: selectedAnnotation.originalText } : a
+                        )
+                      );
+                      notify("Restored original text", "info");
+                    }
+                  }}
+                  className="rounded-lg border border-slate-200 bg-white px-2 py-0.5 text-[10px] font-bold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+                  title="Restore original text"
+                >
+                  Reset
+                </button>
+              </div>
+            )}
           </>
         )}
 
@@ -1224,6 +2400,186 @@ export default function PdfEditorView({
           </div>
         )}
 
+        {/* Erase / Logo Remover Options */}
+        {(activeTool === "erase" || (selectedAnnotation && selectedAnnotation.type === "erase")) && (
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 flex items-center gap-1">
+              <Eraser size={12} className="text-rose-500" />
+              Erase Match:
+            </span>
+
+            {/* Auto Match Background Toggle */}
+            <button
+              type="button"
+              onClick={() => {
+                const nextMatch = !eraseColorAutoMatch;
+                setEraseColorAutoMatch(nextMatch);
+                if (nextMatch && selectedAnnotation && selectedAnnotation.type === "erase") {
+                  const sampled = sampleBackgroundColor(
+                    selectedAnnotation.xNorm,
+                    selectedAnnotation.yNorm,
+                    selectedAnnotation.widthNorm,
+                    selectedAnnotation.heightNorm
+                  );
+                  setAnnotations((prev) =>
+                    prev.map((a) => (a.id === selectedAnnotation.id ? { ...a, fillColor: sampled } : a))
+                  );
+                  notify(`Auto-matched background to ${sampled.toUpperCase()}`, "success");
+                }
+              }}
+              className={`flex items-center gap-1 rounded-lg px-2.5 py-1 text-[11px] font-bold transition-all border ${
+                eraseColorAutoMatch
+                  ? "bg-blue-600 text-white border-blue-600 shadow-xs"
+                  : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700"
+              }`}
+              title="Automatically samples surrounding background color so erasures blend seamlessly"
+            >
+              <Sparkles size={11} />
+              <span>Auto-Match BG {eraseColorAutoMatch ? "ON" : "OFF"}</span>
+            </button>
+
+            {/* Background Preservation Badge */}
+            <span className="inline-flex items-center gap-1 rounded-lg bg-emerald-50 px-2.5 py-1 text-[11px] font-bold text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 border border-emerald-200/80 dark:border-emerald-800/50">
+              <Sparkles size={12} className="text-emerald-600" />
+              <span>Background Preserved</span>
+            </span>
+
+            {/* Re-Clean Background Button for selected erase annotation */}
+            {selectedAnnotation && selectedAnnotation.type === "erase" && (
+              <button
+                type="button"
+                onClick={() => {
+                  const patch = generateBackgroundInpaintPatch(
+                    selectedAnnotation.xNorm,
+                    selectedAnnotation.yNorm,
+                    selectedAnnotation.widthNorm,
+                    selectedAnnotation.heightNorm
+                  );
+                  setAnnotations((prev) =>
+                    prev.map((a) =>
+                      a.id === selectedAnnotation.id
+                        ? { ...a, imageDataUrl: patch || undefined, eraseMode: "inpaint" }
+                        : a
+                    )
+                  );
+                  notify("Background cleanly reconstructed!", "success");
+                }}
+                className="flex items-center gap-1 rounded-lg bg-emerald-600 text-white px-2.5 py-1 text-[11px] font-bold hover:bg-emerald-500 shadow-xs cursor-pointer"
+                title="Re-sample surrounding background and seamlessly blend without affecting background"
+              >
+                <Wand2 size={11} />
+                <span>Re-Clean BG</span>
+              </button>
+            )}
+
+            {/* Eyedropper Color Picker */}
+            <button
+              type="button"
+              onClick={() => {
+                setIsEyedropperActive((prev) => !prev);
+                if (!isEyedropperActive) {
+                  notify("Eyedropper active: Click anywhere on the PDF page to sample its color", "info");
+                }
+              }}
+              className={`flex items-center gap-1 rounded-lg px-2.5 py-1 text-[11px] font-bold transition-all border ${
+                isEyedropperActive
+                  ? "bg-amber-500 text-white border-amber-600 shadow-xs ring-2 ring-amber-400/50 animate-pulse"
+                  : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700"
+              }`}
+              title="Pick exact background color from anywhere on the document"
+            >
+              <Pipette size={12} />
+              <span>{isEyedropperActive ? "Sampling..." : "Pick Color"}</span>
+            </button>
+
+            {/* Erase Color Presets */}
+            <div className="flex items-center gap-1 pl-1 border-l border-slate-200 dark:border-white/[0.1]">
+              {[
+                { name: "Pure White", hex: "#ffffff" },
+                { name: "Warm Cream", hex: "#fef9c3" },
+                { name: "Off-White", hex: "#f8fafc" },
+                { name: "Light Gray", hex: "#e2e8f0" },
+                { name: "Dark Header", hex: "#0f172a" }
+              ].map((c) => {
+                const currentColor =
+                  selectedAnnotation?.type === "erase"
+                    ? selectedAnnotation.fillColor || "#ffffff"
+                    : eraseColor;
+                const isSelected = currentColor.toLowerCase() === c.hex.toLowerCase();
+                return (
+                  <button
+                    key={c.hex}
+                    type="button"
+                    onClick={() => {
+                      setEraseColor(c.hex);
+                      setEraseColorAutoMatch(false);
+                      if (selectedAnnotation && selectedAnnotation.type === "erase") {
+                        setAnnotations((prev) =>
+                          prev.map((a) => (a.id === selectedAnnotation.id ? { ...a, fillColor: c.hex } : a))
+                        );
+                      }
+                    }}
+                    className={`h-5 w-5 rounded-md border border-slate-300 shadow-2xs transition-transform ${
+                      isSelected ? "ring-2 ring-blue-500 scale-110" : "hover:scale-105"
+                    }`}
+                    style={{ backgroundColor: c.hex }}
+                    title={c.name}
+                  />
+                );
+              })}
+
+              {/* Custom Color Picker Input */}
+              <label
+                className="relative flex h-5 w-5 cursor-pointer items-center justify-center rounded-md border border-slate-300 bg-linear-to-br from-red-400 via-green-400 to-blue-400 shadow-2xs hover:scale-105"
+                title="Choose custom background color"
+              >
+                <input
+                  type="color"
+                  value={
+                    selectedAnnotation?.type === "erase"
+                      ? selectedAnnotation.fillColor || "#ffffff"
+                      : eraseColor
+                  }
+                  onChange={(e) => {
+                    const col = e.target.value;
+                    setEraseColor(col);
+                    setEraseColorAutoMatch(false);
+                    if (selectedAnnotation && selectedAnnotation.type === "erase") {
+                      setAnnotations((prev) =>
+                        prev.map((a) => (a.id === selectedAnnotation.id ? { ...a, fillColor: col } : a))
+                      );
+                    }
+                  }}
+                  className="absolute inset-0 cursor-pointer opacity-0"
+                />
+              </label>
+            </div>
+
+            {selectedAnnotation && selectedAnnotation.type === "erase" && (
+              <button
+                type="button"
+                onClick={() => {
+                  const sampled = sampleBackgroundColor(
+                    selectedAnnotation.xNorm,
+                    selectedAnnotation.yNorm,
+                    selectedAnnotation.widthNorm,
+                    selectedAnnotation.heightNorm
+                  );
+                  setAnnotations((prev) =>
+                    prev.map((a) => (a.id === selectedAnnotation.id ? { ...a, fillColor: sampled } : a))
+                  );
+                  setEraseColor(sampled);
+                  notify(`Re-sampled background: ${sampled.toUpperCase()}`, "success");
+                }}
+                className="rounded-lg border border-slate-200 bg-white px-2 py-0.5 text-[10px] font-bold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+                title="Re-sample background color directly under this patch"
+              >
+                Re-sample BG
+              </button>
+            )}
+          </div>
+        )}
+
         {/* Selected Annotation Actions */}
         {selectedAnnotation && (
           <div className="ml-auto flex items-center gap-1.5">
@@ -1251,106 +2607,356 @@ export default function PdfEditorView({
 
       {/* Main Workspace Layout (Sidebar Rail + Stage) */}
       <div className="flex flex-col lg:flex-row items-start gap-4">
-        {/* Left Page Rail */}
-        <div className="w-full lg:w-48 shrink-0 rounded-3xl border border-slate-200/80 bg-white/70 p-3 shadow-sm backdrop-blur-md dark:border-white/[0.08] dark:bg-slate-900/50 space-y-2.5">
-          <div className="flex items-center justify-between px-1 pb-1 border-b border-slate-200/60 dark:border-white/[0.06]">
-            <span className="text-xs font-black text-slate-800 dark:text-slate-200">Pages ({pagesPlan.length})</span>
+        {/* Mobile Toggle for Page Rail & Text Inspector */}
+        <div className="flex lg:hidden items-center justify-between w-full">
+          <button
+            type="button"
+            onClick={() => setMobileSidebarOpen(!mobileSidebarOpen)}
+            className="inline-flex items-center gap-2 rounded-2xl border border-slate-200/80 bg-white/90 px-3.5 py-2 text-xs font-bold text-slate-700 shadow-xs hover:bg-slate-100 dark:border-white/[0.08] dark:bg-slate-900/80 dark:text-slate-200"
+          >
+            <Layers size={14} className="text-blue-600" />
+            <span>{mobileSidebarOpen ? "Hide Pages & Text Inspector" : `Show Pages (${pagesPlan.length}) & Text Inspector`}</span>
+            <ChevronDown size={14} className={`transition-transform duration-200 ${mobileSidebarOpen ? "rotate-180" : ""}`} />
+          </button>
+        </div>
+
+        {/* Left Page Rail / Text Inspector */}
+        <div className={`${mobileSidebarOpen ? "block" : "hidden lg:block"} w-full lg:w-56 shrink-0 rounded-3xl border border-slate-200/80 bg-white/70 p-3 shadow-sm backdrop-blur-md dark:border-white/[0.08] dark:bg-slate-900/50 space-y-2.5`}>
+          {/* Tabs: Pages vs Text */}
+          <div className="flex items-center rounded-xl bg-slate-100 p-1 dark:bg-slate-800">
             <button
               type="button"
-              onClick={addBlankPage}
-              className="inline-flex items-center gap-1 rounded-lg bg-blue-50 px-2 py-1 text-[10px] font-bold text-blue-600 hover:bg-blue-100 dark:bg-blue-950/40 dark:text-blue-400"
-              title="Add blank A4 page"
+              onClick={() => setSidebarTab("pages")}
+              className={`flex-1 rounded-lg py-1 text-center text-xs font-bold transition-all ${
+                sidebarTab === "pages"
+                  ? "bg-white shadow-xs text-blue-600 dark:bg-slate-700 dark:text-white"
+                  : "text-slate-500 hover:text-slate-800 dark:hover:text-slate-300"
+              }`}
             >
-              <Plus size={11} />
-              <span>Blank</span>
+              Pages ({pagesPlan.length})
+            </button>
+            <button
+              type="button"
+              onClick={() => setSidebarTab("text")}
+              className={`flex-1 rounded-lg py-1 text-center text-xs font-bold transition-all flex items-center justify-center gap-1 ${
+                sidebarTab === "text"
+                  ? "bg-white shadow-xs text-blue-600 dark:bg-slate-700 dark:text-white"
+                  : "text-slate-500 hover:text-slate-800 dark:hover:text-slate-300"
+              }`}
+            >
+              <Sparkles size={11} className="text-blue-500" />
+              <span>PDF Text</span>
             </button>
           </div>
 
-          {/* Page Cards List */}
-          <div className="max-h-[550px] overflow-y-auto space-y-2 pr-1">
-            {pagesPlan.map((plan, idx) => {
-              const isActive = idx === activePageIndex;
-              const countOnPage = annotations.filter((a) => a.pageIndex === idx).length;
-              const thumb = plan.originalPage ? info.thumbnails[plan.originalPage - 1] : null;
+          {sidebarTab === "pages" ? (
+            <>
+              <div className="flex items-center justify-between px-1 pb-1 border-b border-slate-200/60 dark:border-white/[0.06]">
+                <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400">Page Navigation</span>
+                <button
+                  type="button"
+                  onClick={addBlankPage}
+                  className="inline-flex items-center gap-1 rounded-lg bg-blue-50 px-2 py-1 text-[10px] font-bold text-blue-600 hover:bg-blue-100 dark:bg-blue-950/40 dark:text-blue-400"
+                  title="Add blank page"
+                >
+                  <Plus size={11} />
+                  <span>Blank</span>
+                </button>
+              </div>
 
-              return (
-                <div
-                  key={plan.id}
-                  onClick={() => setActivePageIndex(idx)}
-                  className={`group relative cursor-pointer rounded-2xl border p-2 transition-all ${
-                    isActive
-                      ? "border-blue-500 bg-blue-50/70 shadow-sm ring-2 ring-blue-500/30 dark:bg-blue-950/30"
-                      : "border-slate-200/70 bg-white hover:border-slate-300 dark:border-white/[0.05] dark:bg-slate-800/60"
+              {/* Page Cards List */}
+              <div className="max-h-[550px] overflow-y-auto space-y-2 pr-1">
+                {pagesPlan.map((plan, idx) => {
+                  const isActive = idx === activePageIndex;
+                  const countOnPage = annotations.filter((a) => a.pageIndex === idx).length;
+                  const thumb = plan.originalPage ? info.thumbnails[plan.originalPage - 1] : null;
+
+                  return (
+                    <div
+                      key={plan.id}
+                      onClick={() => setActivePageIndex(idx)}
+                      className={`group relative cursor-pointer rounded-2xl border p-2 transition-all ${
+                        isActive
+                          ? "border-blue-500 bg-blue-50/70 shadow-sm ring-2 ring-blue-500/30 dark:bg-blue-950/30"
+                          : "border-slate-200/70 bg-white hover:border-slate-300 dark:border-white/[0.05] dark:bg-slate-800/60"
+                      }`}
+                    >
+                      <div className="flex items-center justify-between pb-1.5 text-[11px] font-bold">
+                        <span className={isActive ? "text-blue-600 dark:text-blue-400" : "text-slate-600 dark:text-slate-300"}>
+                          Page {idx + 1}
+                        </span>
+                        {countOnPage > 0 && (
+                          <span className="rounded-full bg-blue-500/20 px-1.5 py-0.2 text-[9px] font-black text-blue-700 dark:text-blue-300">
+                            {countOnPage}
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Thumbnail Preview Card */}
+                      <div className="aspect-[1/1.35] w-full overflow-hidden rounded-xl border border-slate-200/60 bg-white dark:border-white/[0.05] dark:bg-slate-900 grid place-items-center">
+                        {thumb ? (
+                          <img
+                            src={thumb}
+                            alt={`Page ${idx + 1}`}
+                            className="h-full w-full object-contain"
+                            style={{ transform: `rotate(${plan.rotation}deg)` }}
+                          />
+                        ) : (
+                          <span className="text-[10px] text-slate-400 font-bold">Blank Page</span>
+                        )}
+                      </div>
+
+                      {/* Page Action Icons on Hover */}
+                      {isActive && (
+                        <div className="mt-2 flex items-center justify-between border-t border-slate-200/60 dark:border-white/[0.05] pt-1.5">
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              rotateCurrentPage();
+                            }}
+                            className="p-1 rounded-md text-slate-500 hover:text-blue-600 dark:hover:text-blue-400"
+                            title="Rotate Page 90°"
+                          >
+                            <RotateCw size={12} />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              duplicateCurrentPage();
+                            }}
+                            className="p-1 rounded-md text-slate-500 hover:text-blue-600 dark:hover:text-blue-400"
+                            title="Duplicate Page"
+                          >
+                            <Copy size={12} />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              deleteCurrentPage();
+                            }}
+                            disabled={pagesPlan.length <= 1}
+                            className="p-1 rounded-md text-slate-500 hover:text-rose-600 disabled:opacity-30"
+                            title="Delete Page"
+                          >
+                            <Trash2 size={12} />
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </>
+          ) : (
+            /* Detected PDF Text List & Actions */
+            /* Detected PDF Items (Text & Logos) */
+            <div className="space-y-2">
+              {/* Type Switcher: Text vs Logos */}
+              <div className="flex items-center rounded-xl bg-slate-100 p-0.5 dark:bg-slate-800 border border-slate-200/60 dark:border-white/[0.05]">
+                <button
+                  type="button"
+                  onClick={() => setDetectedItemType("text")}
+                  className={`flex-1 rounded-lg py-1 text-[10px] font-bold transition-all ${
+                    detectedItemType === "text"
+                      ? "bg-white text-blue-600 shadow-xs dark:bg-slate-900 dark:text-blue-400"
+                      : "text-slate-600 hover:text-slate-900 dark:text-slate-400"
                   }`}
                 >
-                  <div className="flex items-center justify-between pb-1.5 text-[11px] font-bold">
-                    <span className={isActive ? "text-blue-600 dark:text-blue-400" : "text-slate-600 dark:text-slate-300"}>
-                      Page {idx + 1}
+                  Text ({(extractedTexts[activePageIndex] || []).length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setDetectedItemType("images")}
+                  className={`flex-1 rounded-lg py-1 text-[10px] font-bold transition-all ${
+                    detectedItemType === "images"
+                      ? "bg-white text-blue-600 shadow-xs dark:bg-slate-900 dark:text-blue-400"
+                      : "text-slate-600 hover:text-slate-900 dark:text-slate-400"
+                  }`}
+                >
+                  Logos / Images ({(extractedImages[activePageIndex] || []).length})
+                </button>
+              </div>
+
+              {detectedItemType === "text" ? (
+                <>
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400">
+                      Detected Text ({(extractedTexts[activePageIndex] || []).length})
                     </span>
-                    {countOnPage > 0 && (
-                      <span className="rounded-full bg-blue-500/20 px-1.5 py-0.2 text-[9px] font-black text-blue-700 dark:text-blue-300">
-                        {countOnPage}
-                      </span>
-                    )}
+                    <button
+                      type="button"
+                      onClick={handleMakeAllTextEditable}
+                      className="inline-flex items-center gap-1 rounded-lg bg-blue-50 px-2 py-1 text-[10px] font-bold text-blue-600 hover:bg-blue-100 dark:bg-blue-950/40 dark:text-blue-400"
+                      title="Make all detected lines editable on this page"
+                    >
+                      <Wand2 size={11} />
+                      <span>Edit All</span>
+                    </button>
                   </div>
 
-                  {/* Thumbnail Preview Card */}
-                  <div className="aspect-[1/1.35] w-full overflow-hidden rounded-xl border border-slate-200/60 bg-white dark:border-white/[0.05] dark:bg-slate-900 grid place-items-center">
-                    {thumb ? (
-                      <img
-                        src={thumb}
-                        alt={`Page ${idx + 1}`}
-                        className="h-full w-full object-contain"
-                        style={{ transform: `rotate(${plan.rotation}deg)` }}
-                      />
-                    ) : (
-                      <span className="text-[10px] text-slate-400 font-bold">Blank Page</span>
-                    )}
+                  {/* Filter search input */}
+                  <div className="relative">
+                    <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                    <input
+                      type="text"
+                      placeholder="Filter lines..."
+                      value={textSearchQuery}
+                      onChange={(e) => setTextSearchQuery(e.target.value)}
+                      className="w-full rounded-xl border border-slate-200 bg-white pl-7 pr-2 py-1 text-[11px] font-bold text-slate-800 placeholder:text-slate-400 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+                    />
                   </div>
 
-                  {/* Page Action Icons on Hover */}
-                  {isActive && (
-                    <div className="mt-2 flex items-center justify-between border-t border-slate-200/60 dark:border-white/[0.05] pt-1.5">
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          rotateCurrentPage();
-                        }}
-                        className="p-1 rounded-md text-slate-500 hover:text-blue-600 dark:hover:text-blue-400"
-                        title="Rotate Page 90°"
-                      >
-                        <RotateCw size={12} />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          duplicateCurrentPage();
-                        }}
-                        className="p-1 rounded-md text-slate-500 hover:text-blue-600 dark:hover:text-blue-400"
-                        title="Duplicate Page"
-                      >
-                        <Copy size={12} />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          deleteCurrentPage();
-                        }}
-                        disabled={pagesPlan.length <= 1}
-                        className="p-1 rounded-md text-slate-500 hover:text-rose-600 disabled:opacity-30"
-                        title="Delete Page"
-                      >
-                        <Trash2 size={12} />
-                      </button>
-                    </div>
-                  )}
+                  {/* Text list */}
+                  <div className="max-h-[500px] overflow-y-auto space-y-1.5 pr-1">
+                    {loadingText && (
+                      <div className="flex items-center justify-center py-6 text-slate-400 gap-2 text-xs">
+                        <RefreshCw size={13} className="animate-spin text-blue-600" />
+                        <span>Extracting page text...</span>
+                      </div>
+                    )}
+
+                    {!loadingText && (extractedTexts[activePageIndex] || []).length === 0 && (
+                      <div className="py-6 text-center text-xs text-slate-400 px-2">
+                        No selectable text lines found on this page. Use "Erase & Type" to patch scanned text!
+                      </div>
+                    )}
+
+                    {(extractedTexts[activePageIndex] || [])
+                      .filter((item) =>
+                        textSearchQuery ? item.text.toLowerCase().includes(textSearchQuery.toLowerCase()) : true
+                      )
+                      .map((item) => {
+                        const isHovered = hoveredTextId === item.id;
+                        const isEdited = pageAnnotations.some(
+                          (a) =>
+                            Math.abs(a.xNorm - item.xNorm) < 0.015 &&
+                            Math.abs(a.yNorm - item.yNorm) < 0.015
+                        );
+
+                        return (
+                          <div
+                            key={item.id}
+                            onPointerEnter={() => setHoveredTextId(item.id)}
+                            onPointerLeave={() => setHoveredTextId(null)}
+                            onClick={() => handleEditDetectedText(item)}
+                            className={`group cursor-pointer rounded-xl border p-2 text-xs transition-all ${
+                              isEdited
+                                ? "border-emerald-200 bg-emerald-50/70 dark:border-emerald-900/40 dark:bg-emerald-950/30"
+                                : isHovered
+                                ? "border-blue-500 bg-blue-50 dark:border-blue-500 dark:bg-blue-950/30"
+                                : "border-slate-200/70 bg-white hover:border-slate-300 dark:border-white/[0.05] dark:bg-slate-800/60"
+                            }`}
+                          >
+                            <p className="line-clamp-2 font-medium text-slate-800 dark:text-slate-200 text-[11px] leading-snug">
+                              {item.text}
+                            </p>
+                            <div className="mt-1.5 flex items-center justify-between text-[9px] text-slate-400">
+                              <span>{item.fontSize}pt • {item.fontFamily}</span>
+                              <span className={`font-bold ${isEdited ? "text-emerald-600 dark:text-emerald-400" : "text-blue-600 dark:text-blue-400"}`}>
+                                {isEdited ? "Edited ✓" : "Click to Edit →"}
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                  </div>
+                </>
+              ) : (
+                /* Detected Logos & Graphics Panel */
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400">
+                      Logos & Graphics ({(extractedImages[activePageIndex] || []).length})
+                    </span>
+                  </div>
+
+                  <div className="max-h-[500px] overflow-y-auto space-y-1.5 pr-1">
+                    {loadingImages && (
+                      <div className="flex items-center justify-center py-6 text-slate-400 gap-2 text-xs">
+                        <RefreshCw size={13} className="animate-spin text-blue-600" />
+                        <span>Detecting logos & graphics...</span>
+                      </div>
+                    )}
+
+                    {!loadingImages && (extractedImages[activePageIndex] || []).length === 0 && (
+                      <div className="py-6 text-center text-xs text-slate-400 px-2 leading-relaxed">
+                        No embedded logos or images found on this page. If the logo is printed on the background, pick the <strong>Erase / Remove Logo</strong> tool from the toolbar and draw a box over it to clean it with automatic background preservation!
+                      </div>
+                    )}
+
+                    {(extractedImages[activePageIndex] || []).map((imgItem, imgIdx) => {
+                      const isDeleted =
+                        deletedImageNames.includes(imgItem.name) ||
+                        pageAnnotations.some(
+                          (a) =>
+                            a.deletedImageName === imgItem.name ||
+                            (a.type === "erase" &&
+                              Math.abs(a.xNorm - imgItem.xNorm) < 0.02 &&
+                              Math.abs(a.yNorm - imgItem.yNorm) < 0.02)
+                        );
+                      const isHovered = hoveredImageId === imgItem.id;
+                      const isSelected = selectedImageItem?.id === imgItem.id;
+
+                      return (
+                        <div
+                          key={imgItem.id}
+                          onPointerEnter={() => setHoveredImageId(imgItem.id)}
+                          onPointerLeave={() => setHoveredImageId(null)}
+                          onClick={() => {
+                            setSelectedImageItem(imgItem);
+                            setSelectedId(null);
+                          }}
+                          className={`group cursor-pointer rounded-xl border p-2 text-xs transition-all ${
+                            isDeleted
+                              ? "border-slate-200 bg-slate-50 opacity-60 dark:border-slate-800 dark:bg-slate-900/40"
+                              : isSelected
+                              ? "border-rose-500 bg-rose-50/70 shadow-sm ring-2 ring-rose-500/30 dark:bg-rose-950/30"
+                              : isHovered
+                              ? "border-amber-500 bg-amber-50 dark:border-amber-500 dark:bg-amber-950/30"
+                              : "border-slate-200/70 bg-white hover:border-slate-300 dark:border-white/[0.05] dark:bg-slate-800/60"
+                          }`}
+                        >
+                          <div className="flex items-center justify-between font-mono text-[10px] text-slate-400">
+                            <span className="font-bold text-slate-700 dark:text-slate-300">
+                              Logo #{imgIdx + 1} ({imgItem.name})
+                            </span>
+                            {isDeleted ? (
+                              <span className="text-emerald-600 font-bold flex items-center gap-0.5">
+                                Removed ✓
+                              </span>
+                            ) : (
+                              <span className="text-amber-600 font-bold">Detected</span>
+                            )}
+                          </div>
+                          <div className="mt-1.5 flex items-center justify-between gap-2">
+                            <span className="text-[10px] text-slate-500">
+                              {Math.round(imgItem.widthNorm * 100)}% × {Math.round(imgItem.heightNorm * 100)}% box
+                            </span>
+                            {!isDeleted && (
+                              <button
+                                type="button"
+                                onClick={(ev) => {
+                                  ev.stopPropagation();
+                                  handleDeleteLogo(imgItem);
+                                }}
+                                className="flex items-center gap-1 rounded bg-rose-600 hover:bg-rose-500 text-white px-2 py-0.5 text-[10px] font-bold shadow-xs cursor-pointer transition-colors"
+                              >
+                                <Trash2 size={10} />
+                                <span>Delete Logo</span>
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
-              );
-            })}
-          </div>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Center Stage: Page Canvas & Overlays */}
@@ -1372,14 +2978,28 @@ export default function PdfEditorView({
               onPointerMove={handleStagePointerMove}
               onPointerUp={handleStagePointerUp}
               className={`relative overflow-hidden rounded-2xl shadow-xl border border-slate-200/80 bg-white dark:border-white/[0.1] select-none transition-transform duration-100 ${
-                activeTool === "select" ? "cursor-default" : activeTool === "text" ? "cursor-text" : "cursor-crosshair"
+                isEyedropperActive
+                  ? "cursor-crosshair"
+                  : activeTool === "select"
+                  ? "cursor-default"
+                  : activeTool === "text"
+                  ? "cursor-text"
+                  : "cursor-crosshair"
               }`}
               style={{
-                width: `${Math.round(595 * zoomScale)}px`,
-                minHeight: `${Math.round(842 * zoomScale)}px`,
-                aspectRatio: "595 / 842"
+                width: `${Math.round(pageDimensions.width * zoomScale)}px`,
+                minHeight: `${Math.round(pageDimensions.height * zoomScale)}px`,
+                aspectRatio: `${pageDimensions.width} / ${pageDimensions.height}`
               }}
             >
+              {/* Eyedropper sampling indicator banner */}
+              {isEyedropperActive && (
+                <div className="absolute top-3 left-1/2 -translate-x-1/2 z-50 bg-blue-600 text-white text-xs font-bold px-3 py-1.5 rounded-full shadow-lg flex items-center gap-2 animate-bounce pointer-events-none">
+                  <Pipette size={14} />
+                  <span>Click anywhere on PDF to sample background color</span>
+                </div>
+              )}
+
               {/* Rendered PDF Page Background Image */}
               {pageImage && (
                 <img
@@ -1388,6 +3008,126 @@ export default function PdfEditorView({
                   className="pointer-events-none h-full w-full object-contain"
                   draggable={false}
                 />
+              )}
+
+              {/* Text Detection Layer (Click to Edit Existing Text) */}
+              {detectTextActive && activeTool !== "draw" && (
+                <div className="absolute inset-0 pointer-events-none z-15">
+                  {(extractedTexts[activePageIndex] || []).map((item) => {
+                    const isAlreadyEdited = pageAnnotations.some(
+                      (a) =>
+                        Math.abs(a.xNorm - item.xNorm) < 0.015 &&
+                        Math.abs(a.yNorm - item.yNorm) < 0.015
+                    );
+                    if (isAlreadyEdited) return null;
+
+                    const isHovered = hoveredTextId === item.id;
+                    const isFindMatch =
+                      findAndReplaceOpen &&
+                      findQuery.trim().length > 0 &&
+                      (findCaseSensitive
+                        ? item.text.includes(findQuery.trim())
+                        : item.text.toLowerCase().includes(findQuery.trim().toLowerCase()));
+
+                    return (
+                      <div
+                        key={item.id}
+                        onPointerEnter={() => setHoveredTextId(item.id)}
+                        onPointerLeave={() => setHoveredTextId(null)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleEditDetectedText(item);
+                        }}
+                        className={`absolute pointer-events-auto cursor-pointer rounded-xs transition-all ${
+                          isFindMatch
+                            ? "bg-amber-400/30 border-2 border-amber-500 shadow-md ring-2 ring-amber-400/50 z-25 animate-pulse"
+                            : isHovered || activeTool === "editText"
+                            ? "bg-blue-500/20 border border-blue-500 shadow-xs z-25"
+                            : "hover:bg-blue-500/15 border border-dashed border-blue-400/30 hover:border-blue-500"
+                        }`}
+                        style={{
+                          left: `${item.xNorm * 100}%`,
+                          top: `${item.yNorm * 100}%`,
+                          width: `${item.widthNorm * 100}%`,
+                          height: `${item.heightNorm * 100}%`
+                        }}
+                        title={`Click to edit: "${item.text}"`}
+                      >
+                        {isHovered && (
+                          <div className="absolute -top-6 left-0 bg-blue-600 text-white text-[9px] font-bold px-1.5 py-0.5 rounded shadow whitespace-nowrap pointer-events-none flex items-center gap-1 z-30">
+                            <Sparkles size={10} />
+                            <span>Click to Edit Text</span>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* Logo / Image Detection Layer (Click to Select & Directly Delete) */}
+              {(activeTool === "select" || activeTool === "erase") && (
+                <div className="absolute inset-0 pointer-events-none z-16">
+                  {(extractedImages[activePageIndex] || []).map((imgItem) => {
+                    const isDeleted =
+                      deletedImageNames.includes(imgItem.name) ||
+                      pageAnnotations.some(
+                        (a) =>
+                          a.deletedImageName === imgItem.name ||
+                          (a.type === "erase" &&
+                            Math.abs(a.xNorm - imgItem.xNorm) < 0.02 &&
+                            Math.abs(a.yNorm - imgItem.yNorm) < 0.02)
+                      );
+                    if (isDeleted) return null;
+
+                    const isHovered = hoveredImageId === imgItem.id;
+                    const isSelected = selectedImageItem?.id === imgItem.id;
+
+                    return (
+                      <div
+                        key={imgItem.id}
+                        onPointerEnter={() => setHoveredImageId(imgItem.id)}
+                        onPointerLeave={() => setHoveredImageId(null)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelectedImageItem(imgItem);
+                          setSelectedId(null);
+                        }}
+                        className={`absolute pointer-events-auto cursor-pointer rounded-md transition-all ${
+                          isSelected
+                            ? "bg-rose-500/20 border-2 border-rose-500 shadow-lg ring-2 ring-rose-400/50 z-30"
+                            : isHovered
+                            ? "bg-amber-500/25 border-2 border-amber-500 shadow-sm z-25"
+                            : "hover:bg-amber-500/15 border border-dashed border-amber-500/60 hover:border-amber-500"
+                        }`}
+                        style={{
+                          left: `${imgItem.xNorm * 100}%`,
+                          top: `${imgItem.yNorm * 100}%`,
+                          width: `${imgItem.widthNorm * 100}%`,
+                          height: `${imgItem.heightNorm * 100}%`
+                        }}
+                        title="Click to select logo and directly delete without affecting background"
+                      >
+                        {(isHovered || isSelected) && (
+                          <div className="absolute -top-7 left-0 bg-slate-900/95 text-white text-[10px] font-bold px-2 py-0.5 rounded-lg shadow-xl whitespace-nowrap flex items-center gap-1.5 z-40 backdrop-blur-xs border border-white/[0.1]">
+                            <span className="text-amber-300">Logo / Image</span>
+                            <button
+                              type="button"
+                              onClick={(ev) => {
+                                ev.stopPropagation();
+                                handleDeleteLogo(imgItem);
+                              }}
+                              className="flex items-center gap-1 bg-rose-600 hover:bg-rose-500 text-white px-2 py-0.5 rounded text-[9px] font-bold cursor-pointer transition-colors shadow-xs"
+                            >
+                              <Trash2 size={10} />
+                              <span>Delete Logo</span>
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
               )}
 
               {/* Annotation Elements Layer */}
@@ -1414,7 +3154,7 @@ export default function PdfEditorView({
                       transform: ann.rotation ? `rotate(${ann.rotation}deg)` : undefined
                     }}
                     onPointerDown={(e) => {
-                      if (activeTool === "select") {
+                      if (activeTool === "select" || activeTool === "editText") {
                         e.stopPropagation();
                         setSelectedId(ann.id);
 
@@ -1443,21 +3183,28 @@ export default function PdfEditorView({
                     {/* Render according to type */}
                     {ann.type === "text" && (
                       <div
-                        className="h-full w-full overflow-hidden p-1 leading-tight flex items-start"
+                        className="h-full w-full overflow-hidden p-0.5 leading-tight flex items-start"
                         style={{
                           fontSize: `${(ann.fontSize || 16) * zoomScale}px`,
-                          fontFamily:
+                          fontFamily: [
+                            ann.actualFontName ? `"${ann.actualFontName}"` : null,
                             ann.fontFamily === "serif"
-                              ? "Georgia, serif"
+                              ? '"Times New Roman", Times, Georgia, Cambria, serif'
                               : ann.fontFamily === "mono"
-                              ? "Courier New, monospace"
+                              ? '"Courier New", Courier, Consolas, Monaco, monospace'
                               : ann.fontFamily === "cursive"
                               ? "'Dancing Script', cursive"
-                              : "Inter, sans-serif",
+                              : 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif'
+                          ]
+                            .filter(Boolean)
+                            .join(", "),
                           fontWeight: ann.fontWeight || "normal",
                           fontStyle: ann.fontStyle || "normal",
                           color: ann.textColor || "#0f172a",
-                          backgroundColor: ann.textHighlightColor || "transparent"
+                          backgroundColor:
+                            ann.underlayWhiteout
+                              ? ann.whiteoutColor || "#ffffff"
+                              : ann.textHighlightColor || "transparent"
                         }}
                       >
                         {isEditing ? (
@@ -1510,6 +3257,31 @@ export default function PdfEditorView({
                         className="h-full w-full"
                         style={{ backgroundColor: ann.fillColor || "#000000" }}
                       />
+                    )}
+
+                    {ann.type === "erase" && (
+                      <div
+                        className="h-full w-full relative group/erase"
+                        style={{
+                          backgroundColor: ann.imageDataUrl ? "transparent" : (ann.fillColor || "#ffffff")
+                        }}
+                      >
+                        {ann.imageDataUrl ? (
+                          <img
+                            src={ann.imageDataUrl}
+                            alt="Clean Background Patch"
+                            className="h-full w-full object-fill pointer-events-none select-none"
+                            draggable={false}
+                          />
+                        ) : null}
+                        {isSelected && (
+                          <div className="absolute inset-0 border border-dashed border-emerald-500 pointer-events-none flex items-center justify-center">
+                            <span className="text-[10px] bg-slate-900/90 text-emerald-300 font-bold px-1.5 py-0.5 rounded shadow whitespace-nowrap">
+                              {ann.deletedImageName ? "Removed Logo (Clean BG)" : "Seamless Patch"}
+                            </span>
+                          </div>
+                        )}
+                      </div>
                     )}
 
                     {ann.type === "rectangle" && (
@@ -1658,14 +3430,24 @@ export default function PdfEditorView({
               {/* Live shape preview */}
               {isInteracting && tempShape && (
                 <div
-                  className="absolute pointer-events-none border border-dashed border-blue-500 bg-blue-500/10 z-30"
+                  className={`absolute pointer-events-none z-30 ${
+                    activeTool === "erase"
+                      ? "border-2 border-dashed border-rose-500 bg-rose-500/15 flex items-center justify-center"
+                      : "border border-dashed border-blue-500 bg-blue-500/10"
+                  }`}
                   style={{
                     left: `${tempShape.x * 100}%`,
                     top: `${tempShape.y * 100}%`,
                     width: `${tempShape.w * 100}%`,
                     height: `${tempShape.h * 100}%`
                   }}
-                />
+                >
+                  {activeTool === "erase" && (
+                    <span className="text-[10px] bg-rose-600 text-white font-bold px-1.5 py-0.5 rounded shadow whitespace-nowrap">
+                      Erase Area
+                    </span>
+                  )}
+                </div>
               )}
             </div>
           </div>
@@ -1726,7 +3508,7 @@ export default function PdfEditorView({
             ) : (
               <>
                 <Download size={15} />
-                <span>Save & Download PDF</span>
+                <span>Apply Changes & Download / QR</span>
               </>
             )}
           </button>
@@ -1811,7 +3593,7 @@ export default function PdfEditorView({
                       }
                     }}
                     onPointerUp={() => setIsSignDrawing(false)}
-                    className="h-[180px] w-full cursor-crosshair touch-none"
+                    className="h-[180px] w-full max-w-full cursor-crosshair touch-none rounded-xl border border-dashed border-slate-200 dark:border-slate-800"
                   />
                 </div>
                 <button
@@ -1888,6 +3670,110 @@ export default function PdfEditorView({
                 Insert onto Page
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Find & Replace Floating Modal */}
+      {findAndReplaceOpen && (
+        <div className="fixed top-20 right-4 sm:right-8 z-50 w-80 sm:w-96 rounded-3xl border border-slate-200 bg-white/95 p-4 shadow-2xl backdrop-blur-md dark:border-white/[0.1] dark:bg-slate-900/95 dark:text-white space-y-3 animate-in fade-in slide-in-from-top-4 duration-200">
+          <div className="flex items-center justify-between border-b border-slate-100 pb-2.5 dark:border-white/[0.06]">
+            <div className="flex items-center gap-2">
+              <div className="grid h-7 w-7 place-items-center rounded-lg bg-blue-50 text-blue-600 dark:bg-blue-950/40 dark:text-blue-400">
+                <Replace size={15} />
+              </div>
+              <div>
+                <h4 className="text-xs font-black">Find & Replace in PDF</h4>
+                <p className="text-[10px] text-slate-400">Search and replace words across document</p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setFindAndReplaceOpen(false)}
+              className="grid h-6 w-6 place-items-center rounded-lg text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"
+            >
+              <X size={14} />
+            </button>
+          </div>
+
+          <div className="space-y-2">
+            <div>
+              <label className="text-[10px] font-bold text-slate-500 dark:text-slate-400">Find Text</label>
+              <div className="relative mt-0.5">
+                <input
+                  type="text"
+                  placeholder="Word or phrase to find..."
+                  value={findQuery}
+                  onChange={(e) => setFindQuery(e.target.value)}
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-bold text-slate-800 placeholder:text-slate-400 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+                  autoFocus
+                />
+                {findQuery && (
+                  <span className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded-md bg-blue-50 px-1.5 py-0.5 text-[9px] font-bold text-blue-600 dark:bg-blue-950/40 dark:text-blue-400">
+                    {getFindMatches().length} match(es)
+                  </span>
+                )}
+              </div>
+            </div>
+
+            <div>
+              <label className="text-[10px] font-bold text-slate-500 dark:text-slate-400">Replace With</label>
+              <input
+                type="text"
+                placeholder="New replacement text..."
+                value={replaceQuery}
+                onChange={(e) => setReplaceQuery(e.target.value)}
+                className="mt-0.5 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-bold text-slate-800 placeholder:text-slate-400 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+              />
+            </div>
+
+            <div className="flex items-center justify-between pt-1">
+              <label className="flex items-center gap-1.5 text-[11px] font-bold text-slate-600 dark:text-slate-400 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={findCaseSensitive}
+                  onChange={(e) => setFindCaseSensitive(e.target.checked)}
+                  className="rounded border-slate-300 text-blue-600"
+                />
+                <span>Match Case</span>
+              </label>
+
+              <div className="flex items-center rounded-lg border border-slate-200 p-0.5 text-[10px] font-bold dark:border-slate-700">
+                <button
+                  type="button"
+                  onClick={() => setFindScope("page")}
+                  className={`rounded-md px-2 py-0.5 ${findScope === "page" ? "bg-blue-600 text-white" : "text-slate-500"}`}
+                >
+                  Current Page
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setFindScope("all")}
+                  className={`rounded-md px-2 py-0.5 ${findScope === "all" ? "bg-blue-600 text-white" : "text-slate-500"}`}
+                >
+                  All Pages
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100 dark:border-white/[0.06]">
+            <button
+              type="button"
+              onClick={() => setFindAndReplaceOpen(false)}
+              className="btn-secondary h-8 px-3 text-xs font-bold"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={handleReplaceAll}
+              disabled={!findQuery.trim() || getFindMatches().length === 0}
+              className="inline-flex items-center gap-1.5 rounded-xl bg-blue-600 px-4 h-8 text-xs font-black text-white hover:bg-blue-700 disabled:opacity-40 shadow-sm shadow-blue-500/20"
+            >
+              <CheckCheck size={14} />
+              <span>Replace All ({getFindMatches().length})</span>
+            </button>
           </div>
         </div>
       )}

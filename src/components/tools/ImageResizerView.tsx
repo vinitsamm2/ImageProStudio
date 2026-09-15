@@ -1,9 +1,10 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useRef } from "react";
 import {
   ArrowDownUp,
   ArrowLeftRight,
   ArrowRight,
   Check,
+  Crop,
   Download,
   GraduationCap,
   Lock,
@@ -12,7 +13,9 @@ import {
   Sparkles,
   TrendingDown,
   TrendingUp,
+  Undo2,
   Unlock,
+  X,
   Zap
 } from "lucide-react";
 import UploadZone from "../UploadZone";
@@ -22,6 +25,7 @@ import {
   Unit,
   convertLength,
   createImageItem,
+  cropImageFile,
   downloadBlob,
   estimateFileSize,
   formatBytes,
@@ -30,6 +34,17 @@ import {
 
 type ToastNotify = (text: string, kind?: "success" | "error" | "info") => void;
 type ResizeUnit = Unit | "percent";
+
+const CROP_RATIOS = [
+  { label: "Free", value: null, key: "free" },
+  { label: "1:1 Square", value: 1, key: "1:1" },
+  { label: "35:45 Passport", value: 35 / 45, key: "35:45" },
+  { label: "35:15 Signature", value: 35 / 15, key: "35:15" },
+  { label: "16:9 Wide", value: 16 / 9, key: "16:9" },
+  { label: "4:3 Standard", value: 4 / 3, key: "4:3" },
+  { label: "3:2 Photo", value: 3 / 2, key: "3:2" },
+  { label: "2:3 Portrait", value: 2 / 3, key: "2:3" }
+];
 
 const imageAccept =
   "image/jpeg,image/png,image/webp,image/bmp,image/tiff,image/svg+xml,image/avif,image/gif,.jpg,.jpeg,.jepg,.png,.webp,.bmp,.tiff,.tif,.svg,.avif,.gif";
@@ -132,6 +147,28 @@ export default function ImageResizerView({
 }) {
   const [file, setFile] = useState<File | null>(null);
   const [source, setSource] = useState<ImageItem | null>(null);
+  const [originalFile, setOriginalFile] = useState<File | null>(null);
+  const [originalSource, setOriginalSource] = useState<ImageItem | null>(null);
+  const [isCropped, setIsCropped] = useState(false);
+
+  // Interactive Crop state
+  const [showCropModal, setShowCropModal] = useState(false);
+  const [cropNorm, setCropNorm] = useState<{ x: number; y: number; w: number; h: number }>({
+    x: 0.1,
+    y: 0.1,
+    w: 0.8,
+    h: 0.8
+  });
+  const [cropAspectRatio, setCropAspectRatio] = useState<string>("free");
+  const cropContainerRef = useRef<HTMLDivElement | null>(null);
+  const cropImageRef = useRef<HTMLImageElement | null>(null);
+  const [cropDragMode, setCropDragMode] = useState<"move" | string | null>(null);
+  const cropDragStartRef = useRef<{
+    pointerX: number;
+    pointerY: number;
+    box: { x: number; y: number; w: number; h: number };
+  } | null>(null);
+
   const [unit, setUnit] = useState<ResizeUnit>("px");
   const [width, setWidth] = useState(1080);
   const [height, setHeight] = useState(1080);
@@ -150,12 +187,223 @@ export default function ImageResizerView({
       const image = await createImageItem(picked);
       setFile(picked);
       setSource(image);
+      setOriginalFile(null);
+      setOriginalSource(null);
+      setIsCropped(false);
       setWidth(image.width);
       setHeight(image.height);
+      setCropNorm({ x: 0.1, y: 0.1, w: 0.8, h: 0.8 });
+      setCropAspectRatio("free");
       setResultUrl("");
       notify("Image loaded successfully!", "info");
     } catch {
       notify("Failed to load image.", "error");
+    }
+  };
+
+  const getHandleClasses = (h: string) => {
+    switch (h) {
+      case "nw":
+        return "-top-1.5 -left-1.5 cursor-nwse-resize";
+      case "ne":
+        return "-top-1.5 -right-1.5 cursor-nesw-resize";
+      case "se":
+        return "-bottom-1.5 -right-1.5 cursor-nwse-resize";
+      case "sw":
+        return "-bottom-1.5 -left-1.5 cursor-nesw-resize";
+      case "n":
+        return "-top-1.5 left-1/2 -translate-x-1/2 cursor-ns-resize";
+      case "s":
+        return "-bottom-1.5 left-1/2 -translate-x-1/2 cursor-ns-resize";
+      case "w":
+        return "top-1/2 -left-1.5 -translate-y-1/2 cursor-ew-resize";
+      case "e":
+        return "top-1/2 -right-1.5 -translate-y-1/2 cursor-ew-resize";
+      default:
+        return "";
+    }
+  };
+
+  const handleCropBoxPointerDown = (e: React.PointerEvent) => {
+    e.stopPropagation();
+    e.preventDefault();
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    setCropDragMode("move");
+    cropDragStartRef.current = {
+      pointerX: e.clientX,
+      pointerY: e.clientY,
+      box: { ...cropNorm }
+    };
+  };
+
+  const handleCropHandlePointerDown = (e: React.PointerEvent, handle: string) => {
+    e.stopPropagation();
+    e.preventDefault();
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    setCropDragMode(handle);
+    cropDragStartRef.current = {
+      pointerX: e.clientX,
+      pointerY: e.clientY,
+      box: { ...cropNorm }
+    };
+  };
+
+  const handleCropContainerPointerMove = (e: React.PointerEvent) => {
+    if (!cropDragMode || !cropDragStartRef.current || !cropContainerRef.current) return;
+    const rect = cropContainerRef.current.getBoundingClientRect();
+    if (rect.width <= 0 || rect.height <= 0) return;
+
+    const dx = (e.clientX - cropDragStartRef.current.pointerX) / rect.width;
+    const dy = (e.clientY - cropDragStartRef.current.pointerY) / rect.height;
+    const startBox = cropDragStartRef.current.box;
+
+    if (cropDragMode === "move") {
+      const maxX = Math.max(0, 1 - startBox.w);
+      const maxY = Math.max(0, 1 - startBox.h);
+      const nextX = Math.max(0, Math.min(maxX, startBox.x + dx));
+      const nextY = Math.max(0, Math.min(maxY, startBox.y + dy));
+      setCropNorm({ ...startBox, x: nextX, y: nextY });
+      return;
+    }
+
+    let nextX = startBox.x;
+    let nextY = startBox.y;
+    let nextW = startBox.w;
+    let nextH = startBox.h;
+
+    const selectedRatioDef = CROP_RATIOS.find((r) => r.key === cropAspectRatio);
+    const targetRatio = selectedRatioDef ? selectedRatioDef.value : null;
+
+    if (cropDragMode.includes("e")) {
+      nextW = Math.max(0.04, Math.min(1 - startBox.x, startBox.w + dx));
+    }
+    if (cropDragMode.includes("s")) {
+      nextH = Math.max(0.04, Math.min(1 - startBox.y, startBox.h + dy));
+    }
+    if (cropDragMode.includes("w")) {
+      const possibleW = Math.max(0.04, startBox.w - dx);
+      const newX = startBox.x + (startBox.w - possibleW);
+      if (newX >= 0) {
+        nextX = newX;
+        nextW = possibleW;
+      }
+    }
+    if (cropDragMode.includes("n")) {
+      const possibleH = Math.max(0.04, startBox.h - dy);
+      const newY = startBox.y + (startBox.h - possibleH);
+      if (newY >= 0) {
+        nextY = newY;
+        nextH = possibleH;
+      }
+    }
+
+    // If ratio is locked, maintain aspect ratio
+    if (targetRatio !== null && source && source.height > 0) {
+      const adjustedH = (nextW * source.width) / (source.height * targetRatio);
+      if (nextY + adjustedH <= 1) {
+        nextH = adjustedH;
+      } else {
+        nextH = 1 - nextY;
+        nextW = Math.min(1 - nextX, (nextH * source.height * targetRatio) / source.width);
+      }
+    }
+
+    setCropNorm({
+      x: Math.max(0, Math.min(1, nextX)),
+      y: Math.max(0, Math.min(1, nextY)),
+      w: Math.max(0.04, Math.min(1 - nextX, nextW)),
+      h: Math.max(0.04, Math.min(1 - nextY, nextH))
+    });
+  };
+
+  const handleCropContainerPointerUp = () => {
+    setCropDragMode(null);
+    cropDragStartRef.current = null;
+  };
+
+  const selectCropRatio = (key: string) => {
+    setCropAspectRatio(key);
+    const def = CROP_RATIOS.find((r) => r.key === key);
+    if (!def || !source) return;
+    if (def.value === null) {
+      return;
+    }
+    const ratio = def.value;
+    const imgAspect = source.width / source.height;
+    let wNorm: number;
+    let hNorm: number;
+    if (imgAspect > ratio) {
+      hNorm = 0.85;
+      const pixelH = source.height * hNorm;
+      const pixelW = pixelH * ratio;
+      wNorm = Math.min(0.95, pixelW / source.width);
+    } else {
+      wNorm = 0.85;
+      const pixelW = source.width * wNorm;
+      const pixelH = pixelW / ratio;
+      hNorm = Math.min(0.95, pixelH / source.height);
+    }
+    const xNorm = Math.max(0, (1 - wNorm) / 2);
+    const yNorm = Math.max(0, (1 - hNorm) / 2);
+    setCropNorm({ x: xNorm, y: yNorm, w: wNorm, h: hNorm });
+  };
+
+  const resetCropToMax = () => {
+    setCropAspectRatio("free");
+    setCropNorm({ x: 0, y: 0, w: 1, h: 1 });
+  };
+
+  const handleApplyCrop = async () => {
+    if (!file || !source) return;
+    try {
+      setBusy(true);
+      const cropX = Math.round(cropNorm.x * source.width);
+      const cropY = Math.round(cropNorm.y * source.height);
+      const cropW = Math.round(cropNorm.w * source.width);
+      const cropH = Math.round(cropNorm.h * source.height);
+
+      if (cropW < 4 || cropH < 4) {
+        notify("Crop area is too small.", "error");
+        return;
+      }
+
+      if (!originalFile || !originalSource) {
+        setOriginalFile(file);
+        setOriginalSource(source);
+      }
+
+      const { file: croppedFile, imageItem: croppedSource } = await cropImageFile(
+        file,
+        cropX,
+        cropY,
+        cropW,
+        cropH,
+        activeFormatDef.mime,
+        quality / 100
+      );
+
+      setFile(croppedFile);
+      setSource(croppedSource);
+      setIsCropped(true);
+      setWidth(croppedSource.width);
+      setHeight(croppedSource.height);
+      setShowCropModal(false);
+      notify(`Image cropped to ${croppedSource.width} × ${croppedSource.height} px!`, "success");
+    } catch (err) {
+      notify(err instanceof Error ? err.message : "Failed to crop image.", "error");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleRevertOriginal = () => {
+    if (originalFile && originalSource) {
+      setFile(originalFile);
+      setSource(originalSource);
+      setWidth(originalSource.width);
+      setHeight(originalSource.height);
+      setIsCropped(false);
+      notify("Reverted to original uncropped image", "info");
     }
   };
 
@@ -262,8 +510,12 @@ export default function ImageResizerView({
       const outName = `resized-${Math.round(targetPx.width)}x${Math.round(targetPx.height)}.${activeFormatDef.ext}`;
       setResultUrl(url);
       setLastResult({ blob, name: outName });
-      downloadBlob(blob, outName);
-      notify(`Resized ${activeFormatDef.ext.toUpperCase()} image downloaded successfully!`, "success");
+      if (onShareFile) {
+        onShareFile({ blob, name: outName });
+      } else {
+        downloadBlob(blob, outName);
+      }
+      notify("Changes applied! Choose Download or QR Code.", "success");
     } catch (error) {
       notify(error instanceof Error ? error.message : "Could not resize image.", "error");
     } finally {
@@ -310,9 +562,17 @@ export default function ImageResizerView({
         </div>
 
         {source && (
-          <span className="rounded-full bg-cyan-500/10 px-3 py-1 font-mono text-xs font-bold text-cyan-700 dark:text-cyan-300">
-            Original: {source.width} × {source.height} px
-          </span>
+          <div className="flex items-center gap-2">
+            {isCropped && (
+              <span className="rounded-full bg-emerald-500/15 border border-emerald-500/30 px-2.5 py-0.5 text-[10px] font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                <Check size={10} />
+                <span>Cropped</span>
+              </span>
+            )}
+            <span className="rounded-full bg-cyan-500/10 px-3 py-1 font-mono text-xs font-bold text-cyan-700 dark:text-cyan-300">
+              Input: {source.width} × {source.height} px
+            </span>
+          </div>
         )}
       </div>
 
@@ -346,6 +606,9 @@ export default function ImageResizerView({
                 onRemove={() => {
                   setFile(null);
                   setSource(null);
+                  setOriginalFile(null);
+                  setOriginalSource(null);
+                  setIsCropped(false);
                   setResultUrl("");
                 }}
                 label="Drop image to resize"
@@ -362,23 +625,57 @@ export default function ImageResizerView({
                   <span className="absolute bottom-2.5 left-2.5 rounded-lg bg-slate-900/80 px-2 py-1 font-mono text-[10px] font-bold text-white backdrop-blur-md">
                     {source.width} × {source.height} px
                   </span>
-                </div>
-
-                <div className="flex items-center justify-between text-xs">
-                  <p className="truncate font-semibold text-slate-800 dark:text-slate-200 max-w-[200px]" title={file?.name}>
-                    {file?.name}
-                  </p>
                   <button
                     type="button"
-                    onClick={() => {
-                      setFile(null);
-                      setSource(null);
-                      setResultUrl("");
-                    }}
-                    className="font-bold text-rose-500 hover:text-rose-600 text-[11px]"
+                    onClick={() => setShowCropModal(true)}
+                    className="absolute top-2.5 right-2.5 rounded-xl bg-slate-900/80 hover:bg-cyan-600 text-white px-2.5 py-1 text-[11px] font-bold backdrop-blur-md transition flex items-center gap-1.5 shadow-md border border-white/10"
+                    title="Click to crop this image"
                   >
-                    Change image
+                    <Crop size={12} />
+                    <span>Crop Image</span>
                   </button>
+                </div>
+
+                <div className="flex items-center justify-between text-xs gap-2">
+                  <p className="truncate font-semibold text-slate-800 dark:text-slate-200 max-w-[120px]" title={file?.name}>
+                    {file?.name}
+                  </p>
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => setShowCropModal(true)}
+                      className="inline-flex items-center gap-1 rounded-lg border border-cyan-500/30 bg-cyan-500/10 px-2.5 py-1 text-[11px] font-bold text-cyan-700 hover:bg-cyan-500/20 dark:text-cyan-300 dark:bg-cyan-950/40 transition shadow-2xs"
+                      title="Crop image before or during resize"
+                    >
+                      <Crop size={12} className="text-cyan-600 dark:text-cyan-400" />
+                      <span>Crop</span>
+                    </button>
+                    {isCropped && (
+                      <button
+                        type="button"
+                        onClick={handleRevertOriginal}
+                        className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2 py-1 text-[11px] font-bold text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300"
+                        title="Revert back to uncropped original image"
+                      >
+                        <Undo2 size={11} />
+                        <span>Revert</span>
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setFile(null);
+                        setSource(null);
+                        setOriginalFile(null);
+                        setOriginalSource(null);
+                        setIsCropped(false);
+                        setResultUrl("");
+                      }}
+                      className="font-bold text-rose-500 hover:text-rose-600 text-[11px]"
+                    >
+                      Change
+                    </button>
+                  </div>
                 </div>
               </div>
             )}
@@ -400,14 +697,26 @@ export default function ImageResizerView({
                 Resize Settings (Transform)
               </span>
             </div>
-            <button
-              type="button"
-              onClick={swapDimensions}
-              className="inline-flex items-center gap-1 rounded-lg border border-cyan-500/30 bg-cyan-500/10 px-2 py-1 text-[11px] font-bold text-cyan-700 hover:bg-cyan-500/20 dark:text-cyan-300"
-              title="Swap Width ⟷ Height (Portrait ⟷ Landscape)"
-            >
-              ⇄ Swap W/H
-            </button>
+            <div className="flex items-center gap-1.5">
+              <button
+                type="button"
+                onClick={() => setShowCropModal(true)}
+                disabled={!source}
+                className="inline-flex items-center gap-1 rounded-lg border border-cyan-500/30 bg-cyan-500/10 px-2 py-1 text-[11px] font-bold text-cyan-700 hover:bg-cyan-500/20 disabled:opacity-40 dark:text-cyan-300"
+                title="Crop image"
+              >
+                <Crop size={12} />
+                <span>Crop</span>
+              </button>
+              <button
+                type="button"
+                onClick={swapDimensions}
+                className="inline-flex items-center gap-1 rounded-lg border border-cyan-500/30 bg-cyan-500/10 px-2 py-1 text-[11px] font-bold text-cyan-700 hover:bg-cyan-500/20 dark:text-cyan-300"
+                title="Swap Width ⟷ Height (Portrait ⟷ Landscape)"
+              >
+                ⇄ Swap W/H
+              </button>
+            </div>
           </div>
 
           {/* Student & Employee Examination Form Presets */}
@@ -778,8 +1087,8 @@ export default function ImageResizerView({
               {busy
                 ? "Resizing Image..."
                 : file
-                ? `Download Resized (${isExact ? formatBytes(effectiveBytes) : `~${formatBytes(effectiveBytes)}`} • ${Math.round(targetPx.width)}×${Math.round(targetPx.height)}px)`
-                : `Download Resized Image`}
+                ? `Apply Changes & Resize (${Math.round(targetPx.width)}×${Math.round(targetPx.height)}px)`
+                : `Apply Changes & Resize`}
             </button>
 
             {lastResult && onShareFile && (
@@ -801,6 +1110,183 @@ export default function ImageResizerView({
           </div>
         </div>
       </div>
+
+      {/* Interactive Crop Modal */}
+      {showCropModal && source && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 p-2.5 sm:p-6 backdrop-blur-sm animate-in fade-in duration-150">
+          <div className="relative flex max-h-[92dvh] w-full max-w-4xl flex-col rounded-3xl border border-slate-200/80 bg-white p-3.5 sm:p-5 shadow-2xl dark:border-white/[0.1] dark:bg-slate-900 overflow-hidden">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between border-b border-slate-100 pb-2.5 sm:pb-3 dark:border-slate-800 shrink-0">
+              <div className="flex items-center gap-2 sm:gap-2.5">
+                <div className="grid h-8 sm:h-9 w-8 sm:w-9 place-items-center rounded-2xl bg-cyan-600 text-white shadow-md shadow-cyan-600/20">
+                  <Crop size={17} />
+                </div>
+                <div>
+                  <h3 className="text-sm sm:text-base font-extrabold text-slate-800 dark:text-slate-100">
+                    Crop Image
+                  </h3>
+                  <p className="text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 line-clamp-1">
+                    Drag edges, corners or select an aspect ratio preset to frame your image
+                  </p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setShowCropModal(false)}
+                className="rounded-xl p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-800 dark:hover:text-slate-200"
+                title="Close"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Aspect Ratio Presets Bar */}
+            <div className="flex items-center gap-1.5 py-2.5 sm:py-3 border-b border-slate-100 dark:border-slate-800 shrink-0 overflow-x-auto no-scrollbar flex-nowrap sm:flex-wrap">
+              <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 mr-1 shrink-0">Ratio:</span>
+              {CROP_RATIOS.map((r) => (
+                <button
+                  key={r.key}
+                  type="button"
+                  onClick={() => selectCropRatio(r.key)}
+                  className={`shrink-0 whitespace-nowrap rounded-xl px-2.5 py-1 text-xs font-bold transition-all ${
+                    cropAspectRatio === r.key
+                      ? "bg-cyan-600 text-white shadow-xs"
+                      : "bg-slate-100 text-slate-700 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
+                  }`}
+                >
+                  {r.label}
+                </button>
+              ))}
+              <div className="h-4 w-px bg-slate-200 dark:bg-white/[0.1] mx-1 shrink-0" />
+              <button
+                type="button"
+                onClick={resetCropToMax}
+                className="shrink-0 whitespace-nowrap rounded-xl border border-slate-200 bg-white px-2.5 py-1 text-xs font-bold text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300"
+              >
+                Reset / Max
+              </button>
+            </div>
+
+            {/* Interactive Crop Stage */}
+            <div className="relative flex-1 min-h-[220px] max-h-[50dvh] my-2 sm:my-3 overflow-hidden rounded-2xl border border-slate-200/80 bg-slate-950 flex items-center justify-center p-2">
+              <div
+                ref={cropContainerRef}
+                onPointerMove={handleCropContainerPointerMove}
+                onPointerUp={handleCropContainerPointerUp}
+                onPointerLeave={handleCropContainerPointerUp}
+                className="relative max-h-full max-w-full select-none touch-none inline-block overflow-hidden"
+                style={{
+                  aspectRatio: `${source.width} / ${source.height}`
+                }}
+              >
+                <img
+                  ref={cropImageRef}
+                  src={source.url}
+                  alt="Crop Stage"
+                  className="pointer-events-none block max-h-[55vh] max-w-full object-contain"
+                  draggable={false}
+                />
+
+                {/* Dimmed backdrop overlays outside crop window */}
+                <div
+                  className="absolute top-0 left-0 right-0 bg-black/60 pointer-events-none"
+                  style={{ height: `${cropNorm.y * 100}%` }}
+                />
+                <div
+                  className="absolute left-0 right-0 bottom-0 bg-black/60 pointer-events-none"
+                  style={{ top: `${(cropNorm.y + cropNorm.h) * 100}%` }}
+                />
+                <div
+                  className="absolute left-0 bg-black/60 pointer-events-none"
+                  style={{
+                    top: `${cropNorm.y * 100}%`,
+                    width: `${cropNorm.x * 100}%`,
+                    height: `${cropNorm.h * 100}%`
+                  }}
+                />
+                <div
+                  className="absolute right-0 bg-black/60 pointer-events-none"
+                  style={{
+                    top: `${cropNorm.y * 100}%`,
+                    left: `${(cropNorm.x + cropNorm.w) * 100}%`,
+                    height: `${cropNorm.h * 100}%`
+                  }}
+                />
+
+                {/* Active Crop Box with Handles */}
+                <div
+                  onPointerDown={handleCropBoxPointerDown}
+                  className="absolute cursor-move border-2 border-cyan-400 shadow-2xl ring-1 ring-white/60"
+                  style={{
+                    left: `${cropNorm.x * 100}%`,
+                    top: `${cropNorm.y * 100}%`,
+                    width: `${cropNorm.w * 100}%`,
+                    height: `${cropNorm.h * 100}%`
+                  }}
+                >
+                  {/* Rule-of-thirds grid */}
+                  <div className="absolute inset-0 grid grid-cols-3 grid-rows-3 pointer-events-none opacity-40">
+                    <div className="border-r border-b border-white/80" />
+                    <div className="border-r border-b border-white/80" />
+                    <div className="border-b border-white/80" />
+                    <div className="border-r border-b border-white/80" />
+                    <div className="border-r border-b border-white/80" />
+                    <div className="border-b border-white/80" />
+                    <div className="border-r border-b border-white/80" />
+                    <div className="border-r border-b border-white/80" />
+                    <div />
+                  </div>
+
+                  {/* Floating Pixel Dimensions Tag */}
+                  <div className="absolute -top-7 left-1/2 -translate-x-1/2 bg-slate-900/90 text-white font-mono text-[10px] font-bold px-2 py-0.5 rounded-full shadow pointer-events-none whitespace-nowrap">
+                    {Math.round(cropNorm.w * source.width)} × {Math.round(cropNorm.h * source.height)} px
+                  </div>
+
+                  {/* 8 Resize Handles */}
+                  {["nw", "n", "ne", "e", "se", "s", "sw", "w"].map((handle) => (
+                    <div
+                      key={handle}
+                      onPointerDown={(e) => handleCropHandlePointerDown(e, handle)}
+                      className={`absolute h-3.5 w-3.5 rounded-full border-2 border-white bg-cyan-500 shadow-md ${getHandleClasses(handle)}`}
+                    />
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pt-3 border-t border-slate-100 dark:border-slate-800 shrink-0">
+              <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
+                <span>Source: {source.width} × {source.height} px</span>
+                <span>→</span>
+                <span className="font-bold text-cyan-600 dark:text-cyan-400">
+                  Cropped: {Math.round(cropNorm.w * source.width)} × {Math.round(cropNorm.h * source.height)} px
+                </span>
+              </div>
+
+              <div className="flex items-center gap-2 justify-end">
+                <button
+                  type="button"
+                  onClick={() => setShowCropModal(false)}
+                  className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleApplyCrop}
+                  disabled={busy}
+                  className="rounded-xl bg-cyan-600 px-5 py-2 text-xs font-bold text-white shadow-md shadow-cyan-600/20 hover:bg-cyan-500 transition flex items-center gap-1.5"
+                >
+                  <Check size={14} />
+                  <span>Apply Crop</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

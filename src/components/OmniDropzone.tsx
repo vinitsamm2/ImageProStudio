@@ -187,21 +187,21 @@ export default function OmniDropzone({ onRouteWithFiles }: OmniDropzoneProps) {
             className="space-y-5"
           >
             {/* Detected File Banner */}
-            <div className="flex items-center justify-between rounded-2xl border border-cyan-500/20 bg-cyan-500/10 p-4 dark:bg-cyan-950/30">
-              <div className="flex items-center gap-3">
-                <div className="grid h-11 w-11 place-items-center rounded-xl bg-cyan-600 text-white shadow-md shadow-cyan-600/20">
-                  {fileType === "pdf" ? <FileText size={20} /> : <FileImage size={20} />}
+            <div className="flex items-center justify-between gap-2 rounded-2xl border border-cyan-500/20 bg-cyan-500/10 p-3 sm:p-4 dark:bg-cyan-950/30 min-w-0">
+              <div className="flex items-center gap-2.5 sm:gap-3 min-w-0 flex-1">
+                <div className="grid h-10 sm:h-11 w-10 sm:w-11 shrink-0 place-items-center rounded-xl bg-cyan-600 text-white shadow-md shadow-cyan-600/20">
+                  {fileType === "pdf" ? <FileText size={18} /> : <FileImage size={18} />}
                 </div>
-                <div>
+                <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2">
-                    <span className="text-xs font-bold uppercase tracking-wider text-cyan-700 dark:text-cyan-300">
+                    <span className="text-xs font-bold uppercase tracking-wider text-cyan-700 dark:text-cyan-300 truncate">
                       {fileType === "pdf" ? "PDF Document Detected" : "Image File(s) Detected"}
                     </span>
-                    <span className="rounded-full bg-cyan-600 px-2 py-0.2 text-[10px] font-bold text-white">
+                    <span className="shrink-0 rounded-full bg-cyan-600 px-2 py-0.2 text-[10px] font-bold text-white">
                       {detectedFiles.length} {detectedFiles.length === 1 ? "file" : "files"}
                     </span>
                   </div>
-                  <p className="font-mono text-xs font-semibold text-slate-800 dark:text-slate-200">
+                  <p className="font-mono text-xs font-semibold text-slate-800 dark:text-slate-200 truncate">
                     {detectedFiles[0]?.name}
                     {detectedFiles.length > 1 && ` + ${detectedFiles.length - 1} more`}
                     <span className="ml-2 font-normal text-slate-500">

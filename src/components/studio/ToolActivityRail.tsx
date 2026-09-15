@@ -12,16 +12,13 @@ import {
   FileSignature,
   FileText,
   Grid,
-  Info,
   Layers,
-  Moon,
   Percent,
   RefreshCw,
   RotateCw,
   Scissors,
   Sparkles,
   Stamp,
-  Sun,
   Wand2,
   FileType
 } from "lucide-react";
@@ -229,9 +226,9 @@ type ToolActivityRailProps = {
   onSelectTool: (id: ToolId) => void;
   onToggleCatalog: () => void;
   isCatalogOpen: boolean;
-  onOpenAbout: () => void;
-  dark: boolean;
-  onToggleDark: () => void;
+  onOpenAbout?: () => void;
+  dark?: boolean;
+  onToggleDark?: () => void;
   collapsed: boolean;
   onToggleCollapsed: () => void;
 };
@@ -427,40 +424,12 @@ export default function ToolActivityRail({
           </button>
         )}
 
-        {/* About Us Button */}
-        <button
-          type="button"
-          onClick={onOpenAbout}
-          className={`flex w-full items-center gap-2.5 rounded-xl px-2.5 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-white/[0.06] dark:hover:text-white transition ${
-            collapsed ? "justify-center px-0" : ""
-          }`}
-          title="About ImagePro Studio & Privacy Guarantee"
-        >
-          <Info size={15} className="text-cyan-500 shrink-0" />
-          {!collapsed && <span>About Us</span>}
-        </button>
-
-        {/* Theme & Workspace Controls */}
-        <div className="flex items-center justify-between gap-1">
-          <button
-            type="button"
-            onClick={onToggleDark}
-            className={`flex items-center gap-2 rounded-xl p-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-white/[0.06] dark:hover:text-white ${
-              collapsed ? "w-full justify-center" : ""
-            }`}
-            title={`Toggle ${dark ? "Light" : "Dark"} mode`}
-          >
-            {dark ? <Sun size={15} className="text-amber-400" /> : <Moon size={15} />}
-            {!collapsed && <span>{dark ? "Light Mode" : "Dark Mode"}</span>}
-          </button>
-
-          {!collapsed && (
-            <div className="flex items-center gap-1.5 text-[10px] font-extrabold text-emerald-600 dark:text-emerald-400" title="100% Free Unlimited Use">
-              <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
-              <span>100% Free</span>
-            </div>
-          )}
-        </div>
+        {!collapsed && (
+          <div className="flex items-center gap-1.5 px-2 py-1 text-[10px] font-extrabold text-emerald-600 dark:text-emerald-400" title="100% Free Unlimited Use">
+            <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+            <span>100% Free & Unlimited</span>
+          </div>
+        )}
 
         {!collapsed && (
           <div className="pt-2 border-t border-slate-200/60 dark:border-white/[0.05] px-1 text-[10px]">

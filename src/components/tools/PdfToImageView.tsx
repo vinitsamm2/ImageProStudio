@@ -450,11 +450,15 @@ export default function PdfToImageView({
 
                     <div className="flex items-center gap-1.5">
                       <button
-                        onClick={() => downloadBlob(out.blob, out.name)}
+                        onClick={() =>
+                          onShareFile
+                            ? onShareFile({ name: out.name, blob: out.blob })
+                            : downloadBlob(out.blob, out.name)
+                        }
                         className="btn-primary flex-1 py-1.5 text-xs flex items-center justify-center gap-1"
                       >
                         <Download size={13} />
-                        <span>Download {out.name.split(".").pop()?.toUpperCase() || "Image"}</span>
+                        <span>Download / QR ({out.name.split(".").pop()?.toUpperCase() || "Image"})</span>
                       </button>
                       {onShareFile && (
                         <button
@@ -1012,21 +1016,25 @@ export default function PdfToImageView({
             <FileImage size={16} />
             {busy
               ? `Rendering ${activeFormat.ext.toUpperCase()} Images...`
-              : `Render ${pageCount} ${activeFormat.ext.toUpperCase()} Page(s) (~${formatBytes(estimatedTotalBytes)} • ${estimatedW}×${estimatedH}px)`}
+              : `Apply Changes & Convert to ${activeFormat.ext.toUpperCase()} (${pageCount} Pages)`}
           </button>
 
           {outputs.length > 0 && (
             <button
               className="btn-secondary w-full"
               onClick={() => {
-                const extLabel = activeFormat.ext.toLowerCase();
-                return outputs.length === 1
-                  ? downloadBlob(outputs[0].blob, outputs[0].name)
-                  : zipAndDownload(outputs, `imagepro-pdf-${extLabel}-images.zip`);
+                if (outputs.length === 1 && onShareFile) {
+                  onShareFile({ name: outputs[0].name, blob: outputs[0].blob });
+                } else {
+                  const extLabel = activeFormat.ext.toLowerCase();
+                  outputs.length === 1
+                    ? downloadBlob(outputs[0].blob, outputs[0].name)
+                    : zipAndDownload(outputs, `imagepro-pdf-${extLabel}-images.zip`);
+                }
               }}
             >
               <Download size={16} />
-              Download {outputs.length > 1 ? `ZIP (${outputs.length} ${activeFormat.ext.toUpperCase()} Images)` : `${activeFormat.ext.toUpperCase()} Image`}
+              Download / QR Code ({outputs.length > 1 ? `ZIP (${outputs.length} ${activeFormat.ext.toUpperCase()} Images)` : `${activeFormat.ext.toUpperCase()} Image`})
             </button>
           )}
         </div>

@@ -277,12 +277,16 @@ export default function ImageConverterView({
                   </div>
                   <div className="flex items-center gap-1.5 shrink-0">
                     <button
-                      onClick={() => downloadBlob(item.blob, item.name)}
+                      onClick={() =>
+                        onShareFile
+                          ? onShareFile(new File([item.blob], item.name, { type: activeDef.mime }))
+                          : downloadBlob(item.blob, item.name)
+                      }
                       className="btn-secondary h-8 px-2.5 text-xs font-semibold"
-                      title="Download converted image"
+                      title="Download or scan QR code"
                     >
                       <Download size={13} />
-                      Save
+                      Download / QR
                     </button>
                     {onShareFile && (
                       <button
@@ -530,7 +534,7 @@ export default function ImageConverterView({
             <RefreshCw size={16} />
             {busy
               ? `Converting to ${activeDef.ext.toUpperCase()}...`
-              : `Convert to ${activeDef.ext.toUpperCase()} (${files.length})`}
+              : `Apply Changes & Convert to ${activeDef.ext.toUpperCase()} (${files.length})`}
           </button>
 
           {outputs.length > 0 && (
@@ -538,14 +542,21 @@ export default function ImageConverterView({
               <button
                 type="button"
                 className="btn-secondary w-full"
-                onClick={() =>
-                  outputs.length === 1
-                    ? downloadBlob(outputs[0].blob, outputs[0].name)
-                    : zipAndDownload(outputs, `imagepro-converted-${activeDef.ext}.zip`)
-                }
+                onClick={async () => {
+                  if (outputs.length === 1 && onShareFile) {
+                    onShareFile(new File([outputs[0].blob], outputs[0].name, { type: activeDef.mime }));
+                  } else if (onShareFile) {
+                    const zipBlob = await createZipBlob(outputs);
+                    onShareFile(new File([zipBlob], `imagepro-converted-${activeDef.ext}.zip`, { type: "application/zip" }));
+                  } else {
+                    outputs.length === 1
+                      ? downloadBlob(outputs[0].blob, outputs[0].name)
+                      : zipAndDownload(outputs, `imagepro-converted-${activeDef.ext}.zip`);
+                  }
+                }}
               >
                 <Download size={16} />
-                Download {outputs.length > 1 ? `ZIP (${outputs.length} files)` : `${activeDef.ext.toUpperCase()} File`}
+                Download / QR Code ({outputs.length > 1 ? `ZIP (${outputs.length} files)` : `${activeDef.ext.toUpperCase()} File`})
               </button>
               {onShareFile && (
                 <button

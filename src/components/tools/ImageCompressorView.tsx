@@ -423,11 +423,20 @@ export default function ImageCompressorView({
                       </div>
                       <div className="flex items-center gap-1.5">
                         <button
-                          onClick={() => downloadBlob(result.blob, result.name)}
+                          onClick={() =>
+                            onShareFile
+                              ? onShareFile({
+                                  name: result.name,
+                                  blob: result.blob,
+                                  size: result.blob.size,
+                                  url: result.url
+                                })
+                              : downloadBlob(result.blob, result.name)
+                          }
                           className="btn-secondary flex-1 py-1.5 text-xs flex items-center justify-center gap-1"
                         >
                           <Download size={13} />
-                          <span>Download</span>
+                          <span>Download / QR</span>
                         </button>
                         {onShareFile && (
                           <button
@@ -676,20 +685,29 @@ export default function ImageCompressorView({
               <Zap size={16} />
               {busy
                 ? "Compressing Files..."
-                : `Compress & Reduce Size (${files.length ? `${files.length} file${files.length > 1 ? "s" : ""}` : "0"})`}
+                : `Apply Changes & Compress (${files.length ? `${files.length} file${files.length > 1 ? "s" : ""}` : "0"})`}
             </button>
 
             {results.length > 0 && (
               <button
                 className="btn-secondary w-full"
-                onClick={() =>
-                  results.length === 1
-                    ? downloadBlob(results[0].blob, results[0].name)
-                    : zipAndDownload(results, "imagepro-compressed.zip")
-                }
+                onClick={() => {
+                  if (results.length === 1 && onShareFile) {
+                    onShareFile({
+                      name: results[0].name,
+                      blob: results[0].blob,
+                      size: results[0].blob.size,
+                      url: results[0].url
+                    });
+                  } else {
+                    results.length === 1
+                      ? downloadBlob(results[0].blob, results[0].name)
+                      : zipAndDownload(results, "imagepro-compressed.zip");
+                  }
+                }}
               >
                 <Download size={16} />
-                Download {results.length > 1 ? "All as ZIP" : "Compressed File"}
+                Download / QR Code ({results.length > 1 ? "All as ZIP" : "Compressed File"})
               </button>
             )}
           </div>

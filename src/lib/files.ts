@@ -1,6 +1,6 @@
 import JSZip from "jszip";
-import { PDFDocument, rgb, degrees, StandardFonts } from "pdf-lib";
-import { getDocument, GlobalWorkerOptions } from "pdfjs-dist";
+import { PDFDocument, rgb, degrees, StandardFonts, PDFName, PDFDict } from "pdf-lib";
+import { getDocument, GlobalWorkerOptions, OPS } from "pdfjs-dist";
 import workerUrl from "pdfjs-dist/build/pdf.worker.mjs?url";
 
 // Standard worker initialization in Vite
@@ -324,6 +324,52 @@ export async function resizeImage(
 
   ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
   return await canvasToBlob(canvas, type, quality);
+}
+
+// Crops an image to specific pixel bounds and returns a new File and ImageItem
+export async function cropImageFile(
+  file: File,
+  cropX: number,
+  cropY: number,
+  cropW: number,
+  cropH: number,
+  mimeType = file.type || "image/png",
+  quality = 0.95
+): Promise<{ blob: Blob; file: File; imageItem: ImageItem }> {
+  const image = await loadBitmap(file);
+  const safeW = Math.max(1, Math.round(cropW));
+  const safeH = Math.max(1, Math.round(cropH));
+  const safeX = Math.max(0, Math.min(image.naturalWidth - safeW, Math.round(cropX)));
+  const safeY = Math.max(0, Math.min(image.naturalHeight - safeH, Math.round(cropY)));
+
+  const canvas = buildCanvas(safeW, safeH);
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("2D Canvas context is not supported in this browser.");
+
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = "high";
+
+  if (mimeType === "image/jpeg") {
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+  }
+
+  ctx.drawImage(image, safeX, safeY, safeW, safeH, 0, 0, safeW, safeH);
+  const blob = await canvasToBlob(canvas, mimeType, quality);
+  const originalName = file.name.replace(/\.[^/.]+$/, "");
+  const ext = mimeType.includes("jpeg") || mimeType.includes("jpg") ? "jpg" : "png";
+  const croppedFile = new File([blob], `${originalName}-cropped.${ext}`, {
+    type: mimeType
+  });
+  const imageItem: ImageItem = {
+    id: uid("cropped"),
+    file: croppedFile,
+    url: URL.createObjectURL(blob),
+    width: safeW,
+    height: safeH,
+    rotation: 0
+  };
+  return { blob, file: croppedFile, imageItem };
 }
 
 // Compresses or converts image to given format & quality
@@ -1114,12 +1160,18 @@ export async function signPdf(
   return bytesToBlob(outputBytes, "application/pdf");
 }
 
-export async function renderPdfPageToDataUrl(
+export interface RenderedPdfPage {
+  dataUrl: string;
+  width: number;
+  height: number;
+}
+
+export async function renderPdfPageDetails(
   file: File,
   pageNumber: number,
   scale = 1.5,
   rotation = 0
-): Promise<string> {
+): Promise<RenderedPdfPage> {
   const buffer = await file.arrayBuffer();
   const loadingTask = getDocument({ data: new Uint8Array(buffer) });
   const pdf = await loadingTask.promise;
@@ -1132,7 +1184,380 @@ export async function renderPdfPageToDataUrl(
   ctx.fillStyle = "#ffffff";
   ctx.fillRect(0, 0, viewport.width, viewport.height);
   await page.render({ canvasContext: ctx, viewport, canvas }).promise;
-  return canvas.toDataURL("image/jpeg", 0.92);
+  return {
+    dataUrl: canvas.toDataURL("image/jpeg", 0.92),
+    width: viewport.width / scale,
+    height: viewport.height / scale
+  };
+}
+
+export async function renderPdfPageToDataUrl(
+  file: File,
+  pageNumber: number,
+  scale = 1.5,
+  rotation = 0
+): Promise<string> {
+  const details = await renderPdfPageDetails(file, pageNumber, scale, rotation);
+  return details.dataUrl;
+}
+
+export interface PdfExtractedTextItem {
+  id: string;
+  pageIndex: number; // 0-indexed
+  text: string;
+  xNorm: number;
+  yNorm: number;
+  widthNorm: number;
+  heightNorm: number;
+  fontSize: number;
+  fontFamily: "sans" | "serif" | "mono" | "cursive";
+  fontWeight: "normal" | "bold";
+  fontStyle: "normal" | "italic";
+  actualFontName?: string;
+  color: string;
+}
+
+export async function extractPdfPageTextItems(
+  file: File,
+  pageNumber: number,
+  rotation = 0
+): Promise<PdfExtractedTextItem[]> {
+  try {
+    const buffer = await file.arrayBuffer();
+    const loadingTask = getDocument({ data: new Uint8Array(buffer) });
+    const pdf = await loadingTask.promise;
+    if (pageNumber < 1 || pageNumber > pdf.numPages) return [];
+    const page = await pdf.getPage(pageNumber);
+    const totalRotation = (((page.rotate || 0) + rotation) % 360 + 360) % 360;
+    const viewport = page.getViewport({ scale: 1.0, rotation: totalRotation });
+    const textContent = await page.getTextContent();
+    const styles = (textContent.styles || {}) as Record<
+      string,
+      { fontFamily?: string; ascent?: number; descent?: number; vertical?: boolean }
+    >;
+    const items = textContent.items as Array<{
+      str: string;
+      transform: number[];
+      width: number;
+      height: number;
+      fontName?: string;
+    }>;
+
+    if (!items || items.length === 0) return [];
+
+    interface RawSpan {
+      text: string;
+      xNorm: number;
+      yNorm: number;
+      widthNorm: number;
+      heightNorm: number;
+      fontSize: number;
+      fontFamily: "sans" | "serif" | "mono" | "cursive";
+      fontWeight: "normal" | "bold";
+      fontStyle: "normal" | "italic";
+      actualFontName?: string;
+    }
+
+    const rawSpans: RawSpan[] = [];
+
+    for (const item of items) {
+      if (!item.str || item.str.trim().length === 0) continue;
+
+      const tx = item.transform[4];
+      const ty = item.transform[5];
+
+      // Vertical scale in transform matrix gives true nominal font point size
+      const verticalPt = Math.hypot(item.transform[2], item.transform[3]) || Math.abs(item.transform[3]) || 0;
+      const horizontalPt = Math.hypot(item.transform[0], item.transform[1]) || Math.abs(item.transform[0]) || 0;
+      const rawHeight = Math.abs(item.height || 0);
+
+      let fontSize = Math.round(verticalPt || horizontalPt || rawHeight || 12);
+      if (fontSize < 6) fontSize = 12;
+
+      const itemWidth = Math.max(2, item.width || fontSize * (item.str.length * 0.5));
+      const itemHeight = Math.max(fontSize, item.height || fontSize);
+
+      const c1 = viewport.convertToViewportPoint(tx, ty);
+      const c2 = viewport.convertToViewportPoint(tx + itemWidth, ty);
+      const c3 = viewport.convertToViewportPoint(tx, ty + itemHeight);
+      const c4 = viewport.convertToViewportPoint(tx + itemWidth, ty + itemHeight);
+
+      const minVx = Math.min(c1[0], c2[0], c3[0], c4[0]);
+      const maxVx = Math.max(c1[0], c2[0], c3[0], c4[0]);
+      const minVy = Math.min(c1[1], c2[1], c3[1], c4[1]);
+      const maxVy = Math.max(c1[1], c2[1], c3[1], c4[1]);
+
+      const xNorm = Math.max(0, Math.min(0.99, minVx / viewport.width));
+      const yNorm = Math.max(0, Math.min(0.99, minVy / viewport.height));
+      const widthNorm = Math.max(0.005, Math.min(1 - xNorm, (maxVx - minVx) / viewport.width));
+      const heightNorm = Math.max(0.008, Math.min(1 - yNorm, (maxVy - minVy) / viewport.height));
+
+      // Extract comprehensive font family, weight, style and actual name from both item fontName & textContent.styles
+      const fontStyleObj = item.fontName ? styles[item.fontName] : undefined;
+      const fontCombined = `${item.fontName || ""} ${fontStyleObj?.fontFamily || ""}`.toLowerCase();
+
+      let fontFamily: "sans" | "serif" | "mono" | "cursive" = "sans";
+      if (
+        fontCombined.includes("times") ||
+        fontCombined.includes("serif") ||
+        fontCombined.includes("georgia") ||
+        fontCombined.includes("cambria") ||
+        fontCombined.includes("garamond") ||
+        fontCombined.includes("palatino") ||
+        fontCombined.includes("baskerville") ||
+        fontCombined.includes("minion") ||
+        fontCombined.includes("roman") ||
+        fontCombined.includes("caslon") ||
+        fontCombined.includes("bookman") ||
+        fontCombined.includes("century")
+      ) {
+        fontFamily = "serif";
+      } else if (
+        fontCombined.includes("courier") ||
+        fontCombined.includes("mono") ||
+        fontCombined.includes("consolas") ||
+        fontCombined.includes("menlo") ||
+        fontCombined.includes("monaco") ||
+        fontCombined.includes("typewriter")
+      ) {
+        fontFamily = "mono";
+      } else if (
+        fontCombined.includes("script") ||
+        fontCombined.includes("cursive") ||
+        fontCombined.includes("brush") ||
+        fontCombined.includes("calli") ||
+        fontCombined.includes("handwriting") ||
+        fontCombined.includes("comic")
+      ) {
+        fontFamily = "cursive";
+      } else {
+        fontFamily = "sans";
+      }
+
+      const fontWeight =
+        fontCombined.includes("bold") ||
+        fontCombined.includes("black") ||
+        fontCombined.includes("heavy") ||
+        fontCombined.includes("semibold") ||
+        fontCombined.includes("demibold") ||
+        fontCombined.includes("-b") ||
+        fontCombined.includes("bd") ||
+        fontCombined.includes("700") ||
+        fontCombined.includes("800") ||
+        fontCombined.includes("900")
+          ? "bold"
+          : "normal";
+
+      const fontStyle =
+        fontCombined.includes("italic") ||
+        fontCombined.includes("oblique") ||
+        fontCombined.includes("slanted") ||
+        fontCombined.includes("-i") ||
+        fontCombined.includes("it")
+          ? "italic"
+          : "normal";
+
+      let actualFontName = fontStyleObj?.fontFamily || item.fontName || "";
+      actualFontName = actualFontName.replace(/^[A-Z]{6}\+/, "");
+      actualFontName = actualFontName.split(",")[0].trim().replace(/['"]/g, "");
+      if (/^g_d\d+_f\d+$/i.test(actualFontName) || /^f\d+$/i.test(actualFontName)) {
+        actualFontName = "";
+      }
+
+      rawSpans.push({
+        text: item.str,
+        xNorm,
+        yNorm,
+        widthNorm,
+        heightNorm,
+        fontSize,
+        fontFamily,
+        fontWeight,
+        fontStyle,
+        actualFontName: actualFontName || undefined
+      });
+    }
+
+    if (rawSpans.length === 0) return [];
+
+    rawSpans.sort((a, b) => {
+      const dy = a.yNorm - b.yNorm;
+      if (Math.abs(dy) > 0.008) return dy;
+      return a.xNorm - b.xNorm;
+    });
+
+    const clustered: PdfExtractedTextItem[] = [];
+    let currentGroup: RawSpan[] = [];
+
+    const flushGroup = () => {
+      if (currentGroup.length === 0) return;
+      const first = currentGroup[0];
+      const minX = Math.min(...currentGroup.map((g) => g.xNorm));
+      const maxX = Math.max(...currentGroup.map((g) => g.xNorm + g.widthNorm));
+      const minY = Math.min(...currentGroup.map((g) => g.yNorm));
+      const maxY = Math.max(...currentGroup.map((g) => g.yNorm + g.heightNorm));
+
+      let combinedText = "";
+      for (let i = 0; i < currentGroup.length; i++) {
+        const g = currentGroup[i];
+        if (i === 0) {
+          combinedText = g.text;
+        } else {
+          const prev = currentGroup[i - 1];
+          const prevRight = prev.xNorm + prev.widthNorm;
+          if (g.xNorm - prevRight > 0.003 && !combinedText.endsWith(" ") && !g.text.startsWith(" ")) {
+            combinedText += " " + g.text;
+          } else {
+            combinedText += g.text;
+          }
+        }
+      }
+
+      combinedText = combinedText.trim();
+      if (combinedText.length > 0) {
+        clustered.push({
+          id: `extracted-${pageNumber}-${clustered.length}-${uid("txt")}`,
+          pageIndex: pageNumber - 1,
+          text: combinedText,
+          xNorm: minX,
+          yNorm: minY,
+          widthNorm: Math.max(0.015, maxX - minX),
+          heightNorm: Math.max(0.012, maxY - minY),
+          fontSize: first.fontSize,
+          fontFamily: first.fontFamily,
+          fontWeight: first.fontWeight,
+          fontStyle: first.fontStyle,
+          actualFontName: first.actualFontName,
+          color: "#0f172a"
+        });
+      }
+      currentGroup = [];
+    };
+
+    for (const span of rawSpans) {
+      if (currentGroup.length === 0) {
+        currentGroup.push(span);
+        continue;
+      }
+
+      const prev = currentGroup[currentGroup.length - 1];
+      const sameLine = Math.abs(span.yNorm - prev.yNorm) < 0.007;
+      const prevRight = prev.xNorm + prev.widthNorm;
+      const gap = span.xNorm - prevRight;
+
+      if (sameLine && gap < 0.08 && Math.abs(span.fontSize - prev.fontSize) <= 4) {
+        currentGroup.push(span);
+      } else {
+        flushGroup();
+        currentGroup = [span];
+      }
+    }
+    flushGroup();
+
+    return clustered;
+  } catch (err) {
+    console.warn("Error extracting PDF page text items:", err);
+    return [];
+  }
+}
+
+export interface PdfExtractedImageItem {
+  id: string;
+  pageIndex: number;
+  name: string;
+  xNorm: number;
+  yNorm: number;
+  widthNorm: number;
+  heightNorm: number;
+}
+
+/**
+ * Extracts embedded images and logos from a PDF page with precise bounding boxes
+ */
+export async function extractPdfPageImages(
+  file: File,
+  pageNumber: number,
+  rotation = 0
+): Promise<PdfExtractedImageItem[]> {
+  try {
+    const buffer = await file.arrayBuffer();
+    const loadingTask = getDocument({ data: new Uint8Array(buffer) });
+    const pdf = await loadingTask.promise;
+    if (pageNumber < 1 || pageNumber > pdf.numPages) return [];
+    const page = await pdf.getPage(pageNumber);
+    const totalRotation = (((page.rotate || 0) + rotation) % 360 + 360) % 360;
+    const viewport = page.getViewport({ scale: 1.0, rotation: totalRotation });
+    const ops = await page.getOperatorList();
+
+    const multiplyMatrix = (m1: number[], m2: number[]) => [
+      m1[0] * m2[0] + m1[2] * m2[1],
+      m1[1] * m2[0] + m1[3] * m2[1],
+      m1[0] * m2[2] + m1[2] * m2[3],
+      m1[1] * m2[2] + m1[3] * m2[3],
+      m1[0] * m2[4] + m1[2] * m2[5] + m1[4],
+      m1[1] * m2[4] + m1[3] * m2[5] + m1[5]
+    ];
+
+    let ctm = [1, 0, 0, 1, 0, 0];
+    const ctmStack: number[][] = [];
+    const images: PdfExtractedImageItem[] = [];
+
+    const opSave = (OPS as any).save || 10;
+    const opRestore = (OPS as any).restore || 11;
+    const opTransform = (OPS as any).transform || 12;
+    const opPaintImage = (OPS as any).paintImageXObject || 85;
+    const opPaintInline = (OPS as any).paintInlineImageXObject || 86;
+    const opPaintImageRepeat = (OPS as any).paintImageXObjectRepeat || 88;
+
+    for (let i = 0; i < ops.fnArray.length; i++) {
+      const fn = ops.fnArray[i];
+      const args = ops.argsArray[i];
+
+      if (fn === opSave) {
+        ctmStack.push([...ctm]);
+      } else if (fn === opRestore) {
+        if (ctmStack.length > 0) ctm = ctmStack.pop()!;
+      } else if (fn === opTransform && Array.isArray(args)) {
+        ctm = multiplyMatrix(ctm, args);
+      } else if (fn === opPaintImage || fn === opPaintInline || fn === opPaintImageRepeat) {
+        const name = args && args[0] ? String(args[0]) : `img_${i}`;
+        const p0 = viewport.convertToViewportPoint(ctm[4], ctm[5]);
+        const p1 = viewport.convertToViewportPoint(ctm[0] + ctm[4], ctm[1] + ctm[5]);
+        const p2 = viewport.convertToViewportPoint(ctm[2] + ctm[4], ctm[3] + ctm[5]);
+        const p3 = viewport.convertToViewportPoint(ctm[0] + ctm[2] + ctm[4], ctm[1] + ctm[3] + ctm[5]);
+
+        const minX = Math.min(p0[0], p1[0], p2[0], p3[0]);
+        const maxX = Math.max(p0[0], p1[0], p2[0], p3[0]);
+        const minY = Math.min(p0[1], p1[1], p2[1], p3[1]);
+        const maxY = Math.max(p0[1], p1[1], p2[1], p3[1]);
+
+        const w = maxX - minX;
+        const h = maxY - minY;
+
+        if (w >= 4 && h >= 4 && viewport.width > 0 && viewport.height > 0) {
+          const xNorm = Math.max(0, Math.min(1, minX / viewport.width));
+          const yNorm = Math.max(0, Math.min(1, minY / viewport.height));
+          const widthNorm = Math.max(0, Math.min(1 - xNorm, w / viewport.width));
+          const heightNorm = Math.max(0, Math.min(1 - yNorm, h / viewport.height));
+
+          images.push({
+            id: `img-${pageNumber - 1}-${i}-${name}`,
+            pageIndex: pageNumber - 1,
+            name,
+            xNorm,
+            yNorm,
+            widthNorm,
+            heightNorm
+          });
+        }
+      }
+    }
+
+    return images;
+  } catch (err) {
+    console.warn("Error extracting PDF page images:", err);
+    return [];
+  }
 }
 
 export type PdfAnnotationType =
@@ -1144,6 +1569,7 @@ export type PdfAnnotationType =
   | "line"
   | "arrow"
   | "redact"
+  | "erase"
   | "stamp"
   | "image";
 
@@ -1169,8 +1595,13 @@ export interface PdfAnnotation {
   fontFamily?: "sans" | "serif" | "mono" | "cursive";
   fontWeight?: "normal" | "bold";
   fontStyle?: "normal" | "italic";
+  actualFontName?: string;
   textColor?: string;
   textHighlightColor?: string; // background highlight behind text
+  underlayWhiteout?: boolean; // whiteout/patch under text to conceal original PDF text
+  whiteoutColor?: string; // custom whiteout/patch background color (default #ffffff)
+  isOriginalTextEdit?: boolean; // true if this annotation modifies/replaces original PDF text
+  originalText?: string; // original unedited text for comparison
 
   // Line / Stroke / Shape properties
   strokeColor?: string;
@@ -1182,6 +1613,10 @@ export interface PdfAnnotation {
   stampLabel?: string;
   stampColor?: string;
   imageDataUrl?: string;
+
+  // Erase / Inpaint / Logo removal properties
+  eraseMode?: "inpaint" | "solid";
+  deletedImageName?: string;
 }
 
 export interface EditorPagePlanItem {
@@ -1222,11 +1657,28 @@ function drawRoundedRect(
 export async function compileEditedPdf(
   file: File,
   pagesPlan: EditorPagePlanItem[],
-  annotations: PdfAnnotation[]
+  annotations: PdfAnnotation[],
+  deletedImageNames: string[] = []
 ): Promise<Blob> {
   const buffer = await file.arrayBuffer();
   const srcDoc = await PDFDocument.load(buffer, { ignoreEncryption: true });
   const newDoc = await PDFDocument.create();
+
+  // 1x1 transparent PNG to cleanly replace deleted image XObjects without affecting background
+  const transparentPngBase64 =
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=";
+  const binaryTr = atob(transparentPngBase64);
+  const bytesTr = new Uint8Array(binaryTr.length);
+  for (let b = 0; b < binaryTr.length; b++) bytesTr[b] = binaryTr.charCodeAt(b);
+  let transparentPngRef: any = null;
+  if (deletedImageNames && deletedImageNames.length > 0) {
+    try {
+      const embeddedEmpty = await newDoc.embedPng(bytesTr);
+      transparentPngRef = embeddedEmpty.ref;
+    } catch {
+      // fallback
+    }
+  }
 
   // Preload all image assets used across all annotations
   const imageCache = new Map<string, HTMLImageElement>();
@@ -1253,6 +1705,31 @@ export async function compileEditedPdf(
     ) {
       const [copied] = await newDoc.copyPages(srcDoc, [plan.originalPage - 1]);
       page = newDoc.addPage(copied);
+
+      // If any deleted images, replace their XObjects so underlying vector/raster background is untouched
+      if (deletedImageNames && deletedImageNames.length > 0 && transparentPngRef) {
+        try {
+          const res = page.node.Resources();
+          if (res) {
+            const xObj = res.lookup(PDFName.of("XObject"));
+            if (xObj && xObj instanceof PDFDict) {
+              const keys = typeof (xObj as any).keys === "function" ? (xObj as any).keys() : Array.from((xObj as any).dict?.keys?.() || []);
+              for (const key of keys) {
+                const rawName = (
+                  typeof (key as any).asString === "function"
+                    ? (key as any).asString()
+                    : String((key as any).encodedName || (key as any).name || key)
+                ).replace(/^\//, "");
+                if (deletedImageNames.some((d) => d === rawName || rawName.includes(d))) {
+                  xObj.set(key, transparentPngRef);
+                }
+              }
+            }
+          }
+        } catch (xErr) {
+          console.warn("Could not suppress deleted image XObject:", xErr);
+        }
+      }
     } else {
       // Standard A4 page: 595.28 x 841.89 points
       page = newDoc.addPage([595.28, 841.89]);
@@ -1296,33 +1773,50 @@ export async function compileEditedPdf(
 
       switch (ann.type) {
         case "text": {
-          if (ann.textHighlightColor && ann.textHighlightColor !== "transparent") {
-            ctx.fillStyle = ann.textHighlightColor;
+          const hasWhiteout =
+            ann.underlayWhiteout ||
+            ann.isOriginalTextEdit ||
+            (ann.textHighlightColor && ann.textHighlightColor !== "transparent");
+          const whiteoutBg =
+            ann.whiteoutColor ||
+            (ann.textHighlightColor && ann.textHighlightColor !== "transparent"
+              ? ann.textHighlightColor
+              : "#ffffff");
+
+          if (hasWhiteout) {
+            ctx.fillStyle = whiteoutBg;
             ctx.fillRect(ax - 2, ay - 2, aw + 4, ah + 4);
           }
-          const weight = ann.fontWeight === "bold" ? "bold " : "";
-          const style = ann.fontStyle === "italic" ? "italic " : "";
-          const fSize = ann.fontSize || 16;
-          let fontFam = "sans-serif";
-          if (ann.fontFamily === "serif") fontFam = "Georgia, serif";
-          else if (ann.fontFamily === "mono") fontFam = "'Courier New', monospace";
-          else if (ann.fontFamily === "cursive") fontFam = "'Dancing Script', 'Brush Script MT', cursive";
-          else fontFam = "Inter, -apple-system, sans-serif";
 
-          ctx.font = `${weight}${style}${fSize}px ${fontFam}`;
-          ctx.fillStyle = ann.textColor || "#0f172a";
-          ctx.textBaseline = "top";
+          if (ann.text && ann.text.length > 0) {
+            const weight = ann.fontWeight === "bold" ? "bold " : "";
+            const style = ann.fontStyle === "italic" ? "italic " : "";
+            const fSize = ann.fontSize || 16;
+            const actualPrefix = ann.actualFontName ? `"${ann.actualFontName}", ` : "";
+            let fontFam = `${actualPrefix}Arial, Helvetica, "Plus Jakarta Sans", Inter, -apple-system, sans-serif`;
+            if (ann.fontFamily === "serif") {
+              fontFam = `${actualPrefix}"Times New Roman", Times, Georgia, Cambria, serif`;
+            } else if (ann.fontFamily === "mono") {
+              fontFam = `${actualPrefix}"Courier New", Courier, Consolas, monospace`;
+            } else if (ann.fontFamily === "cursive") {
+              fontFam = `${actualPrefix}"Brush Script MT", "Dancing Script", cursive`;
+            }
 
-          const lines = (ann.text || "").split("\n");
-          const lineHeight = fSize * 1.25;
-          for (let li = 0; li < lines.length; li++) {
-            ctx.fillText(lines[li], ax, ay + li * lineHeight);
+            ctx.font = `${weight}${style}${fSize}px ${fontFam}`;
+            ctx.fillStyle = ann.textColor || "#0f172a";
+            ctx.textBaseline = "top";
+
+            const lines = ann.text.split("\n");
+            const lineHeight = fSize * 1.25;
+            lines.forEach((line, i) => {
+              ctx.fillText(line, ax, ay + i * lineHeight);
+            });
           }
           break;
         }
 
         case "freehand": {
-          if (ann.points && ann.points.length > 0) {
+          if (ann.points && ann.points.length > 1) {
             ctx.strokeStyle = ann.strokeColor || "#0284c7";
             ctx.lineWidth = ann.strokeWidth || 3;
             ctx.lineCap = "round";
@@ -1331,8 +1825,8 @@ export async function compileEditedPdf(
             const p0 = ann.points[0];
             ctx.moveTo(p0.x * width, p0.y * height);
             for (let i = 1; i < ann.points.length; i++) {
-              const p = ann.points[i];
-              ctx.lineTo(p.x * width, p.y * height);
+              const pt = ann.points[i];
+              ctx.lineTo(pt.x * width, pt.y * height);
             }
             ctx.stroke();
           }
@@ -1343,6 +1837,19 @@ export async function compileEditedPdf(
           ctx.fillStyle = ann.fillColor || "#fef08a";
           ctx.globalAlpha = 0.45;
           ctx.fillRect(ax, ay, aw, ah);
+          break;
+        }
+
+        case "erase": {
+          if (ann.imageDataUrl && imageCache.has(ann.imageDataUrl)) {
+            const img = imageCache.get(ann.imageDataUrl)!;
+            ctx.drawImage(img, ax, ay, aw, ah);
+          } else {
+            // Cleanly erase logo, text, stamp, or background element with matching color
+            ctx.fillStyle = ann.fillColor || "#ffffff";
+            ctx.globalAlpha = typeof ann.opacity === "number" ? ann.opacity : 1.0;
+            ctx.fillRect(ax - 1, ay - 1, aw + 2, ah + 2);
+          }
           break;
         }
 

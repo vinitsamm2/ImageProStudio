@@ -195,7 +195,11 @@ export default function PdfCompressorView({
   const handleDownloadAll = async () => {
     if (results.length === 0) return;
     if (results.length === 1) {
-      downloadBlob(results[0].blob, results[0].name);
+      if (onShareFile) {
+        onShareFile({ name: results[0].name, blob: results[0].blob, size: results[0].compressedSize });
+      } else {
+        downloadBlob(results[0].blob, results[0].name);
+      }
       return;
     }
     await zipAndDownload(
@@ -499,11 +503,19 @@ export default function PdfCompressorView({
                         <div className="flex items-center gap-1.5">
                           <button
                             type="button"
-                            onClick={() => downloadBlob(res.blob, res.name)}
+                            onClick={() =>
+                              onShareFile
+                                ? onShareFile({
+                                    name: res.name,
+                                    blob: res.blob,
+                                    size: res.compressedSize
+                                  })
+                                : downloadBlob(res.blob, res.name)
+                            }
                             className="btn-secondary flex-1 py-1.5 text-xs flex items-center justify-center gap-1"
                           >
                             <Download size={13} />
-                            <span>Download</span>
+                            <span>Download / QR</span>
                           </button>
                           {onShareFile && (
                             <button
@@ -718,7 +730,7 @@ export default function PdfCompressorView({
                   <div className="flex items-center gap-2">
                     <Archive size={16} />
                     <span>
-                      Compress {files.length > 0 ? `${files.length} Document${files.length > 1 ? "s" : ""}` : "PDF"}
+                      Apply Changes & Compress {files.length > 0 ? `(${files.length} Document${files.length > 1 ? "s" : ""})` : "PDF"}
                     </span>
                   </div>
                 )}

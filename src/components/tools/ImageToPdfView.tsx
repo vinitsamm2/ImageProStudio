@@ -128,8 +128,12 @@ export default function ImageToPdfView({
       });
       const outName = "imagepro-document.pdf";
       setLastGenerated({ blob, name: outName });
-      downloadBlob(blob, outName);
-      notify("PDF generated and downloaded successfully!", "success");
+      if (onShareFile) {
+        onShareFile({ blob, name: outName });
+      } else {
+        downloadBlob(blob, outName);
+      }
+      notify("Changes applied! Choose Download or QR Code.", "success");
     } catch (error) {
       notify(error instanceof Error ? error.message : "Could not generate PDF.", "error");
     } finally {
@@ -568,8 +572,8 @@ export default function ImageToPdfView({
               {busy
                 ? "Generating PDF Document..."
                 : images.length > 0
-                ? `Export ${images.length} Page(s) as PDF (~${formatBytes(sizeEstimate.bytes)})`
-                : "Export as PDF"}
+                ? `Apply Changes & Create PDF (${images.length} Pages)`
+                : "Apply Changes & Create PDF"}
             </button>
 
             {lastGenerated && onShareFile && (

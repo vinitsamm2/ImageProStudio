@@ -74,8 +74,12 @@ export default function PdfRotateView({
       const blob = await rotatePdf(info.file, rotations);
       const generated = new File([blob], `${info.file.name.replace(/\.pdf$/i, "")}-rotated.pdf`, { type: "application/pdf" });
       setRotatedFile(generated);
-      downloadBlob(blob, `${info.file.name.replace(/\.pdf$/i, "")}-rotated.pdf`);
-      notify("Successfully rotated and downloaded PDF!", "success");
+      if (onShareFile) {
+        onShareFile(generated);
+      } else {
+        downloadBlob(blob, `${info.file.name.replace(/\.pdf$/i, "")}-rotated.pdf`);
+      }
+      notify("Changes applied! Choose Download or QR Code.", "success");
     } catch (error) {
       notify(error instanceof Error ? error.message : "Could not rotate PDF.", "error");
     } finally {
@@ -301,18 +305,18 @@ export default function PdfRotateView({
             onClick={run}
           >
             <Download size={16} />
-            {busy ? "Saving Rotated PDF..." : `Save & Download PDF (${rotatedCount} Rotated)`}
+            {busy ? "Applying Changes..." : `Apply Changes & Save PDF (${rotatedCount} Rotated)`}
           </button>
 
           {rotatedFile && (
             <div className="space-y-2 pt-2 border-t border-slate-200 dark:border-slate-800">
               <button
                 type="button"
-                onClick={() => downloadBlob(rotatedFile, rotatedFile.name)}
+                onClick={() => (onShareFile ? onShareFile(rotatedFile) : downloadBlob(rotatedFile, rotatedFile.name))}
                 className="btn-secondary w-full py-2.5 text-xs font-bold"
               >
                 <Download size={14} />
-                Download Rotated PDF Again
+                Download / QR Code
               </button>
               {onShareFile && (
                 <button

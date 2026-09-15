@@ -89,8 +89,12 @@ export default function CanvasExtenderView({
       const outMime = transparent ? "image/png" : "image/jpeg";
       const generated = new File([blob], outName, { type: outMime });
       setExtendedFile(generated);
-      downloadBlob(blob, outName);
-      notify("Canvas extended and image downloaded!", "success");
+      if (onShareFile) {
+        onShareFile(generated);
+      } else {
+        downloadBlob(blob, outName);
+      }
+      notify("Changes applied! Choose Download or QR Code.", "success");
     } catch (error) {
       notify(error instanceof Error ? error.message : "Could not expand canvas.", "error");
     } finally {
@@ -302,18 +306,18 @@ export default function CanvasExtenderView({
             onClick={run}
           >
             <Download size={16} />
-            {busy ? "Extending..." : "Download Expanded Image"}
+            {busy ? "Extending..." : "Apply Changes & Extend Canvas"}
           </button>
 
           {extendedFile && (
             <div className="space-y-2 pt-2 border-t border-slate-200 dark:border-slate-800">
               <button
                 type="button"
-                onClick={() => downloadBlob(extendedFile, extendedFile.name)}
+                onClick={() => (onShareFile ? onShareFile(extendedFile) : downloadBlob(extendedFile, extendedFile.name))}
                 className="btn-secondary w-full py-2.5 text-xs font-bold"
               >
                 <Download size={14} />
-                Download Expanded Image Again
+                Download / QR Code
               </button>
               {onShareFile && (
                 <button

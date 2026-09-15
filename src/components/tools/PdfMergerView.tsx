@@ -49,8 +49,12 @@ export default function PdfMergerView({
       const blob = await mergePdfs(files);
       const generatedFile = new File([blob], "imagepro-merged-document.pdf", { type: "application/pdf" });
       setMergedFile(generatedFile);
-      downloadBlob(blob, "imagepro-merged-document.pdf");
-      notify("All PDFs merged and downloaded successfully!", "success");
+      if (onShareFile) {
+        onShareFile(generatedFile);
+      } else {
+        downloadBlob(blob, "imagepro-merged-document.pdf");
+      }
+      notify("PDFs merged! Choose Download or QR Code.", "success");
     } catch (error) {
       notify(error instanceof Error ? error.message : "Could not merge PDFs.", "error");
     } finally {
@@ -179,18 +183,18 @@ export default function PdfMergerView({
             onClick={runMerge}
           >
             <Combine size={16} />
-            {busy ? "Merging PDFs..." : `Merge ${files.length} Documents`}
+            {busy ? "Merging PDFs..." : `Apply Changes & Merge (${files.length} PDFs)`}
           </button>
 
           {mergedFile && (
             <div className="space-y-2 pt-2 border-t border-slate-200 dark:border-slate-800">
               <button
                 type="button"
-                onClick={() => downloadBlob(mergedFile, mergedFile.name)}
+                onClick={() => (onShareFile ? onShareFile(mergedFile) : downloadBlob(mergedFile, mergedFile.name))}
                 className="btn-secondary w-full py-2.5 text-xs font-bold"
               >
                 <Download size={14} />
-                Download Merged PDF Again
+                Download / QR Code
               </button>
               {onShareFile && (
                 <button

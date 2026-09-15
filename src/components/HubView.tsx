@@ -22,7 +22,6 @@ import {
 import { useState } from "react";
 import OmniDropzone from "./OmniDropzone";
 import { TOOLS, ToolCategory, ToolId } from "./ToolGrid";
-import { VisitorStatsSection } from "./ui/VisitorCounter";
 
 type HubViewProps = {
   onLaunchTool: (id: ToolId) => void;
@@ -60,7 +59,7 @@ export default function HubView({ onLaunchTool, onOmniRoute, onOpenAbout }: HubV
             initial={{ opacity: 0, y: 15 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.08 }}
-            className="text-4xl font-extrabold tracking-tight sm:text-6xl lg:text-7xl leading-tight"
+            className="text-3xl sm:text-5xl md:text-6xl lg:text-7xl font-extrabold tracking-tight leading-tight"
           >
             Turn Any File into{" "}
             <span className="bg-gradient-to-r from-cyan-500 via-teal-500 to-indigo-500 bg-clip-text text-transparent">
@@ -72,7 +71,7 @@ export default function HubView({ onLaunchTool, onOmniRoute, onOpenAbout }: HubV
             initial={{ opacity: 0, y: 15 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.16 }}
-            className="mx-auto max-w-3xl text-base sm:text-lg leading-relaxed text-slate-600 dark:text-slate-300"
+            className="mx-auto max-w-3xl text-sm sm:text-base md:text-lg leading-relaxed text-slate-600 dark:text-slate-300 px-2"
           >
             Engineered specifically for Students & Employees filling competitive examinations and recruitment forms (UPSC, SSC, NEET, JEE, GATE, IBPS, State PSC, Universities & Corporate Portals). Resize 35×45mm passport photos, scale 10–20KB signatures, compress PDF marksheets under 200KB, watermark, sign, and convert with 100% acceptance guarantee. Free, unlimited, and private.
           </motion.p>
@@ -83,7 +82,7 @@ export default function HubView({ onLaunchTool, onOmniRoute, onOpenAbout }: HubV
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.22 }}
-          className="mx-auto mt-10 max-w-4xl"
+          className="mx-auto mt-8 sm:mt-10 max-w-4xl"
         >
           <OmniDropzone onRouteWithFiles={onOmniRoute} />
         </motion.div>
@@ -102,7 +101,7 @@ export default function HubView({ onLaunchTool, onOmniRoute, onOpenAbout }: HubV
           </div>
 
           {/* Filter Pills */}
-          <div className="flex items-center gap-1.5 rounded-full border border-slate-200/80 bg-white/80 p-1.5 shadow-sm dark:border-slate-800 dark:bg-slate-900/80">
+          <div className="flex items-center gap-1.5 rounded-full border border-slate-200/80 bg-white/80 p-1.5 shadow-sm dark:border-slate-800 dark:bg-slate-900/80 overflow-x-auto no-scrollbar max-w-full">
             {[
               { id: "all" as const, label: `All Tools (${TOOLS.length})` },
               { id: "image" as const, label: `Image Studio (${TOOLS.filter((t) => t.category === "image" || t.id === "image-to-pdf").length})` },
@@ -114,7 +113,7 @@ export default function HubView({ onLaunchTool, onOmniRoute, onOpenAbout }: HubV
                   key={cat.id}
                   type="button"
                   onClick={() => setSelectedCategory(cat.id)}
-                  className={`rounded-full px-4 py-1.5 text-xs font-bold transition-all ${
+                  className={`shrink-0 whitespace-nowrap rounded-full px-3 sm:px-4 py-1.5 text-xs font-bold transition-all ${
                     active
                       ? "bg-slate-900 text-white shadow-sm dark:bg-white dark:text-slate-900"
                       : "text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
@@ -397,8 +396,6 @@ export default function HubView({ onLaunchTool, onOmniRoute, onOpenAbout }: HubV
           </div>
         </div>
 
-        {/* Real-time Visitor & Community Stats Banner */}
-        <VisitorStatsSection className="mt-8" />
 
         {onOpenAbout && (
           <div className="mt-8 flex items-center justify-center">

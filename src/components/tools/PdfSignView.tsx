@@ -406,8 +406,12 @@ export default function PdfSignView({
       const blob = await signPdf(info.file, placements);
       const generated = new File([blob], `${info.file.name.replace(/\.pdf$/i, "")}-signed.pdf`, { type: "application/pdf" });
       setSignedFile(generated);
-      downloadBlob(blob, `${info.file.name.replace(/\.pdf$/i, "")}-signed.pdf`);
-      notify("Document signed and downloaded successfully!", "success");
+      if (onShareFile) {
+        onShareFile(generated);
+      } else {
+        downloadBlob(blob, `${info.file.name.replace(/\.pdf$/i, "")}-signed.pdf`);
+      }
+      notify("Changes applied! Choose Download or QR Code.", "success");
     } catch (error) {
       notify(error instanceof Error ? error.message : "Could not sign PDF.", "error");
     } finally {
@@ -945,7 +949,7 @@ export default function PdfSignView({
             ) : (
               <>
                 <Download className="h-4 w-4" />
-                Sign & Download PDF
+                Apply Changes & Sign PDF
               </>
             )}
           </button>
@@ -954,11 +958,11 @@ export default function PdfSignView({
             <div className="space-y-2 pt-2 border-t border-slate-200 dark:border-slate-800">
               <button
                 type="button"
-                onClick={() => downloadBlob(signedFile, signedFile.name)}
+                onClick={() => (onShareFile ? onShareFile(signedFile) : downloadBlob(signedFile, signedFile.name))}
                 className="btn-secondary w-full py-2.5 text-xs font-bold"
               >
                 <Download size={14} />
-                Download Signed PDF Again
+                Download / QR Code
               </button>
               {onShareFile && (
                 <button

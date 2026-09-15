@@ -44,7 +44,7 @@ export default function StudioLayout({
   const [mobileRailOpen, setMobileRailOpen] = useState(false);
 
   return (
-    <div className="flex h-screen w-screen overflow-hidden bg-slate-100 text-slate-900 transition-colors dark:bg-[#070a10] dark:text-slate-100 font-sans">
+    <div className="flex h-[100dvh] w-full min-w-0 overflow-hidden bg-slate-100 text-slate-900 transition-colors dark:bg-[#070a10] dark:text-slate-100 font-sans">
       {/* Ambient Atmospheric Studio Glows */}
       <div className="pointer-events-none fixed -top-40 -left-40 h-[500px] w-[500px] rounded-full bg-cyan-500/10 blur-[120px] dark:bg-cyan-500/15" />
       <div className="pointer-events-none fixed -bottom-40 -right-40 h-[500px] w-[500px] rounded-full bg-teal-500/10 blur-[120px] dark:bg-indigo-500/15" />

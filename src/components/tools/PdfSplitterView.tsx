@@ -245,11 +245,15 @@ export default function PdfSplitterView({
                   <div className="flex items-center gap-1.5 shrink-0">
                     <button
                       type="button"
-                      onClick={() => downloadBlob(out.blob, out.name)}
+                      onClick={() =>
+                        onShareFile
+                          ? onShareFile(new File([out.blob], out.name, { type: "application/pdf" }))
+                          : downloadBlob(out.blob, out.name)
+                      }
                       className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-2 py-1 text-[11px] font-semibold hover:bg-slate-50 dark:border-slate-800 dark:hover:bg-slate-800"
                     >
                       <Download size={12} />
-                      Download
+                      Download / QR
                     </button>
                     {onShareFile && (
                       <button
@@ -310,7 +314,7 @@ export default function PdfSplitterView({
             onClick={runSplit}
           >
             <Scissors size={16} />
-            {busy ? "Splitting PDF..." : "Split Document"}
+            {busy ? "Splitting PDF..." : "Apply Changes & Split PDF"}
           </button>
 
           {outputs.length > 0 && (
@@ -318,14 +322,20 @@ export default function PdfSplitterView({
               <button
                 type="button"
                 className="btn-secondary w-full"
-                onClick={() =>
-                  outputs.length === 1
-                    ? downloadBlob(outputs[0].blob, outputs[0].name)
-                    : zipAndDownload(outputs, "imagepro-split-pages.zip")
-                }
+                onClick={() => {
+                  if (outputs.length === 1 && onShareFile) {
+                    onShareFile(new File([outputs[0].blob], outputs[0].name, { type: "application/pdf" }));
+                  } else if (onShareFile) {
+                    handleShareBatch();
+                  } else {
+                    outputs.length === 1
+                      ? downloadBlob(outputs[0].blob, outputs[0].name)
+                      : zipAndDownload(outputs, "imagepro-split-pages.zip");
+                  }
+                }}
               >
                 <Download size={16} />
-                Download {outputs.length > 1 ? `ZIP (${outputs.length} PDFs)` : "Split PDF"}
+                Download / QR Code ({outputs.length > 1 ? `ZIP (${outputs.length} PDFs)` : "Split PDF"})
               </button>
               {onShareFile && (
                 <button

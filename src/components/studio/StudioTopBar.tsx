@@ -19,7 +19,6 @@ import { useState } from "react";
 import { ToolId } from "../ToolGrid";
 import { STUDIO_TOOLS } from "./ToolActivityRail";
 import FontSizeScaleControl from "../ui/FontSizeScaleControl";
-import { VisitorCounterBadge } from "../ui/VisitorCounter";
 
 type StudioTopBarProps = {
   activeTool: ToolId;
@@ -53,30 +52,30 @@ export default function StudioTopBar({
   const Icon = currentTool.icon;
 
   return (
-    <header className="relative z-20 flex h-14 items-center justify-between border-b border-slate-200/80 bg-white/80 px-4 backdrop-blur-2xl transition-all dark:border-white/[0.08] dark:bg-slate-950/70 sm:px-6">
+    <header className="relative z-20 flex h-14 items-center justify-between border-b border-slate-200/80 bg-white/80 px-2.5 sm:px-6 backdrop-blur-2xl transition-all dark:border-white/[0.08] dark:bg-slate-950/70">
       {/* Left: Mobile Menu & Breadcrumb with Tool Selector */}
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-2 sm:gap-3 min-w-0">
         <button
           type="button"
           onClick={onToggleMobileRail}
-          className="grid h-8 w-8 place-items-center rounded-lg text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-white/[0.06] lg:hidden"
+          className="grid h-8 w-8 shrink-0 place-items-center rounded-lg text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-white/[0.06] lg:hidden"
           title="Open Tool Menu"
         >
           <Menu size={18} />
         </button>
 
         {/* Tool Dropdown Breadcrumb */}
-        <div className="relative">
+        <div className="relative min-w-0">
           <button
             type="button"
             onClick={() => setDropdownOpen(!dropdownOpen)}
-            className="flex items-center gap-2 rounded-xl border border-slate-200/60 bg-slate-50/80 px-3 py-1.5 text-xs font-bold text-slate-800 transition hover:bg-slate-100 dark:border-white/[0.06] dark:bg-slate-900/80 dark:text-slate-200 dark:hover:bg-slate-800"
+            className="flex items-center gap-1.5 sm:gap-2 rounded-xl border border-slate-200/60 bg-slate-50/80 px-2.5 sm:px-3 py-1.5 text-xs font-bold text-slate-800 transition hover:bg-slate-100 dark:border-white/[0.06] dark:bg-slate-900/80 dark:text-slate-200 dark:hover:bg-slate-800 max-w-[190px] xs:max-w-[240px] sm:max-w-none"
           >
-            <div className="grid h-5 w-5 place-items-center rounded-md bg-cyan-600 text-white shadow-xs">
+            <div className="grid h-5 w-5 shrink-0 place-items-center rounded-md bg-cyan-600 text-white shadow-xs">
               <Icon size={12} />
             </div>
-            <span className="font-extrabold">{currentTool.name}</span>
-            <ChevronDown size={13} className="text-slate-400" />
+            <span className="font-extrabold truncate">{currentTool.name}</span>
+            <ChevronDown size={13} className="shrink-0 text-slate-400" />
           </button>
 
           {/* Quick Dropdown Menu */}
@@ -181,8 +180,6 @@ export default function StudioTopBar({
           </kbd>
         </button>
 
-        {/* Real-Time Live Visitor Counter */}
-        <VisitorCounterBadge className="hidden sm:inline-block" />
 
         {/* Exam Form Fill & 100% Free Badge */}
         <div className="hidden lg:flex items-center gap-1.5 rounded-xl border border-emerald-500/25 bg-emerald-500/10 px-2.5 py-1 text-xs font-extrabold text-emerald-600 dark:text-emerald-400 shadow-xs" title="Created for Students & Employees • 100% Accepted for All Examination & Job Forms">

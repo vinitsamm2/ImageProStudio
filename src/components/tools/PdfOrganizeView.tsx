@@ -193,8 +193,12 @@ export default function PdfOrganizeView({
       const blob = await organizePdf(info.file, pages);
       const generated = new File([blob], `${info.file.name.replace(/\.pdf$/i, "")}-organized.pdf`, { type: "application/pdf" });
       setOrganizedFile(generated);
-      downloadBlob(blob, `${info.file.name.replace(/\.pdf$/i, "")}-organized.pdf`);
-      notify("Successfully generated and downloaded organized PDF!", "success");
+      if (onShareFile) {
+        onShareFile(generated);
+      } else {
+        downloadBlob(blob, `${info.file.name.replace(/\.pdf$/i, "")}-organized.pdf`);
+      }
+      notify("Changes applied! Choose Download or QR Code.", "success");
     } catch (error) {
       notify(error instanceof Error ? error.message : "Could not organize PDF.", "error");
     } finally {
@@ -524,7 +528,7 @@ export default function PdfOrganizeView({
                 ) : (
                   <>
                     <Download className="h-4 w-4" />
-                    Organize & Download PDF
+                    Apply Changes & Save PDF
                   </>
                 )}
               </button>
@@ -533,11 +537,11 @@ export default function PdfOrganizeView({
                 <div className="space-y-2 pt-2 border-t border-slate-200 dark:border-slate-800">
                   <button
                     type="button"
-                    onClick={() => downloadBlob(organizedFile, organizedFile.name)}
+                    onClick={() => (onShareFile ? onShareFile(organizedFile) : downloadBlob(organizedFile, organizedFile.name))}
                     className="btn-secondary w-full py-2.5 text-xs font-bold"
                   >
                     <Download size={14} />
-                    Download Organized PDF Again
+                    Download / QR Code
                   </button>
                   {onShareFile && (
                     <button

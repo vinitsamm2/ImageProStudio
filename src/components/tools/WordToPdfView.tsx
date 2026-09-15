@@ -152,8 +152,11 @@ export default function WordToPdfView({
 
   const handleDownload = () => {
     if (!convertedResult) return;
-    downloadBlob(convertedResult.blob, convertedResult.fileName);
-    notify(`Downloaded ${convertedResult.fileName}`, "success");
+    if (onShareFile) {
+      onShareFile(convertedResult.file);
+    } else {
+      downloadBlob(convertedResult.blob, convertedResult.fileName);
+    }
   };
 
   const handleCopyText = async () => {
@@ -574,7 +577,7 @@ export default function WordToPdfView({
                   ) : (
                     <>
                       <Sparkles size={15} />
-                      <span>Convert to PDF</span>
+                      <span>Apply Changes & Convert to PDF</span>
                     </>
                   )}
                 </button>
@@ -586,7 +589,7 @@ export default function WordToPdfView({
                     className="flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 py-3 text-xs font-bold text-white shadow-md transition hover:from-emerald-700 hover:to-teal-700 hover:shadow-lg active:scale-[0.99]"
                   >
                     <Download size={15} />
-                    <span>Download {convertedResult.fileName}</span>
+                    <span>Download / QR Code ({convertedResult.fileName})</span>
                   </button>
 
                   <div className="flex gap-2">
