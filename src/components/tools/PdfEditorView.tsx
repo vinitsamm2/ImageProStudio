@@ -60,6 +60,7 @@ import {
   extractPdfPageImages,
   extractPdfPageTextItems,
   formatBytes,
+  normalizePdfFontName,
   readPdfInfo,
   renderPdfPageDetails,
   renderPdfPageToDataUrl,
@@ -114,6 +115,44 @@ const HIGHLIGHT_COLORS = [
   { name: "Pink", hex: "#fbcfe8" },
   { name: "Orange", hex: "#fed7aa" }
 ];
+
+const getAnnotationCssFont = (ann: PdfAnnotation): string => {
+  if (ann.actualFontName) {
+    const norm = normalizePdfFontName(ann.actualFontName);
+    return norm.cssFontString;
+  }
+  if (ann.fontFamily === "serif") {
+    return '"Times New Roman", Times, Georgia, Cambria, serif';
+  }
+  if (ann.fontFamily === "mono") {
+    return '"Courier New", Courier, Consolas, Monaco, monospace';
+  }
+  if (ann.fontFamily === "cursive") {
+    return '"Brush Script MT", "Dancing Script", cursive';
+  }
+  return 'Arial, Helvetica, "Segoe UI", Roboto, sans-serif';
+};
+
+const measureTextWidthNorm = (
+  text: string,
+  fontSizePt: number,
+  fontFamilyStr: string,
+  fontWeight = "normal",
+  fontStyle = "normal",
+  pageWidth = 595
+): number => {
+  try {
+    const canvas = document.createElement("canvas");
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return Math.min(0.98, ((text.length + 1) * fontSizePt * 0.6) / pageWidth);
+    ctx.font = `${fontStyle} ${fontWeight} ${fontSizePt}px ${fontFamilyStr}`;
+    const metrics = ctx.measureText(text || " ");
+    const extraPadding = fontSizePt * 0.7;
+    return Math.min(0.98, (metrics.width + extraPadding) / pageWidth);
+  } catch {
+    return Math.min(0.98, ((text.length + 2) * fontSizePt * 0.6) / pageWidth);
+  }
+};
 
 export default function PdfEditorView({
   notify,
@@ -677,7 +716,7 @@ export default function PdfEditorView({
       setHistory((prev) => [...prev.slice(-30), annotations]);
       setRedoStack([]);
       setAnnotations([...annotations, newAnn]);
-      setSelectedId(newAnn.id);
+      setSelectedId(null);
       setSelectedImageItem(null);
       notify("Logo removed cleanly without affecting background!", "success");
     },
@@ -793,9 +832,50 @@ export default function PdfEditorView({
       }
     };
 
+    const handlePaste = (e: ClipboardEvent) => {
+      if (document.activeElement?.tagName === "INPUT" || document.activeElement?.tagName === "TEXTAREA") {
+        return;
+      }
+      const items = e.clipboardData?.items;
+      if (!items) return;
+      for (let i = 0; i < items.length; i++) {
+        if (items[i].type.indexOf("image") !== -1) {
+          const file = items[i].getAsFile();
+          if (file) {
+            e.preventDefault();
+            const reader = new FileReader();
+            reader.onload = (re) => {
+              const dataUrl = re.target?.result as string;
+              if (dataUrl) {
+                const newAnn: PdfAnnotation = {
+                  id: uid("img-pasted"),
+                  pageIndex: activePageIndex,
+                  type: "image",
+                  xNorm: 0.35,
+                  yNorm: 0.35,
+                  widthNorm: 0.3,
+                  heightNorm: 0.2,
+                  imageDataUrl: dataUrl
+                };
+                pushHistory([...annotations, newAnn]);
+                setSelectedId(newAnn.id);
+                notify("Pasted image/logo added to document", "success");
+              }
+            };
+            reader.readAsDataURL(file);
+            break;
+          }
+        }
+      }
+    };
+
     window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [selectedId, selectedImageItem, editingTextId, handleUndo, handleRedo, handleDeleteLogo]);
+    window.addEventListener("paste", handlePaste);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("paste", handlePaste);
+    };
+  }, [selectedId, selectedImageItem, editingTextId, handleUndo, handleRedo, handleDeleteLogo, activePageIndex, annotations, pushHistory, notify]);
 
   // Handle editing detected text in place with exact font size and style matching
   const handleEditDetectedText = (item: PdfExtractedTextItem) => {
@@ -2015,33 +2095,69 @@ export default function PdfEditorView({
         {(activeTool === "text" || (selectedAnnotation && selectedAnnotation.type === "text")) && (
           <>
             <div className="h-4 w-px bg-slate-200 dark:bg-white/[0.1]" />
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5">
               <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400">Size:</span>
-              <select
-                value={selectedAnnotation?.fontSize || fontSize}
-                onChange={(e) => {
-                  const size = Number(e.target.value);
-                  setFontSize(size);
-                  if (selectedId) {
-                    setAnnotations((prev) =>
-                      prev.map((a) => (a.id === selectedId ? { ...a, fontSize: size } : a))
-                    );
-                  }
-                }}
-                className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs font-bold text-slate-800 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
-              >
-                {(() => {
-                  const activeSz = selectedAnnotation?.fontSize || fontSize;
-                  const allSizes = Array.from(
-                    new Set([8, 9, 10, 11, 12, 13, 14, 15, 16, 18, 20, 22, 24, 28, 32, 36, 40, 48, 64, activeSz])
-                  ).sort((a, b) => a - b);
-                  return allSizes.map((s) => (
-                    <option key={s} value={s}>
-                      {s}pt
-                    </option>
-                  ));
-                })()}
-              </select>
+              <div className="flex items-center">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const currentSz = selectedAnnotation?.fontSize || fontSize;
+                    const nextSz = Math.max(6, currentSz - 1);
+                    setFontSize(nextSz);
+                    if (selectedId) {
+                      setAnnotations((prev) =>
+                        prev.map((a) => (a.id === selectedId ? { ...a, fontSize: nextSz } : a))
+                      );
+                    }
+                  }}
+                  className="rounded-l-lg border border-r-0 border-slate-200 bg-slate-50 p-1 text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700 cursor-pointer"
+                  title="Decrease font size (-1pt)"
+                >
+                  <Minus size={12} />
+                </button>
+                <select
+                  value={selectedAnnotation?.fontSize || fontSize}
+                  onChange={(e) => {
+                    const size = Number(e.target.value);
+                    setFontSize(size);
+                    if (selectedId) {
+                      setAnnotations((prev) =>
+                        prev.map((a) => (a.id === selectedId ? { ...a, fontSize: size } : a))
+                      );
+                    }
+                  }}
+                  className="border-y border-slate-200 bg-white px-2 py-1 text-xs font-bold text-slate-800 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+                >
+                  {(() => {
+                    const activeSz = selectedAnnotation?.fontSize || fontSize;
+                    const allSizes = Array.from(
+                      new Set([6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 22, 24, 28, 32, 36, 40, 48, 64, activeSz])
+                    ).sort((a, b) => a - b);
+                    return allSizes.map((s) => (
+                      <option key={s} value={s}>
+                        {s}pt
+                      </option>
+                    ));
+                  })()}
+                </select>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const currentSz = selectedAnnotation?.fontSize || fontSize;
+                    const nextSz = Math.min(120, currentSz + 1);
+                    setFontSize(nextSz);
+                    if (selectedId) {
+                      setAnnotations((prev) =>
+                        prev.map((a) => (a.id === selectedId ? { ...a, fontSize: nextSz } : a))
+                      );
+                    }
+                  }}
+                  className="rounded-r-lg border border-l-0 border-slate-200 bg-slate-50 p-1 text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700 cursor-pointer"
+                  title="Increase font size (+1pt)"
+                >
+                  <Plus size={12} />
+                </button>
+              </div>
             </div>
 
             <div className="flex items-center gap-2">
@@ -2059,14 +2175,19 @@ export default function PdfEditorView({
                 }}
                 className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs font-bold text-slate-800 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
               >
-                <option value="sans">Sans (Arial / Inter)</option>
-                <option value="serif">Serif (Times / Georgia)</option>
-                <option value="mono">Monospace (Courier)</option>
+                {selectedAnnotation?.actualFontName && (
+                  <option value={selectedAnnotation.fontFamily}>
+                    Original ({selectedAnnotation.actualFontName})
+                  </option>
+                )}
+                <option value="sans">Sans-Serif (Arial / Calibri / Helvetica)</option>
+                <option value="serif">Serif (Times New Roman / Georgia)</option>
+                <option value="mono">Monospace (Courier New / Consolas)</option>
                 <option value="cursive">Cursive (Script)</option>
               </select>
               {selectedAnnotation?.actualFontName && (
                 <span
-                  className="hidden sm:inline-block rounded-md bg-blue-500/10 px-1.5 py-0.5 text-[10px] font-bold text-blue-600 dark:bg-blue-500/20 dark:text-blue-300 truncate max-w-[110px]"
+                  className="hidden sm:inline-block rounded-md bg-blue-500/10 px-1.5 py-0.5 text-[10px] font-bold text-blue-600 dark:bg-blue-500/20 dark:text-blue-300 truncate max-w-[130px]"
                   title={`Original PDF typeface: ${selectedAnnotation.actualFontName}`}
                 >
                   {selectedAnnotation.actualFontName}
@@ -3109,8 +3230,12 @@ export default function PdfEditorView({
                         title="Click to select logo and directly delete without affecting background"
                       >
                         {(isHovered || isSelected) && (
-                          <div className="absolute -top-7 left-0 bg-slate-900/95 text-white text-[10px] font-bold px-2 py-0.5 rounded-lg shadow-xl whitespace-nowrap flex items-center gap-1.5 z-40 backdrop-blur-xs border border-white/[0.1]">
-                            <span className="text-amber-300">Logo / Image</span>
+                          <div
+                            className={`absolute ${
+                              imgItem.yNorm < 0.05 ? "top-full mt-1.5" : "-top-8"
+                            } left-0 bg-slate-900/95 text-white text-[10px] font-bold px-2 py-1 rounded-lg shadow-xl whitespace-nowrap flex items-center gap-1.5 z-40 backdrop-blur-xs border border-white/[0.15]`}
+                          >
+                            <span className="text-amber-300 font-semibold">Logo</span>
                             <button
                               type="button"
                               onClick={(ev) => {
@@ -3120,7 +3245,7 @@ export default function PdfEditorView({
                               className="flex items-center gap-1 bg-rose-600 hover:bg-rose-500 text-white px-2 py-0.5 rounded text-[9px] font-bold cursor-pointer transition-colors shadow-xs"
                             >
                               <Trash2 size={10} />
-                              <span>Delete Logo</span>
+                              <span>Remove Logo</span>
                             </button>
                           </div>
                         )}
@@ -3183,21 +3308,10 @@ export default function PdfEditorView({
                     {/* Render according to type */}
                     {ann.type === "text" && (
                       <div
-                        className="h-full w-full overflow-hidden p-0.5 leading-tight flex items-start"
+                        className="h-full w-full overflow-visible p-0 leading-tight flex items-start"
                         style={{
                           fontSize: `${(ann.fontSize || 16) * zoomScale}px`,
-                          fontFamily: [
-                            ann.actualFontName ? `"${ann.actualFontName}"` : null,
-                            ann.fontFamily === "serif"
-                              ? '"Times New Roman", Times, Georgia, Cambria, serif'
-                              : ann.fontFamily === "mono"
-                              ? '"Courier New", Courier, Consolas, Monaco, monospace'
-                              : ann.fontFamily === "cursive"
-                              ? "'Dancing Script', cursive"
-                              : 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif'
-                          ]
-                            .filter(Boolean)
-                            .join(", "),
+                          fontFamily: getAnnotationCssFont(ann),
                           fontWeight: ann.fontWeight || "normal",
                           fontStyle: ann.fontStyle || "normal",
                           color: ann.textColor || "#0f172a",
@@ -3213,16 +3327,64 @@ export default function PdfEditorView({
                             value={ann.text || ""}
                             onChange={(e) => {
                               const newText = e.target.value;
+                              const fontStr = getAnnotationCssFont(ann);
+                              const measuredW = measureTextWidthNorm(
+                                newText,
+                                ann.fontSize || 14,
+                                fontStr,
+                                ann.fontWeight || "normal",
+                                ann.fontStyle || "normal",
+                                pageDimensions.width || 595
+                              );
+                              const lineCount = (newText.match(/\n/g) || []).length + 1;
+                              const singleLineHeightNorm = ((ann.fontSize || 14) * 1.35) / (pageDimensions.height || 842);
+                              const neededHeightNorm = Math.max(ann.heightNorm, singleLineHeightNorm * lineCount);
+
                               setAnnotations((prev) =>
-                                prev.map((a) => (a.id === ann.id ? { ...a, text: newText } : a))
+                                prev.map((a) => {
+                                  if (a.id !== ann.id) return a;
+                                  const expandedW = Math.max(a.widthNorm, measuredW);
+                                  return {
+                                    ...a,
+                                    text: newText,
+                                    widthNorm: Math.min(0.99 - a.xNorm, expandedW),
+                                    heightNorm: neededHeightNorm
+                                  };
+                                })
                               );
                             }}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter" && !e.shiftKey) {
+                                e.preventDefault();
+                                setEditingTextId(null);
+                              } else if (e.key === "Escape") {
+                                e.preventDefault();
+                                setEditingTextId(null);
+                              }
+                            }}
                             onBlur={() => setEditingTextId(null)}
-                            className="h-full w-full resize-none bg-transparent p-0 outline-hidden font-inherit text-inherit"
+                            style={{
+                              whiteSpace: "pre-wrap",
+                              wordBreak: "break-word",
+                              lineHeight: "1.15",
+                              padding: "0 1px",
+                              margin: 0
+                            }}
+                            className="h-full w-full resize-none bg-transparent outline-hidden font-inherit text-inherit border-none"
                             autoFocus
                           />
                         ) : (
-                          <span className="whitespace-pre-wrap break-words">{ann.text}</span>
+                          <span
+                            style={{
+                              whiteSpace: "pre-wrap",
+                              wordBreak: "break-word",
+                              lineHeight: "1.15",
+                              padding: "0 1px"
+                            }}
+                            className="inline-block w-full"
+                          >
+                            {ann.text}
+                          </span>
                         )}
                       </div>
                     )}
@@ -3274,12 +3436,8 @@ export default function PdfEditorView({
                             draggable={false}
                           />
                         ) : null}
-                        {isSelected && (
-                          <div className="absolute inset-0 border border-dashed border-emerald-500 pointer-events-none flex items-center justify-center">
-                            <span className="text-[10px] bg-slate-900/90 text-emerald-300 font-bold px-1.5 py-0.5 rounded shadow whitespace-nowrap">
-                              {ann.deletedImageName ? "Removed Logo (Clean BG)" : "Seamless Patch"}
-                            </span>
-                          </div>
+                        {isSelected && !ann.deletedImageName && (
+                          <div className="absolute inset-0 border border-dashed border-emerald-500/60 pointer-events-none" />
                         )}
                       </div>
                     )}
@@ -3407,6 +3565,58 @@ export default function PdfEditorView({
                             }`}
                           />
                         ))}
+
+                        {/* Contextual Quick Actions Floating Pill */}
+                        <div
+                          className={`absolute ${
+                            ann.yNorm < 0.08 ? "top-full mt-2" : "-top-9"
+                          } left-1/2 -translate-x-1/2 bg-slate-900/95 text-white px-2 py-1 rounded-lg shadow-xl flex items-center gap-1.5 z-40 backdrop-blur-xs border border-white/[0.15] text-[11px] whitespace-nowrap pointer-events-auto`}
+                          onPointerDown={(e) => e.stopPropagation()}
+                        >
+                          <span className="font-semibold text-slate-300 text-[10px] uppercase tracking-wider px-1">
+                            {ann.type === "image" ? "Logo / Image" : ann.type === "text" ? "Text" : ann.type}
+                          </span>
+                          <div className="h-3 w-px bg-white/20" />
+                          {ann.type === "text" && (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setEditingTextId(ann.id);
+                                setTimeout(() => textInputRef.current?.focus(), 50);
+                              }}
+                              className="flex items-center gap-1 px-1.5 py-0.5 rounded hover:bg-white/15 text-white transition-colors cursor-pointer text-[10px] font-medium"
+                              title="Edit text"
+                            >
+                              <FilePenLine size={11} />
+                              <span>Edit</span>
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              duplicateAnnotation(ann.id);
+                            }}
+                            className="flex items-center gap-1 px-1.5 py-0.5 rounded hover:bg-white/15 text-white transition-colors cursor-pointer text-[10px] font-medium"
+                            title="Duplicate element"
+                          >
+                            <Copy size={11} />
+                            <span>Duplicate</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              deleteAnnotation(ann.id);
+                            }}
+                            className="flex items-center gap-1 px-2 py-0.5 rounded bg-rose-600 hover:bg-rose-500 text-white transition-colors cursor-pointer text-[10px] font-bold shadow-xs"
+                            title="Remove element"
+                          >
+                            <Trash2 size={11} />
+                            <span>Remove</span>
+                          </button>
+                        </div>
                       </>
                     )}
                   </div>

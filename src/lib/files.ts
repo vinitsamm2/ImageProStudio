@@ -1217,6 +1217,95 @@ export interface PdfExtractedTextItem {
   color: string;
 }
 
+export function normalizePdfFontName(rawName?: string): {
+  fontFamily: "sans" | "serif" | "mono" | "cursive";
+  cssFontString: string;
+  actualFontName: string;
+  fontWeight: "normal" | "bold";
+  fontStyle: "normal" | "italic";
+} {
+  const clean = (rawName || "").replace(/^[A-Z]{6}\+/, "").trim();
+  const lower = clean.toLowerCase();
+
+  const isBold =
+    lower.includes("bold") ||
+    lower.includes("black") ||
+    lower.includes("heavy") ||
+    lower.includes("semibold") ||
+    lower.includes("demibold") ||
+    lower.includes("-b") ||
+    lower.endsWith("bd") ||
+    lower.includes("700") ||
+    lower.includes("800") ||
+    lower.includes("900");
+
+  const isItalic =
+    lower.includes("italic") ||
+    lower.includes("oblique") ||
+    lower.includes("slanted") ||
+    lower.includes("-i") ||
+    lower.endsWith("it");
+
+  // Serif check (Times, Georgia, Cambria, Garamond)
+  if (
+    lower.includes("times") ||
+    lower.includes("serif") ||
+    lower.includes("georgia") ||
+    lower.includes("cambria") ||
+    lower.includes("garamond") ||
+    lower.includes("palatino") ||
+    lower.includes("roman") ||
+    lower.includes("minion")
+  ) {
+    let font = '"Times New Roman", Times, Georgia, Cambria, serif';
+    let name = "Times New Roman";
+    if (lower.includes("georgia")) { font = 'Georgia, "Times New Roman", Times, serif'; name = "Georgia"; }
+    else if (lower.includes("cambria")) { font = 'Cambria, "Times New Roman", Times, serif'; name = "Cambria"; }
+    else if (lower.includes("garamond")) { font = 'Garamond, "Times New Roman", Times, serif'; name = "Garamond"; }
+    return { fontFamily: "serif", cssFontString: font, actualFontName: name, fontWeight: isBold ? "bold" : "normal", fontStyle: isItalic ? "italic" : "normal" };
+  }
+
+  // Monospace check (Courier, Consolas, Menlo)
+  if (
+    lower.includes("courier") ||
+    lower.includes("mono") ||
+    lower.includes("consolas") ||
+    lower.includes("menlo") ||
+    lower.includes("monaco") ||
+    lower.includes("typewriter")
+  ) {
+    let font = '"Courier New", Courier, Consolas, Monaco, monospace';
+    let name = "Courier New";
+    if (lower.includes("consolas")) { font = 'Consolas, "Courier New", Courier, monospace'; name = "Consolas"; }
+    else if (lower.includes("menlo")) { font = 'Menlo, Consolas, "Courier New", monospace'; name = "Menlo"; }
+    return { fontFamily: "mono", cssFontString: font, actualFontName: name, fontWeight: isBold ? "bold" : "normal", fontStyle: isItalic ? "italic" : "normal" };
+  }
+
+  // Script / cursive check
+  if (
+    lower.includes("script") ||
+    lower.includes("cursive") ||
+    lower.includes("brush") ||
+    lower.includes("calli") ||
+    lower.includes("handwriting")
+  ) {
+    return { fontFamily: "cursive", cssFontString: '"Brush Script MT", "Dancing Script", cursive', actualFontName: "Dancing Script", fontWeight: isBold ? "bold" : "normal", fontStyle: isItalic ? "italic" : "normal" };
+  }
+
+  // Sans-Serif variants (Calibri, Arial, Helvetica, Verdana, Roboto)
+  let font = 'Arial, Helvetica, "Segoe UI", Roboto, sans-serif';
+  let name = "Arial";
+  if (lower.includes("calibri")) { font = 'Calibri, Carlito, Arial, "Segoe UI", sans-serif'; name = "Calibri"; }
+  else if (lower.includes("helvetica")) { font = 'Helvetica, Arial, "Segoe UI", sans-serif'; name = "Helvetica"; }
+  else if (lower.includes("verdana")) { font = 'Verdana, Arial, "Segoe UI", sans-serif'; name = "Verdana"; }
+  else if (lower.includes("tahoma")) { font = 'Tahoma, Arial, "Segoe UI", sans-serif'; name = "Tahoma"; }
+  else if (lower.includes("trebuchet")) { font = '"Trebuchet MS", Arial, sans-serif'; name = "Trebuchet MS"; }
+  else if (lower.includes("roboto")) { font = 'Roboto, Arial, sans-serif'; name = "Roboto"; }
+  else if (lower.includes("segoe")) { font = '"Segoe UI", Arial, sans-serif'; name = "Segoe UI"; }
+
+  return { fontFamily: "sans", cssFontString: font, actualFontName: name, fontWeight: isBold ? "bold" : "normal", fontStyle: isItalic ? "italic" : "normal" };
+}
+
 export async function extractPdfPageTextItems(
   file: File,
   pageNumber: number,
@@ -1294,75 +1383,24 @@ export async function extractPdfPageTextItems(
 
       // Extract comprehensive font family, weight, style and actual name from both item fontName & textContent.styles
       const fontStyleObj = item.fontName ? styles[item.fontName] : undefined;
-      const fontCombined = `${item.fontName || ""} ${fontStyleObj?.fontFamily || ""}`.toLowerCase();
+      const rawFontStr = `${item.fontName || ""} ${fontStyleObj?.fontFamily || ""}`;
+      const fontNorm = normalizePdfFontName(rawFontStr);
 
-      let fontFamily: "sans" | "serif" | "mono" | "cursive" = "sans";
-      if (
-        fontCombined.includes("times") ||
-        fontCombined.includes("serif") ||
-        fontCombined.includes("georgia") ||
-        fontCombined.includes("cambria") ||
-        fontCombined.includes("garamond") ||
-        fontCombined.includes("palatino") ||
-        fontCombined.includes("baskerville") ||
-        fontCombined.includes("minion") ||
-        fontCombined.includes("roman") ||
-        fontCombined.includes("caslon") ||
-        fontCombined.includes("bookman") ||
-        fontCombined.includes("century")
-      ) {
-        fontFamily = "serif";
-      } else if (
-        fontCombined.includes("courier") ||
-        fontCombined.includes("mono") ||
-        fontCombined.includes("consolas") ||
-        fontCombined.includes("menlo") ||
-        fontCombined.includes("monaco") ||
-        fontCombined.includes("typewriter")
-      ) {
-        fontFamily = "mono";
-      } else if (
-        fontCombined.includes("script") ||
-        fontCombined.includes("cursive") ||
-        fontCombined.includes("brush") ||
-        fontCombined.includes("calli") ||
-        fontCombined.includes("handwriting") ||
-        fontCombined.includes("comic")
-      ) {
-        fontFamily = "cursive";
-      } else {
-        fontFamily = "sans";
+      const fontFamily = fontNorm.fontFamily;
+      const fontWeight = fontNorm.fontWeight;
+      const fontStyle = fontNorm.fontStyle;
+      const actualFontName = fontNorm.actualFontName;
+
+      // In PDF coordinate space, height is in points (72 points = 1 inch)
+      const visualPtHeight = Math.abs(maxVy - minVy);
+      const matrixPt = Math.hypot(item.transform[2], item.transform[3]) || Math.abs(item.transform[3]) || 0;
+
+      if (matrixPt >= 6 && matrixPt <= 120) {
+        fontSize = Math.round(matrixPt);
+      } else if (visualPtHeight >= 6 && visualPtHeight <= 140) {
+        fontSize = Math.round(visualPtHeight * 0.85);
       }
-
-      const fontWeight =
-        fontCombined.includes("bold") ||
-        fontCombined.includes("black") ||
-        fontCombined.includes("heavy") ||
-        fontCombined.includes("semibold") ||
-        fontCombined.includes("demibold") ||
-        fontCombined.includes("-b") ||
-        fontCombined.includes("bd") ||
-        fontCombined.includes("700") ||
-        fontCombined.includes("800") ||
-        fontCombined.includes("900")
-          ? "bold"
-          : "normal";
-
-      const fontStyle =
-        fontCombined.includes("italic") ||
-        fontCombined.includes("oblique") ||
-        fontCombined.includes("slanted") ||
-        fontCombined.includes("-i") ||
-        fontCombined.includes("it")
-          ? "italic"
-          : "normal";
-
-      let actualFontName = fontStyleObj?.fontFamily || item.fontName || "";
-      actualFontName = actualFontName.replace(/^[A-Z]{6}\+/, "");
-      actualFontName = actualFontName.split(",")[0].trim().replace(/['"]/g, "");
-      if (/^g_d\d+_f\d+$/i.test(actualFontName) || /^f\d+$/i.test(actualFontName)) {
-        actualFontName = "";
-      }
+      if (fontSize < 7) fontSize = 11;
 
       rawSpans.push({
         text: item.str,

@@ -30,7 +30,7 @@
       "destination": "/$1"
     },
     {
-      "source": "/((?!api/|google[a-zA-Z0-9]+\\.html).*)",
+      "source": "/((?!api/|google[a-zA-Z0-9]+\\.html|.*\\.jpg|.*\\.jpeg|.*\\.png|.*\\.gif|.*\\.svg|.*\\.webp|avif|css|js|json|xml|txt)$).*)",
       "destination": "/index.html"
     }
   ],
