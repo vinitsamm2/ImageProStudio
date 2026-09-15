@@ -19,10 +19,11 @@ import {
   Upload,
   Zap
 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import OmniDropzone from "./OmniDropzone";
 import { TOOLS, ToolCategory, ToolId } from "./ToolGrid";
 import BrandLogo from "./ui/BrandLogo";
+import { useLanguage, applyPageTranslation } from "../lib/i18n";
 
 type HubViewProps = {
   onLaunchTool: (id: ToolId) => void;
@@ -31,9 +32,14 @@ type HubViewProps = {
 };
 
 export default function HubView({ onLaunchTool, onOmniRoute, onOpenAbout }: HubViewProps) {
+  const { language, t } = useLanguage();
   const [selectedCategory, setSelectedCategory] = useState<ToolCategory>("all");
   const [hoveredCardId, setHoveredCardId] = useState<string | null>(null);
   const [openFaqIndex, setOpenFaqIndex] = useState<number | null>(0);
+
+  useEffect(() => {
+    applyPageTranslation(language);
+  }, [language]);
 
   const filteredTools = TOOLS.filter((t) => {
     if (selectedCategory === "all") return true;
@@ -52,7 +58,7 @@ export default function HubView({ onLaunchTool, onOmniRoute, onOpenAbout }: HubV
             animate={{ opacity: 1, scale: 1 }}
             className="flex justify-center"
           >
-            <BrandLogo size={52} showText subtitle="The In-Browser Media Workstation" />
+            <BrandLogo size={52} showText subtitle={t("heroSubtitle", "The In-Browser Media Workstation")} />
           </motion.div>
 
           <motion.div
@@ -62,7 +68,7 @@ export default function HubView({ onLaunchTool, onOmniRoute, onOpenAbout }: HubV
             className="inline-flex items-center gap-2 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-4 py-1.5 text-xs font-bold text-emerald-700 dark:text-emerald-300 shadow-sm"
           >
             <GraduationCap size={15} className="text-emerald-500 animate-pulse" />
-            <span>Created for Students & Employees • 100% Accepted for All Examination & Job Forms</span>
+            <span>{t("examBadge", "Created for Students & Employees • 100% Accepted for All Examination & Job Forms")}</span>
           </motion.div>
 
           <motion.h1
@@ -71,9 +77,9 @@ export default function HubView({ onLaunchTool, onOmniRoute, onOpenAbout }: HubV
             transition={{ delay: 0.08 }}
             className="text-3xl sm:text-5xl md:text-6xl lg:text-7xl font-extrabold tracking-tight leading-tight"
           >
-            Turn Any File into{" "}
+            {t("turnAnyFile", "Turn Any File into")}{" "}
             <span className="bg-gradient-to-r from-cyan-500 via-teal-500 to-indigo-500 bg-clip-text text-transparent">
-              Perfection.
+              {t("perfection", "Perfection.")}
             </span>
           </motion.h1>
 
@@ -83,7 +89,7 @@ export default function HubView({ onLaunchTool, onOmniRoute, onOpenAbout }: HubV
             transition={{ delay: 0.16 }}
             className="mx-auto max-w-3xl text-sm sm:text-base md:text-lg leading-relaxed text-slate-600 dark:text-slate-300 px-2"
           >
-            Engineered specifically for Students & Employees filling competitive examinations and recruitment forms (UPSC, SSC, NEET, JEE, GATE, IBPS, State PSC, Universities & Corporate Portals). Resize 35×45mm passport photos, scale 10–20KB signatures, compress PDF marksheets under 200KB, watermark, sign, and convert with 100% acceptance guarantee. Free, unlimited, and private.
+            {t("heroDesc", "Engineered specifically for Students & Employees filling competitive examinations and recruitment forms (UPSC, SSC, NEET, JEE, GATE, IBPS, State PSC, Universities & Corporate Portals). Resize 35×45mm passport photos, scale 10–20KB signatures, compress PDF marksheets under 200KB, watermark, sign, and convert with 100% acceptance guarantee. Free, unlimited, and private.")}
           </motion.p>
         </div>
 
@@ -103,19 +109,19 @@ export default function HubView({ onLaunchTool, onOmniRoute, onOpenAbout }: HubV
         <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4 border-b border-slate-200/80 pb-5 dark:border-slate-800">
           <div>
             <span className="text-xs font-bold uppercase tracking-wider text-cyan-600 dark:text-cyan-400">
-              Explore The Suite
+              {t("exploreTheSuite", "Explore The Suite")}
             </span>
             <h2 className="mt-1 text-2xl sm:text-3xl font-extrabold tracking-tight text-slate-900 dark:text-white">
-              Studio Tools & Utilities
+              {t("studioToolsUtilities", "Studio Tools & Utilities")}
             </h2>
           </div>
 
           {/* Filter Pills */}
           <div className="flex items-center gap-1.5 rounded-full border border-slate-200/80 bg-white/80 p-1.5 shadow-sm dark:border-slate-800 dark:bg-slate-900/80 overflow-x-auto no-scrollbar max-w-full">
             {[
-              { id: "all" as const, label: `All Tools (${TOOLS.length})` },
-              { id: "image" as const, label: `Image Studio (${TOOLS.filter((t) => t.category === "image" || t.id === "image-to-pdf").length})` },
-              { id: "pdf" as const, label: `PDF Powerhouse (${TOOLS.filter((t) => t.category === "pdf").length})` }
+              { id: "all" as const, label: `${t("allToolsCount", "All Tools")} (${TOOLS.length})` },
+              { id: "image" as const, label: `${t("imageStudio", "Image Studio")} (${TOOLS.filter((t) => t.category === "image" || t.id === "image-to-pdf").length})` },
+              { id: "pdf" as const, label: `${t("pdfPowerhouse", "PDF Powerhouse")} (${TOOLS.filter((t) => t.category === "pdf").length})` }
             ].map((cat) => {
               const active = selectedCategory === cat.id;
               return (
@@ -186,7 +192,7 @@ export default function HubView({ onLaunchTool, onOmniRoute, onOpenAbout }: HubV
                   </div>
 
                   <h3 className="text-lg font-extrabold tracking-tight text-slate-900 dark:text-white group-hover:text-cyan-600 dark:group-hover:text-cyan-400 transition-colors">
-                    {tool.name}
+                    {t(tool.id, tool.name)}
                   </h3>
                   <p className="mt-1 text-xs font-semibold text-cyan-700/80 dark:text-cyan-300/80">
                     {tool.tagline}
@@ -198,14 +204,14 @@ export default function HubView({ onLaunchTool, onOmniRoute, onOpenAbout }: HubV
 
                 <div className="mt-8 pt-4 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-between">
                   <span className="text-[11px] font-medium text-slate-400">
-                    Drop file or click
+                    {t("dropFileOrClick", "Drop file or click")}
                   </span>
                   <button
                     type="button"
                     onClick={() => onLaunchTool(tool.id)}
                     className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-2 text-xs font-bold text-white transition-all group-hover:bg-cyan-600 dark:bg-white dark:text-slate-900 dark:group-hover:bg-cyan-400 dark:group-hover:text-slate-950"
                   >
-                    <span>Launch</span>
+                    <span>{t("launch", "Launch")}</span>
                     <ArrowRight size={13} className="transition-transform group-hover:translate-x-1" />
                   </button>
                 </div>
@@ -219,13 +225,13 @@ export default function HubView({ onLaunchTool, onOmniRoute, onOpenAbout }: HubV
       <section className="mx-auto max-w-7xl space-y-10">
         <div className="text-center max-w-3xl mx-auto space-y-3">
           <span className="text-xs font-bold uppercase tracking-wider text-cyan-600 dark:text-cyan-400">
-            Why Choose ImagePro Studio
+            {t("whyChooseTitle", "Why Choose ImagePro Studio")}
           </span>
           <h2 className="text-2xl sm:text-4xl font-extrabold tracking-tight text-slate-900 dark:text-white">
-            100% Free Client-Side Image Editor &amp; PDF Tools
+            {t("whyChooseHeading", "100% Free Client-Side Image Editor & PDF Tools")}
           </h2>
           <p className="text-sm sm:text-base leading-relaxed text-slate-600 dark:text-slate-300">
-            Engineered with modern WebAssembly, HTML5 2D Canvas, and vector PDF processing, ImagePro Studio delivers instant desktop-class media processing directly inside your browser without upload queues or cloud security risks.
+            {t("whyChooseSub", "Engineered with modern WebAssembly, HTML5 2D Canvas, and vector PDF processing, ImagePro Studio delivers instant desktop-class media processing directly inside your browser without upload queues or cloud security risks.")}
           </p>
         </div>
 
@@ -236,10 +242,10 @@ export default function HubView({ onLaunchTool, onOmniRoute, onOpenAbout }: HubV
               <Cpu size={24} />
             </div>
             <h3 className="text-lg font-bold text-slate-900 dark:text-white">
-              Online Bulk Image Resizer Without Upload
+              {t("feature1Title", "Online Bulk Image Resizer Without Upload")}
             </h3>
             <p className="text-xs sm:text-sm leading-relaxed text-slate-600 dark:text-slate-300">
-              Most image manipulation websites upload your files to third-party cloud servers, posing severe privacy risks. ImagePro Studio is a <strong>free client-side image editor</strong> where all compression, cropping, resizing, and pixel interpolation run locally in your computer or phone&apos;s memory. Your pictures, signatures, and confidential marksheet scans are never transmitted across the network.
+              {t("feature1Desc", "Most image manipulation websites upload your files to third-party cloud servers, posing severe privacy risks. ImagePro Studio is a free client-side image editor where all compression, cropping, resizing, and pixel interpolation run locally in your computer or phone's memory. Your pictures, signatures, and confidential marksheet scans are never transmitted across the network.")}
             </p>
           </div>
 
@@ -249,10 +255,10 @@ export default function HubView({ onLaunchTool, onOmniRoute, onOpenAbout }: HubV
               <Layers size={24} />
             </div>
             <h3 className="text-lg font-bold text-slate-900 dark:text-white">
-              Convert PNG to WebP &amp; PDF to Word DOCX
+              {t("feature2Title", "Convert PNG to WebP & PDF to Word DOCX")}
             </h3>
             <p className="text-xs sm:text-sm leading-relaxed text-slate-600 dark:text-slate-300">
-              Easily convert between modern web and print formats. Use our <strong>convert PNG to WebP browser tool</strong> to reduce web asset weight by up to 80% without visible quality degradation. Furthermore, our <strong>PDF to Word DOCX converter without upload</strong> and <strong>Word to PDF in-browser vector converter</strong> support 6 Microsoft Word extensions (.docx, .doc, .docm, .dot, .dotx, .dotm) with structure, headings, and lists intact.
+              {t("feature2Desc", "Easily convert between modern web and print formats. Use our convert PNG to WebP browser tool to reduce web asset weight by up to 80% without visible quality degradation. Furthermore, our PDF to Word DOCX converter without upload and Word to PDF in-browser vector converter support 6 Microsoft Word extensions with structure, headings, and lists intact.")}
             </p>
           </div>
 
@@ -262,10 +268,10 @@ export default function HubView({ onLaunchTool, onOmniRoute, onOpenAbout }: HubV
               <GraduationCap size={24} />
             </div>
             <h3 className="text-lg font-bold text-slate-900 dark:text-white">
-              UPSC, SSC, NEET, JEE &amp; Job Form Presets
+              {t("feature3Title", "UPSC, SSC, NEET, JEE & Job Form Presets")}
             </h3>
             <p className="text-xs sm:text-sm leading-relaxed text-slate-600 dark:text-slate-300">
-              Eliminate rejected examination applications. Quickly generate compliant <strong>35×45mm passport photos</strong> with clean white backgrounds, format <strong>signatures strictly between 10KB and 20KB</strong>, and compress certificates and marksheets to <strong>PDF under 200KB or 100KB</strong> without compromising legibility.
+              {t("feature3Desc", "Eliminate rejected examination applications. Quickly generate compliant 35×45mm passport photos with clean white backgrounds, format signatures strictly between 10KB and 20KB, and compress certificates and marksheets to PDF under 200KB or 100KB without compromising legibility.")}
             </p>
           </div>
         </div>
@@ -276,13 +282,13 @@ export default function HubView({ onLaunchTool, onOmniRoute, onOpenAbout }: HubV
         <div className="text-center space-y-2">
           <span className="text-xs font-bold uppercase tracking-wider text-cyan-600 dark:text-cyan-400 flex items-center justify-center gap-1.5">
             <HelpCircle size={15} />
-            <span>Got Questions?</span>
+            <span>{t("faqBadge", "Got Questions?")}</span>
           </span>
           <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-slate-900 dark:text-white">
-            Frequently Asked Questions
+            {t("faqTitle", "Frequently Asked Questions")}
           </h2>
           <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400">
-            Everything you need to know about privacy, supported formats, and examination presets.
+            {t("faqSub", "Everything you need to know about privacy, supported formats, and examination presets.")}
           </p>
         </div>
 
