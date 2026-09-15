@@ -386,6 +386,19 @@
     const yearEl = document.getElementById('current-year');
     if (yearEl) yearEl.textContent = new Date().getFullYear();
   </script>
+
+  <!-- Google Translate Element Container (Hidden, programmatic full-webpage translation) -->
+  <div id="google_translate_element" style="display:none;position:absolute;visibility:hidden;width:0;height:0;"></div>
+  <script type="text/javascript">
+    window.googleTranslateElementInit = function() {
+      new google.translate.TranslateElement({
+        pageLanguage: 'en',
+        includedLanguages: 'en,ja,ko,zh-CN,hi,es,fr,de',
+        autoDisplay: false
+      }, 'google_translate_element');
+    };
+  </script>
+  <script type="text/javascript" src="https://translate.google.com/translate_a/element.js?cb=googleTranslateElementInit" async defer></script>
   <script type="module" src="/src/main.tsx"></script>
 </body>
 

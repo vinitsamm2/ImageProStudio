@@ -406,11 +406,15 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
     if (typeof window !== "undefined") {
       localStorage.setItem("imagepro-lang", lang);
       document.documentElement.lang = lang;
+      applyPageTranslation(lang);
     }
   };
 
   useEffect(() => {
     document.documentElement.lang = language;
+    if (language !== "en") {
+      applyPageTranslation(language);
+    }
   }, [language]);
 
   const currentMeta = LANGUAGES.find((l) => l.code === language) || LANGUAGES[0];
@@ -424,6 +428,64 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
       {children}
     </LanguageContext.Provider>
   );
+}
+
+/**
+ * Translates the entire webpage (all text, tools, FAQs, modals, buttons)
+ * using the Google Translate engine and synchronization cookies.
+ */
+export function applyPageTranslation(lang: LanguageCode) {
+  if (typeof window === "undefined") return;
+
+  const target = lang === "zh" ? "zh-CN" : lang;
+  const hostname = window.location.hostname;
+  const domainParts = hostname.split(".");
+  const rootDomain = domainParts.length > 1 ? `.${domainParts.slice(-2).join(".")}` : hostname;
+
+  // Sync Google Translate googtrans cookie across root path & domains
+  if (lang === "en") {
+    document.cookie = "googtrans=/en/en; path=/;";
+    document.cookie = `googtrans=/en/en; domain=${hostname}; path=/;`;
+    if (rootDomain !== hostname) {
+      document.cookie = `googtrans=/en/en; domain=${rootDomain}; path=/;`;
+    }
+  } else {
+    document.cookie = `googtrans=/en/${target}; path=/;`;
+    document.cookie = `googtrans=/en/${target}; domain=${hostname}; path=/;`;
+    if (rootDomain !== hostname) {
+      document.cookie = `googtrans=/en/${target}; domain=${rootDomain}; path=/;`;
+    }
+  }
+
+  // Trigger Google Translate combo element dynamically
+  const triggerCombo = () => {
+    const select = document.querySelector(".goog-te-combo") as HTMLSelectElement | null;
+    if (select) {
+      const targetVal =
+        lang === "en"
+          ? Array.from(select.options).some((o) => o.value === "en")
+            ? "en"
+            : ""
+          : target;
+
+      if (select.value !== targetVal) {
+        select.value = targetVal;
+        select.dispatchEvent(new Event("change"));
+      }
+      return true;
+    }
+    return false;
+  };
+
+  if (!triggerCombo()) {
+    let attempts = 0;
+    const interval = setInterval(() => {
+      attempts++;
+      if (triggerCombo() || attempts > 25) {
+        clearInterval(interval);
+      }
+    }, 200);
+  }
 }
 
 export function useLanguage() {
