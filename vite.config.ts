@@ -216,7 +216,8 @@ export default defineConfig({
           "vendor-motion": ["framer-motion"],
           "vendor-jszip": ["jszip"],
           "vendor-icons": ["lucide-react"],
-          "vendor-quill": ["quill"]
+          "vendor-quill": ["quill"],
+          "vendor-fabric": ["fabric"]
         }
       }
     }

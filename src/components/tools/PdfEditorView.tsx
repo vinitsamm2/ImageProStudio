@@ -49,6 +49,7 @@ import {
 } from "lucide-react";
 import UploadZone from "../UploadZone";
 import QuillPdfTextEditor from "./QuillPdfTextEditor";
+import FabricPdfOverlay, { FabricPdfOverlayRef } from "./FabricPdfOverlay";
 import {
   EditorPagePlanItem,
   EditorPoint,
@@ -246,6 +247,8 @@ export default function PdfEditorView({
 
   // In-progress interaction state
   const pageContainerRef = useRef<HTMLDivElement | null>(null);
+  const fabricOverlayRef = useRef<FabricPdfOverlayRef | null>(null);
+  const [pageOverlayImages, setPageOverlayImages] = useState<Record<number, string>>({});
   const [isInteracting, setIsInteracting] = useState(false);
   const [interactionStart, setInteractionStart] = useState<{ x: number; y: number } | null>(null);
   const [currentDrawPoints, setCurrentDrawPoints] = useState<EditorPoint[]>([]);
@@ -1842,8 +1845,18 @@ export default function PdfEditorView({
     if (!info) return;
     setExporting(true);
     try {
-      notify("Compiling vector annotations & PDF pages...", "info");
-      const blob = await compileEditedPdf(info.file, pagesPlan, annotations, deletedImageNames);
+      notify("Compiling vector annotations & PDF pages with PDF-LIB...", "info");
+      const overlaysToExport = { ...pageOverlayImages };
+      if (fabricOverlayRef.current && fabricOverlayRef.current.hasObjects()) {
+        overlaysToExport[activePageIndex] = fabricOverlayRef.current.exportOverlayDataUrl();
+      }
+      const blob = await compileEditedPdf(
+        info.file,
+        pagesPlan,
+        annotations,
+        deletedImageNames,
+        overlaysToExport
+      );
       const safeName = info.file.name.replace(/\.[^.]+$/, "");
       const outputFilename = `${safeName}-edited.pdf`;
 
@@ -3560,7 +3573,7 @@ export default function PdfEditorView({
                 </div>
               )}
 
-              {/* Rendered PDF Page Background Image */}
+              {/* Rendered PDF Page Background Image (Mozilla PDF.js) */}
               {pageImage && (
                 <img
                   src={pageImage}
@@ -3569,6 +3582,22 @@ export default function PdfEditorView({
                   draggable={false}
                 />
               )}
+
+              {/* Interactive Canvas Overlay (Fabric.js) */}
+              <FabricPdfOverlay
+                ref={fabricOverlayRef}
+                width={pageDimensions.width}
+                height={pageDimensions.height}
+                zoomScale={zoomScale}
+                activeTool={activeTool}
+                activeColor={activeColor}
+                strokeWidth={strokeWidth}
+                fontSize={fontSize}
+                fontFamily={fontFamily}
+                isBold={isBold}
+                isItalic={isItalic}
+                onToolChange={(tool) => setActiveTool(tool)}
+              />
 
               {/* Text Detection Layer (Click to Edit Existing Text) */}
               {detectTextActive && activeTool !== "draw" && (

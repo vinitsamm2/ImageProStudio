@@ -20,6 +20,7 @@
     "@vercel/speed-insights": "^2.0.0",
     "@vitejs/plugin-react": "^5.0.2",
     "express": "^5.2.1",
+    "fabric": "^7.4.0",
     "framer-motion": "^12.23.12",
     "jszip": "^3.10.1",
     "lucide-react": "^0.542.0",

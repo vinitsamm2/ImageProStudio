@@ -1702,7 +1702,8 @@ export async function compileEditedPdf(
   file: File,
   pagesPlan: EditorPagePlanItem[],
   annotations: PdfAnnotation[],
-  deletedImageNames: string[] = []
+  deletedImageNames: string[] = [],
+  pageOverlayImages: Record<number, string> = {}
 ): Promise<Blob> {
   const buffer = await file.arrayBuffer();
   const srcDoc = await PDFDocument.load(buffer, { ignoreEncryption: true });
@@ -1786,11 +1787,26 @@ export async function compileEditedPdf(
       page.setRotation(degrees(finalAngle));
     }
 
+    const { width, height } = page.getSize();
+
+    // If an interactive Fabric.js canvas overlay is provided for this page, embed it directly with PDF-LIB
+    if (pageOverlayImages && pageOverlayImages[pageIdx]) {
+      try {
+        const overlayDataUrl = pageOverlayImages[pageIdx];
+        const base64 = overlayDataUrl.replace(/^data:image\/[^;]+;base64,/, "");
+        const binary = atob(base64);
+        const bytes = new Uint8Array(binary.length);
+        for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+        const embeddedPng = await newDoc.embedPng(bytes);
+        page.drawImage(embeddedPng, { x: 0, y: 0, width, height });
+      } catch (overlayErr) {
+        console.warn("Could not embed page overlay image:", overlayErr);
+      }
+    }
+
     // Get annotations for this pageIndex
     const pageAnns = annotations.filter((a) => a.pageIndex === pageIdx);
     if (pageAnns.length === 0) continue;
-
-    const { width, height } = page.getSize();
 
     // High-resolution raster scale (2.0x for crisp vector quality)
     const scale = 2.0;
