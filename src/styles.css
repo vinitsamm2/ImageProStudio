@@ -162,3 +162,48 @@ body {
 body > .skiptranslate {
   display: none !important;
 }
+
+/* Quill PDF Text Editor Reset & Overlay Styling */
+.quill-pdf-wrapper .ql-container.ql-bubble {
+  font-family: inherit !important;
+  font-size: inherit !important;
+  height: 100% !important;
+  border: none !important;
+}
+
+.quill-pdf-wrapper .ql-editor {
+  padding: 0px 1px !important;
+  margin: 0 !important;
+  line-height: 1.15 !important;
+  min-height: 100% !important;
+  height: auto !important;
+  overflow: visible !important;
+  white-space: pre-wrap !important;
+  word-break: break-word !important;
+  outline: none !important;
+  color: inherit !important;
+  font-family: inherit !important;
+  font-size: inherit !important;
+  font-weight: inherit !important;
+  font-style: inherit !important;
+}
+
+.quill-pdf-wrapper .ql-editor p {
+  margin: 0 !important;
+  padding: 0 !important;
+  line-height: inherit !important;
+}
+
+.quill-pdf-wrapper .ql-editor.ql-blank::before {
+  font-style: italic !important;
+  color: #94a3b8 !important;
+  left: 1px !important;
+}
+
+.ql-bubble .ql-tooltip {
+  z-index: 9999 !important;
+  border-radius: 12px !important;
+  background-color: #0f172a !important;
+  border: 1px solid rgba(255, 255, 255, 0.2) !important;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5) !important;
+}

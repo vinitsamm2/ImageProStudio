@@ -49,7 +49,6 @@ import {
 } from "lucide-react";
 import UploadZone from "../UploadZone";
 import QuillPdfTextEditor from "./QuillPdfTextEditor";
-import FabricPdfOverlay, { FabricPdfOverlayRef } from "./FabricPdfOverlay";
 import {
   EditorPagePlanItem,
   EditorPoint,
@@ -249,7 +248,6 @@ export default function PdfEditorView({
 
   // In-progress interaction state
   const pageContainerRef = useRef<HTMLDivElement | null>(null);
-  const fabricOverlayRef = useRef<FabricPdfOverlayRef | null>(null);
   const [pageOverlayImages, setPageOverlayImages] = useState<Record<number, string>>({});
   const [isInteracting, setIsInteracting] = useState(false);
   const [interactionStart, setInteractionStart] = useState<{ x: number; y: number } | null>(null);
@@ -757,7 +755,19 @@ export default function PdfEditorView({
   // Find nearest or overlapping detected text item on current page
   const findTextItemAtPoint = useCallback(
     (xNorm: number, yNorm: number, tolerance = 0.03): PdfExtractedTextItem | null => {
-      const items = extractedTexts[activePageIndex] || [];
+      const allItems = extractedTexts[activePageIndex] || [];
+      const items = allItems.filter(
+        (item) =>
+          !annotations.some(
+            (a) =>
+              a.pageIndex === activePageIndex &&
+              ((a.originalBounds &&
+                Math.abs(a.originalBounds.xNorm - item.xNorm) < 0.025 &&
+                Math.abs(a.originalBounds.yNorm - item.yNorm) < 0.025) ||
+                (Math.abs(a.xNorm - item.xNorm) < 0.02 &&
+                  Math.abs(a.yNorm - item.yNorm) < 0.02))
+          )
+      );
       for (const item of items) {
         if (
           xNorm >= item.xNorm - 0.01 &&
@@ -781,7 +791,7 @@ export default function PdfEditorView({
       }
       return closest;
     },
-    [extractedTexts, activePageIndex]
+    [extractedTexts, activePageIndex, annotations]
   );
 
   // Push history snapshot
@@ -994,10 +1004,9 @@ export default function PdfEditorView({
     pushHistory([...annotations, newAnn]);
     setSelectedId(newAnn.id);
     setEditingTextId(newAnn.id);
-    setActiveTool("select");
+    setActiveTool("text");
     const fontDesc = `${item.actualFontName || item.fontFamily} ${item.fontSize}pt${item.fontWeight === "bold" ? " Bold" : ""}${item.fontStyle === "italic" ? " Italic" : ""}`;
     notify(`Editing text (Matched: ${fontDesc})`, "info");
-    setTimeout(() => textInputRef.current?.focus(), 50);
   };
 
   // Convert all detected text on current page to editable blocks
@@ -1309,8 +1318,13 @@ export default function PdfEditorView({
     }
 
     if (activeTool === "select" || activeTool === "editText") {
-      // If clicking outside any annotation, deselect
+      // If clicking outside any annotation, check if clicked on detected text to edit it
       if (!(e.target as HTMLElement).closest(".pdf-annotation-box")) {
+        const matchedItem = findTextItemAtPoint(xNorm, yNorm, 0.03);
+        if (matchedItem) {
+          handleEditDetectedText(matchedItem);
+          return;
+        }
         setSelectedId(null);
         setEditingTextId(null);
       }
@@ -1363,9 +1377,7 @@ export default function PdfEditorView({
       pushHistory([...annotations, newTextAnn]);
       setSelectedId(newTextAnn.id);
       setEditingTextId(newTextAnn.id);
-      setActiveTool("select");
       notify("Text box placed. Type to edit content.", "info");
-      setTimeout(() => textInputRef.current?.focus(), 50);
       return;
     }
 
@@ -1841,9 +1853,6 @@ export default function PdfEditorView({
     try {
       notify("Compiling vector annotations & PDF pages with PDF-LIB...", "info");
       const overlaysToExport = { ...pageOverlayImages };
-      if (fabricOverlayRef.current && fabricOverlayRef.current.hasObjects()) {
-        overlaysToExport[activePageIndex] = fabricOverlayRef.current.exportOverlayDataUrl();
-      }
       const blob = await compileEditedPdf(
         info.file,
         pagesPlan,
@@ -3385,25 +3394,29 @@ export default function PdfEditorView({
                 />
               )}
 
-              {/* Interactive Canvas Overlay (Fabric.js) */}
-              <FabricPdfOverlay
-                ref={fabricOverlayRef}
-                width={pageDimensions.width}
-                height={pageDimensions.height}
-                zoomScale={zoomScale}
-                activeTool={activeTool}
-                activeColor={activeColor}
-                strokeWidth={strokeWidth}
-                fontSize={fontSize}
-                fontFamily={fontFamily}
-                isBold={isBold}
-                isItalic={isItalic}
-                onToolChange={(tool) => setActiveTool(tool)}
-              />
+              {/* Original Text Whiteout Mask Layer: Permanently and cleanly conceals the original underlying PDF text */}
+              <div className="absolute inset-0 pointer-events-none z-5">
+                {pageAnnotations.map((ann) => {
+                  if (ann.type !== "text" || !ann.originalBounds) return null;
+                  return (
+                    <div
+                      key={`whiteout-orig-${ann.id}`}
+                      className="absolute pointer-events-none rounded-xs"
+                      style={{
+                        left: `${ann.originalBounds.xNorm * 100}%`,
+                        top: `${ann.originalBounds.yNorm * 100}%`,
+                        width: `${ann.originalBounds.widthNorm * 100}%`,
+                        height: `${ann.originalBounds.heightNorm * 100}%`,
+                        backgroundColor: ann.whiteoutColor || "#ffffff"
+                      }}
+                    />
+                  );
+                })}
+              </div>
 
               {/* Text Detection Layer (Click to Edit Existing Text) */}
               {detectTextActive && activeTool !== "draw" && (
-                <div className="absolute inset-0 pointer-events-none z-15">
+                <div className="absolute inset-0 pointer-events-none z-10">
                   {(extractedTexts[activePageIndex] || []).map((item) => {
                     const isAlreadyEdited = pageAnnotations.some(
                       (a) =>
@@ -3428,7 +3441,7 @@ export default function PdfEditorView({
                         key={item.id}
                         onPointerEnter={() => setHoveredTextId(item.id)}
                         onPointerLeave={() => setHoveredTextId(null)}
-                        onClick={(e) => {
+                        onPointerDown={(e) => {
                           e.stopPropagation();
                           handleEditDetectedText(item);
                         }}
@@ -3436,8 +3449,8 @@ export default function PdfEditorView({
                           isFindMatch
                             ? "bg-amber-400/30 border-2 border-amber-500 shadow-md ring-2 ring-amber-400/50 z-25 animate-pulse"
                             : isHovered || activeTool === "editText"
-                            ? "bg-blue-500/20 border border-blue-500 shadow-xs z-25"
-                            : "hover:bg-blue-500/15 border border-dashed border-blue-400/30 hover:border-blue-500"
+                            ? "bg-blue-500/15 border border-blue-500 shadow-xs z-15 ring-2 ring-blue-400/30"
+                            : "hover:bg-blue-500/10 border border-dashed border-blue-400/40 hover:border-blue-500"
                         }`}
                         style={{
                           left: `${item.xNorm * 100}%`,
@@ -3542,7 +3555,7 @@ export default function PdfEditorView({
                   <div
                     key={ann.id}
                     className={`pdf-annotation-box absolute group ${
-                      isSelected ? "ring-2 ring-blue-500 ring-offset-1 z-20" : "z-10"
+                      isSelected ? "ring-2 ring-blue-500 ring-offset-1 z-25" : "z-20"
                     }`}
                     style={{
                       left,
@@ -3552,11 +3565,17 @@ export default function PdfEditorView({
                       transform: ann.rotation ? `rotate(${ann.rotation}deg)` : undefined
                     }}
                     onPointerDown={(e) => {
-                      if (activeTool === "select" || activeTool === "editText") {
+                      if (activeTool === "select" || activeTool === "editText" || activeTool === "text") {
                         e.stopPropagation();
                         setSelectedId(ann.id);
 
-                        // Start dragging
+                        // In text mode, clicking text box immediately opens inline editing
+                        if (activeTool === "text" && ann.type === "text" && !isEditing) {
+                          setEditingTextId(ann.id);
+                          return;
+                        }
+
+                        // Start dragging if not editing
                         if (!isEditing) {
                           setDraggingId(ann.id);
                           if (pageContainerRef.current) {
@@ -3571,10 +3590,18 @@ export default function PdfEditorView({
                         }
                       }
                     }}
+                    onClick={(e) => {
+                      if (ann.type === "text") {
+                        e.stopPropagation();
+                        setSelectedId(ann.id);
+                        if (activeTool === "text" || activeTool === "editText") {
+                          setEditingTextId(ann.id);
+                        }
+                      }
+                    }}
                     onDoubleClick={() => {
                       if (ann.type === "text") {
                         setEditingTextId(ann.id);
-                        setTimeout(() => textInputRef.current?.focus(), 50);
                       }
                     }}
                   >
