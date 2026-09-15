@@ -73,7 +73,7 @@ export default function StudioLayout({
           onOpenAbout={onOpenAbout}
           dark={dark}
           onToggleDark={onToggleDark}
-          collapsed={collapsed}
+          collapsed={activeTool === "edit-pdf" ? true : collapsed}
           onToggleCollapsed={() => setCollapsed(!collapsed)}
         />
       </div>
@@ -142,9 +142,13 @@ export default function StudioLayout({
 
         {/* Central Studio Stage Viewport */}
         <main
-          className="flex-1 studio-grid p-3 sm:p-5 lg:p-6 min-h-0 overflow-y-auto"
+          className={`flex-1 min-h-0 overflow-y-auto ${
+            activeTool === "edit-pdf" && !isCatalogOpen
+              ? "p-0 bg-slate-100/60 dark:bg-[#090d16]"
+              : "studio-grid p-3 sm:p-5 lg:p-6"
+          }`}
         >
-          <div className="mx-auto max-w-[1680px] w-full min-h-0">
+          <div className={`${activeTool === "edit-pdf" && !isCatalogOpen ? "w-full min-h-full" : "mx-auto max-w-[1680px] w-full min-h-0"}`}>
             <AnimatePresence mode="wait">
               {isCatalogOpen ? (
                 <motion.div
@@ -173,14 +177,16 @@ export default function StudioLayout({
         </main>
 
         {/* Bottom Session Staging Shelf */}
-        <AssetStagingDrawer
-          stagedFiles={stagedFiles}
-          onAddFiles={onAddStagedFiles}
-          onRemoveFile={onRemoveStagedFile}
-          onClearFiles={onClearStagedFiles}
-          onSendToTool={onSendToTool}
-          activeTool={activeTool}
-        />
+        {activeTool !== "edit-pdf" && (
+          <AssetStagingDrawer
+            stagedFiles={stagedFiles}
+            onAddFiles={onAddStagedFiles}
+            onRemoveFile={onRemoveStagedFile}
+            onClearFiles={onClearStagedFiles}
+            onSendToTool={onSendToTool}
+            activeTool={activeTool}
+          />
+        )}
       </div>
     </div>
   );

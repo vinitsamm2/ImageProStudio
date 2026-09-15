@@ -3295,3 +3295,107 @@ export async function convertWordToPdf(
   return bytesToBlob(outputBytes, "application/pdf");
 }
 
+export async function createBlankPdfFile(filename: string = "untitled-document.pdf"): Promise<File> {
+  const pdfDoc = await PDFDocument.create();
+  pdfDoc.addPage([595.28, 841.89]); // Standard A4 (points)
+  const bytes = await pdfDoc.save();
+  return new File([new Uint8Array(bytes).buffer], filename, { type: "application/pdf" });
+}
+
+export async function createSampleContractPdfFile(): Promise<File> {
+  const pdfDoc = await PDFDocument.create();
+  const page = pdfDoc.addPage([595.28, 841.89]);
+  const fontBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+  const fontRegular = await pdfDoc.embedFont(StandardFonts.Helvetica);
+
+  page.drawText("STANDARD SERVICE AGREEMENT", {
+    x: 50,
+    y: 780,
+    size: 18,
+    font: fontBold,
+    color: rgb(0.12, 0.16, 0.24)
+  });
+
+  page.drawText("Contract Reference: IPS-2026-0901", {
+    x: 50,
+    y: 755,
+    size: 10,
+    font: fontRegular,
+    color: rgb(0.4, 0.45, 0.55)
+  });
+
+  page.drawLine({
+    start: { x: 50, y: 742 },
+    end: { x: 545, y: 742 },
+    thickness: 1,
+    color: rgb(0.8, 0.85, 0.9)
+  });
+
+  page.drawText("1. PARTIES & SCOPE", {
+    x: 50,
+    y: 715,
+    size: 12,
+    font: fontBold,
+    color: rgb(0.15, 0.2, 0.3)
+  });
+
+  page.drawText(
+    "This Agreement is entered between ImagePro Studio Client ('Client') and Service Provider.",
+    { x: 50, y: 695, size: 10.5, font: fontRegular, color: rgb(0.25, 0.3, 0.38) }
+  );
+
+  page.drawText(
+    "You can click directly anywhere on this text to edit, add forms, or insert signatures.",
+    { x: 50, y: 675, size: 10.5, font: fontRegular, color: rgb(0.25, 0.3, 0.38) }
+  );
+
+  page.drawText("2. PROJECT TERMS & COMPENSATION", {
+    x: 50,
+    y: 635,
+    size: 12,
+    font: fontBold,
+    color: rgb(0.15, 0.2, 0.3)
+  });
+
+  page.drawText(
+    "Total agreed compensation for deliverables is $2,450.00 USD payable upon completion.",
+    { x: 50, y: 615, size: 10.5, font: fontRegular, color: rgb(0.25, 0.3, 0.38) }
+  );
+
+  page.drawText("Delivery Deadline: October 15, 2026", {
+    x: 50,
+    y: 595,
+    size: 10.5,
+    font: fontRegular,
+    color: rgb(0.25, 0.3, 0.38)
+  });
+
+  page.drawText("3. SIGNATURES & APPROVAL", {
+    x: 50,
+    y: 550,
+    size: 12,
+    font: fontBold,
+    color: rgb(0.15, 0.2, 0.3)
+  });
+
+  page.drawText("Authorized Representative Signature: ____________________________", {
+    x: 50,
+    y: 520,
+    size: 10.5,
+    font: fontRegular,
+    color: rgb(0.3, 0.35, 0.45)
+  });
+
+  page.drawText("Date: September 16, 2026", {
+    x: 50,
+    y: 495,
+    size: 10.5,
+    font: fontRegular,
+    color: rgb(0.3, 0.35, 0.45)
+  });
+
+  const bytes = await pdfDoc.save();
+  return new File([new Uint8Array(bytes).buffer], "sample-agreement.pdf", { type: "application/pdf" });
+}
+
+

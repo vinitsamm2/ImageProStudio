@@ -59,6 +59,8 @@ import {
   PdfExtractedTextItem,
   PdfFileInfo,
   compileEditedPdf,
+  createBlankPdfFile,
+  createSampleContractPdfFile,
   downloadBlob,
   extractPdfPageImages,
   extractPdfPageTextItems,
@@ -1881,70 +1883,157 @@ export default function PdfEditorView({
 
   if (!info) {
     return (
-      <div className="space-y-6">
-        <div className="rounded-3xl border border-slate-200/80 bg-white/70 p-6 shadow-sm backdrop-blur-md dark:border-white/[0.08] dark:bg-slate-900/50">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <div className="grid h-12 w-12 place-items-center rounded-2xl bg-gradient-to-tr from-blue-600 via-indigo-600 to-cyan-500 text-white shadow-md shadow-blue-500/20">
-                <FilePenLine size={24} />
-              </div>
-              <div>
-                <div className="flex items-center gap-2">
-                  <h2 className="text-lg font-black text-slate-900 dark:text-white">PDF Editor</h2>
-                  <span className="rounded-full bg-blue-500/10 px-2 py-0.5 text-[10px] font-bold text-blue-600 dark:text-blue-400">
-                    PRO Suite
-                  </span>
-                </div>
-                <p className="text-xs text-slate-500 dark:text-slate-400">
-                  Full in-browser PDF suite: Edit text, freehand draw, highlight, redact, stamp & insert images.
-                </p>
-              </div>
-            </div>
+      <div className="space-y-6 max-w-5xl mx-auto px-4 py-6">
+        {/* Sejda-inspired Hero Header */}
+        <div className="text-center space-y-3">
+          <div className="inline-flex items-center gap-2 rounded-full border border-blue-500/20 bg-blue-500/10 px-3.5 py-1 text-xs font-bold text-blue-600 dark:text-blue-400 shadow-xs">
+            <Sparkles size={13} className="text-blue-500 animate-pulse" />
+            <span>Next-Gen Floating PDF Editor</span>
+          </div>
+          <h1 className="text-3xl sm:text-4xl font-black tracking-tight text-slate-900 dark:text-white">
+            Edit PDF Documents Online
+          </h1>
+          <p className="text-sm sm:text-base text-slate-600 dark:text-slate-400 max-w-2xl mx-auto">
+            Edit text directly without overlapping, fill forms, draw signatures, whiteout logos, and annotate with a sleek floating menu capsule.
+          </p>
+        </div>
 
-            <div className="flex items-center gap-2">
-              <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3 py-1 text-xs font-bold text-emerald-600 dark:text-emerald-400">
-                <ShieldCheck size={14} />
-                100% In-Browser & Private
-              </span>
+        {/* Primary Action Hero Card */}
+        <div className="rounded-3xl border border-slate-200/80 bg-white/80 p-6 sm:p-10 shadow-xl backdrop-blur-xl dark:border-white/10 dark:bg-slate-900/70 text-center space-y-6">
+          <UploadZone
+            accept="application/pdf"
+            files={[]}
+            formats="PDF"
+            onFiles={load}
+            onRemove={() => {
+              setInfo(null);
+              setPagesPlan([]);
+              setAnnotations([]);
+            }}
+            label="Upload PDF file"
+            helperText="Drag & drop your PDF here, or click to choose from computer"
+          />
+
+          {/* Direct Quick Launch Options (Sejda style) */}
+          <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
+            <span className="text-xs font-bold text-slate-400">Or start immediately:</span>
+            <button
+              type="button"
+              onClick={async () => {
+                try {
+                  const blankDoc = await createBlankPdfFile("untitled-document.pdf");
+                  await load([blankDoc]);
+                  notify("Blank canvas ready for editing!", "success");
+                } catch (e: any) {
+                  notify(e?.message || "Failed to create blank document", "error");
+                }
+              }}
+              className="inline-flex items-center gap-1.5 rounded-full border border-slate-300 bg-white px-4 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 hover:border-slate-400 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700 transition-all shadow-xs cursor-pointer active:scale-95"
+            >
+              <FileText size={14} className="text-blue-500" />
+              <span>Start with Blank Document</span>
+            </button>
+            <button
+              type="button"
+              onClick={async () => {
+                try {
+                  const sampleDoc = await createSampleContractPdfFile();
+                  await load([sampleDoc]);
+                  notify("Sample agreement loaded! Try editing text, signing, or whiting out.", "success");
+                } catch (e: any) {
+                  notify(e?.message || "Failed to load sample document", "error");
+                }
+              }}
+              className="inline-flex items-center gap-1.5 rounded-full border border-emerald-300 bg-emerald-50 px-4 py-2 text-xs font-bold text-emerald-700 hover:bg-emerald-100 hover:border-emerald-400 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300 transition-all shadow-xs cursor-pointer active:scale-95"
+            >
+              <FileSignature size={14} className="text-emerald-600" />
+              <span>Try with Sample Agreement</span>
+            </button>
+          </div>
+
+          <div className="flex items-center justify-center gap-4 text-xs font-bold text-slate-500 dark:text-slate-400 border-t border-slate-200/60 dark:border-white/[0.06] pt-4">
+            <span className="inline-flex items-center gap-1 text-emerald-600 dark:text-emerald-400">
+              <ShieldCheck size={14} /> 100% In-Browser & Private
+            </span>
+            <span>•</span>
+            <span>Zero file uploads to external servers</span>
+            <span>•</span>
+            <span>Free & Unlimited</span>
+          </div>
+        </div>
+
+        {/* Live Floating Menu Preview Showcase */}
+        <div className="rounded-3xl border border-blue-500/20 bg-gradient-to-b from-blue-50/50 to-indigo-50/30 p-6 dark:border-white/10 dark:from-slate-900/50 dark:to-slate-950/50 space-y-4">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-extrabold uppercase tracking-wider text-blue-600 dark:text-blue-400">
+              ⚡ Live Floating Capsule Dock Preview
+            </span>
+            <span className="text-[11px] font-bold text-slate-400 hidden sm:inline">
+              Floats above document for frictionless editing
+            </span>
+          </div>
+
+          {/* Mock Floating Capsule */}
+          <div className="mx-auto w-fit rounded-full border border-slate-200/90 bg-white/95 p-1.5 shadow-xl backdrop-blur-2xl dark:border-white/15 dark:bg-slate-900/95 flex items-center gap-1.5 flex-nowrap overflow-x-auto no-scrollbar pointer-events-none opacity-90">
+            <div className="flex items-center gap-1 pl-2 pr-2.5 py-1 rounded-full bg-slate-100 text-xs font-bold text-slate-700 dark:bg-slate-800 dark:text-slate-300">
+              <FilePenLine size={11} className="text-blue-600" />
+              <span>Sample.pdf</span>
+              <span className="text-[10px] text-blue-600 font-extrabold">1/1</span>
+            </div>
+            <div className="h-4 w-px bg-slate-200 dark:bg-white/[0.1]" />
+            <div className="flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-bold bg-emerald-600 text-white shadow-xs">
+              <Type size={14} />
+              <span>Text</span>
+            </div>
+            <div className="flex items-center gap-1 px-2.5 py-1.5 rounded-full text-xs font-bold text-slate-700 dark:text-slate-200">
+              <CheckSquare size={14} />
+              <span>Forms ▾</span>
+            </div>
+            <div className="flex items-center gap-1 px-2.5 py-1.5 rounded-full text-xs font-bold text-slate-700 dark:text-slate-200">
+              <ImageIcon size={14} />
+              <span>Images</span>
+            </div>
+            <div className="flex items-center gap-1 px-2.5 py-1.5 rounded-full text-xs font-bold text-slate-700 dark:text-slate-200">
+              <FileSignature size={14} />
+              <span>Sign</span>
+            </div>
+            <div className="flex items-center gap-1 px-2.5 py-1.5 rounded-full text-xs font-bold text-slate-700 dark:text-slate-200">
+              <Eraser size={14} />
+              <span>Whiteout</span>
+            </div>
+            <div className="flex items-center gap-1 px-2.5 py-1.5 rounded-full text-xs font-bold text-slate-700 dark:text-slate-200">
+              <PencilLine size={14} />
+              <span>Annotate ▾</span>
+            </div>
+            <div className="h-4 w-px bg-slate-200 dark:bg-white/[0.1]" />
+            <div className="inline-flex items-center gap-1 rounded-full bg-emerald-600 text-white px-3.5 py-1.5 text-xs font-extrabold shadow-md">
+              <CheckCheck size={14} />
+              <span>Apply changes</span>
             </div>
           </div>
         </div>
 
-        <UploadZone
-          accept="application/pdf"
-          files={[]}
-          formats="PDF"
-          onFiles={load}
-          onRemove={() => {
-            setInfo(null);
-            setPagesPlan([]);
-            setAnnotations([]);
-          }}
-          label="Drop your PDF here to edit"
-          helperText="Supports multi-page contracts, legal forms, application PDFs, certificates & marksheets"
-        />
-
         {/* Feature Highlights Grid */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2">
-          <div className="rounded-2xl border border-slate-200/80 bg-white/60 p-3.5 dark:border-white/[0.06] dark:bg-slate-900/50 text-center">
-            <Type size={20} className="mx-auto text-blue-500" />
-            <h4 className="mt-2 text-xs font-bold text-slate-800 dark:text-slate-200">Text & Fonts</h4>
-            <p className="mt-0.5 text-[10px] text-slate-400">Add custom text, sizes, colors & highlights</p>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <div className="rounded-2xl border border-slate-200/80 bg-white/60 p-4 dark:border-white/[0.06] dark:bg-slate-900/50 text-center">
+            <Type size={22} className="mx-auto text-blue-500" />
+            <h4 className="mt-2 text-xs font-bold text-slate-800 dark:text-slate-200">Inline Text Editing</h4>
+            <p className="mt-0.5 text-[10px] text-slate-400">Click any text to edit in place without overlapping</p>
           </div>
-          <div className="rounded-2xl border border-slate-200/80 bg-white/60 p-3.5 dark:border-white/[0.06] dark:bg-slate-900/50 text-center">
-            <PenTool size={20} className="mx-auto text-indigo-500" />
-            <h4 className="mt-2 text-xs font-bold text-slate-800 dark:text-slate-200">Draw & Highlight</h4>
-            <p className="mt-0.5 text-[10px] text-slate-400">Smooth pen sketching & transparent markers</p>
+          <div className="rounded-2xl border border-slate-200/80 bg-white/60 p-4 dark:border-white/[0.06] dark:bg-slate-900/50 text-center">
+            <CheckSquare size={22} className="mx-auto text-emerald-500" />
+            <h4 className="mt-2 text-xs font-bold text-slate-800 dark:text-slate-200">Interactive Forms</h4>
+            <p className="mt-0.5 text-[10px] text-slate-400">Add text fields, checkboxes & radio options</p>
           </div>
-          <div className="rounded-2xl border border-slate-200/80 bg-white/60 p-3.5 dark:border-white/[0.06] dark:bg-slate-900/50 text-center">
-            <EyeOff size={20} className="mx-auto text-rose-500" />
-            <h4 className="mt-2 text-xs font-bold text-slate-800 dark:text-slate-200">Permanent Redact</h4>
-            <p className="mt-0.5 text-[10px] text-slate-400">Blackout or whiteout confidential details</p>
+          <div className="rounded-2xl border border-slate-200/80 bg-white/60 p-4 dark:border-white/[0.06] dark:bg-slate-900/50 text-center">
+            <Wand2 size={22} className="mx-auto text-indigo-500" />
+            <h4 className="mt-2 text-xs font-bold text-slate-800 dark:text-slate-200">Logo & BG Erase</h4>
+            <p className="mt-0.5 text-[10px] text-slate-400">AI auto-matching background inpainting</p>
           </div>
-          <div className="rounded-2xl border border-slate-200/80 bg-white/60 p-3.5 dark:border-white/[0.06] dark:bg-slate-900/50 text-center">
-            <Stamp size={20} className="mx-auto text-emerald-500" />
-            <h4 className="mt-2 text-xs font-bold text-slate-800 dark:text-slate-200">Stamps & Signatures</h4>
-            <p className="mt-0.5 text-[10px] text-slate-400">Approved, confidential & cursive signs</p>
+          <div className="rounded-2xl border border-slate-200/80 bg-white/60 p-4 dark:border-white/[0.06] dark:bg-slate-900/50 text-center">
+            <FileSignature size={22} className="mx-auto text-violet-500" />
+            <h4 className="mt-2 text-xs font-bold text-slate-800 dark:text-slate-200">Sign & Stamp</h4>
+            <p className="mt-0.5 text-[10px] text-slate-400">Draw smooth signatures or embed PNG stamps</p>
           </div>
         </div>
       </div>
@@ -3193,8 +3282,8 @@ export default function PdfEditorView({
       )}
 
       {/* Maximum Viewport Center Stage: Page Canvas & Overlays */}
-      <div className="w-full flex flex-col items-center justify-start min-h-[calc(100vh-140px)] py-1 sm:py-2 px-1 overflow-x-auto">
-        <div className="relative p-2 sm:p-4 rounded-3xl bg-slate-100/50 dark:bg-slate-950/40 w-full flex flex-col items-center">
+      <div className="w-full flex flex-col items-center justify-start min-h-[calc(100vh-100px)] py-1 px-1 sm:px-2 overflow-x-auto">
+        <div className="relative p-1 sm:p-2 w-full flex flex-col items-center">
             {loadingPage && (
               <div className="absolute inset-0 z-20 flex items-center justify-center bg-white/60 dark:bg-slate-950/60 backdrop-blur-xs rounded-3xl">
                 <div className="flex items-center gap-2 rounded-2xl bg-white px-4 py-2 shadow-lg dark:bg-slate-900 border border-slate-200 dark:border-white/[0.1]">
