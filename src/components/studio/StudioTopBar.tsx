@@ -20,6 +20,8 @@ import { ToolId } from "../ToolGrid";
 import { STUDIO_TOOLS } from "./ToolActivityRail";
 import FontSizeScaleControl from "../ui/FontSizeScaleControl";
 import BrandLogo from "../ui/BrandLogo";
+import LanguageSelector from "../ui/LanguageSelector";
+import { useLanguage } from "../../lib/i18n";
 
 type StudioTopBarProps = {
   activeTool: ToolId;
@@ -48,6 +50,7 @@ export default function StudioTopBar({
   onResetTool,
   stagedFileCount
 }: StudioTopBarProps) {
+  const { t } = useLanguage();
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const currentTool = STUDIO_TOOLS.find((t) => t.id === activeTool) || STUDIO_TOOLS[0];
   const Icon = currentTool.icon;
@@ -80,7 +83,7 @@ export default function StudioTopBar({
             <div className="grid h-5 w-5 shrink-0 place-items-center rounded-md bg-cyan-600 text-white shadow-xs">
               <Icon size={12} />
             </div>
-            <span className="font-extrabold truncate">{currentTool.name}</span>
+            <span className="font-extrabold truncate">{t(currentTool.id, currentTool.name)}</span>
             <ChevronDown size={13} className="shrink-0 text-slate-400" />
           </button>
 
@@ -93,7 +96,7 @@ export default function StudioTopBar({
               />
               <div className="absolute left-0 top-full mt-1.5 z-50 w-64 rounded-2xl border border-slate-200 bg-white p-2 shadow-xl dark:border-white/[0.1] dark:bg-slate-900 animate-in fade-in zoom-in-95">
                 <div className="px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                  Switch Active Tool
+                  {t("switchActiveTool", "Switch Active Tool")}
                 </div>
                 <div className="space-y-1 max-h-72 overflow-y-auto">
                   {STUDIO_TOOLS.map((tool) => {
@@ -114,7 +117,7 @@ export default function StudioTopBar({
                       >
                         <div className="flex items-center gap-2">
                           <ToolIcon size={14} className="text-slate-400" />
-                          <span>{tool.name}</span>
+                          <span>{t(tool.id, tool.name)}</span>
                         </div>
                         <kbd className="rounded bg-slate-100 px-1.5 py-0.2 font-mono text-[9px] text-slate-400 dark:bg-slate-800">
                           {tool.shortcut}
@@ -137,7 +140,7 @@ export default function StudioTopBar({
             title={`Quick switch to reciprocal tool: ${currentTool.viceVersaLabel}`}
           >
             <ArrowLeftRight size={12} className="text-indigo-500 shrink-0" />
-            <span className="hidden sm:inline">Switch to </span>
+            <span className="hidden sm:inline">{t("switchTo", "Switch to")} </span>
             <span className="truncate">{currentTool.viceVersaLabel}</span>
           </button>
         )}
@@ -155,7 +158,7 @@ export default function StudioTopBar({
           }`}
         >
           <Sparkles size={12} className="text-cyan-500" />
-          <span>Studio Canvas</span>
+          <span>{t("studioCanvas", "Studio Canvas")}</span>
         </button>
         <button
           type="button"
@@ -167,11 +170,11 @@ export default function StudioTopBar({
           }`}
         >
           <Grid size={12} />
-          <span>Catalog View</span>
+          <span>{t("catalogView", "Catalog View")}</span>
         </button>
       </div>
 
-      {/* Right: Search, Sandbox Badge, Theme Toggle */}
+      {/* Right: Search, Sandbox Badge, Language, Theme Toggle */}
       <div className="flex items-center gap-2">
         {/* Command Palette Trigger */}
         <button
@@ -181,17 +184,16 @@ export default function StudioTopBar({
           title="Open Command Palette (⌘K)"
         >
           <Search size={13} className="text-cyan-500" />
-          <span className="hidden sm:inline">Search</span>
+          <span className="hidden sm:inline">{t("search", "Search")}</span>
           <kbd className="rounded bg-white px-1.5 py-0.2 font-mono text-[10px] text-slate-400 dark:bg-slate-800">
             ⌘K
           </kbd>
         </button>
 
-
         {/* Exam Form Fill & 100% Free Badge */}
         <div className="hidden lg:flex items-center gap-1.5 rounded-xl border border-emerald-500/25 bg-emerald-500/10 px-2.5 py-1 text-xs font-extrabold text-emerald-600 dark:text-emerald-400 shadow-xs" title="Created for Students & Employees • 100% Accepted for All Examination & Job Forms">
           <GraduationCap size={13} className="text-emerald-500" />
-          <span>Exam Form Fill Ready • 100% Free</span>
+          <span>{t("examBadge", "Exam Form Fill Ready • 100% Free")}</span>
         </div>
 
         {/* About Us Trigger */}
@@ -203,9 +205,12 @@ export default function StudioTopBar({
             title="About ImagePro Studio"
           >
             <Info size={13} className="text-cyan-500" />
-            <span>About Us</span>
+            <span>{t("aboutUs", "About Us")}</span>
           </button>
         )}
+
+        {/* Multi-Language Selector with Country Flags */}
+        <LanguageSelector />
 
         {/* Global Accessibility Font Increaser & Decreaser */}
         <FontSizeScaleControl className="hidden sm:inline-flex" />

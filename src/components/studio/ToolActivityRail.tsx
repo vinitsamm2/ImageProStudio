@@ -24,6 +24,7 @@ import {
 import { ToolId } from "../ToolGrid";
 import { useState } from "react";
 import BrandLogo from "../ui/BrandLogo";
+import { useLanguage } from "../../lib/i18n";
 
 export type ToolItemDef = {
   id: ToolId;
@@ -244,6 +245,7 @@ export default function ToolActivityRail({
   collapsed,
   onToggleCollapsed
 }: ToolActivityRailProps) {
+  const { t } = useLanguage();
   const [categoryFilter, setCategoryFilter] = useState<"all" | "pdf" | "image">("all");
 
   const displayedTools = STUDIO_TOOLS.filter((t) => {
@@ -267,7 +269,7 @@ export default function ToolActivityRail({
               className="flex items-center gap-2.5 text-left focus:outline-none group"
               title="ImagePro Studio - Open Catalog"
             >
-              <BrandLogo size={32} showText subtitle="100% In-Browser" />
+              <BrandLogo size={32} showText subtitle={t("tagline", "100% In-Browser")} />
             </button>
           ) : (
             <button
@@ -303,7 +305,7 @@ export default function ToolActivityRail({
             title="Browse All 9 Tools Catalog"
           >
             <Grid size={15} />
-            {!collapsed && <span>All Tools Catalog</span>}
+            {!collapsed && <span>{t("allTools", "All Tools Catalog")}</span>}
           </button>
         </div>
 
@@ -311,9 +313,9 @@ export default function ToolActivityRail({
         {!collapsed && (
           <div className="flex items-center gap-1 px-2 py-1.5 shrink-0 border-b border-slate-200/60 dark:border-white/[0.05] bg-slate-50/50 dark:bg-slate-900/30">
             {[
-              { id: "all" as const, label: `All (${STUDIO_TOOLS.length})` },
-              { id: "pdf" as const, label: `PDFs (${STUDIO_TOOLS.filter((t) => t.category === "pdf").length})` },
-              { id: "image" as const, label: `Images (${STUDIO_TOOLS.filter((t) => t.category === "image").length})` }
+              { id: "all" as const, label: `${t("all", "All")} (${STUDIO_TOOLS.length})` },
+              { id: "pdf" as const, label: `${t("pdf", "PDFs")} (${STUDIO_TOOLS.filter((t) => t.category === "pdf").length})` },
+              { id: "image" as const, label: `${t("image", "Images")} (${STUDIO_TOOLS.filter((t) => t.category === "image").length})` }
             ].map((tab) => (
               <button
                 key={tab.id}
@@ -374,7 +376,7 @@ export default function ToolActivityRail({
                   <div className="flex flex-1 items-center justify-between overflow-hidden text-left">
                     <div className="truncate">
                       <p className="truncate text-xs font-semibold leading-tight">
-                        {tool.name}
+                        {t(tool.id, tool.name)}
                       </p>
                       {tool.badge && (
                         <span className="text-[9px] font-bold text-cyan-600 dark:text-cyan-400 uppercase tracking-wider">
@@ -398,7 +400,7 @@ export default function ToolActivityRail({
         {!collapsed && (
           <div className="flex items-center gap-1.5 px-2 py-1 text-[10px] font-extrabold text-emerald-600 dark:text-emerald-400" title="100% Free Unlimited Use">
             <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
-            <span>100% Free & Unlimited</span>
+            <span>{t("freeBadge", "100% Free & Unlimited")}</span>
           </div>
         )}
 
