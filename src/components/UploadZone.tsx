@@ -87,7 +87,25 @@ export default function UploadZone({
         onDrop={(event) => {
           event.preventDefault();
           setIsDragging(false);
-          handleFiles(event.dataTransfer.files);
+
+          // 1. Check OS drag and drop files
+          if (event.dataTransfer.files && event.dataTransfer.files.length > 0) {
+            handleFiles(event.dataTransfer.files);
+            return;
+          }
+
+          // 2. Check in-app drag and drop files from Session Asset Desk
+          const inAppFiles = (window as any).__draggedStagedFiles as File[] | undefined;
+          if (inAppFiles && inAppFiles.length > 0) {
+            onFiles(multiple ? inAppFiles : [inAppFiles[0]]);
+            (window as any).__draggedStagedFiles = null;
+            return;
+          }
+          const singleInApp = (window as any).__draggedStagedFile as File | undefined;
+          if (singleInApp) {
+            onFiles([singleInApp]);
+            (window as any).__draggedStagedFile = null;
+          }
         }}
       >
         <label className="flex cursor-pointer flex-col items-center justify-center gap-3">

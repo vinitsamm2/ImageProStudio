@@ -15,6 +15,7 @@ import {
   TrendingUp,
   Undo2,
   Unlock,
+  UploadCloud,
   X,
   Zap
 } from "lucide-react";
@@ -179,6 +180,7 @@ export default function ImageResizerView({
   const [resultUrl, setResultUrl] = useState("");
   const [lastResult, setLastResult] = useState<{ blob: Blob; name: string } | null>(null);
   const [busy, setBusy] = useState(false);
+  const [isDropTargetActive, setIsDropTargetActive] = useState(false);
 
   const load = async (files: File[]) => {
     const picked = files[0];
@@ -200,6 +202,13 @@ export default function ImageResizerView({
       notify("Failed to load image.", "error");
     }
   };
+
+  // Load initial files if passed via props or session staging shelf
+  useEffect(() => {
+    if (initialFiles && initialFiles.length > 0) {
+      load(initialFiles);
+    }
+  }, [initialFiles]);
 
   const getHandleClasses = (h: string) => {
     switch (h) {
@@ -523,7 +532,49 @@ export default function ImageResizerView({
     }
   };
 
-  return (    <div className="space-y-4 lg:h-full lg:flex lg:flex-col min-h-0">
+  return (
+    <div
+      onDragOver={(e) => {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = "copy";
+        if (!isDropTargetActive) setIsDropTargetActive(true);
+      }}
+      onDragLeave={(e) => {
+        if (!e.currentTarget.contains(e.relatedTarget as Node)) {
+          setIsDropTargetActive(false);
+        }
+      }}
+      onDrop={(e) => {
+        e.preventDefault();
+        setIsDropTargetActive(false);
+        // 1. Check OS drag and drop files
+        if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+          load(Array.from(e.dataTransfer.files));
+          return;
+        }
+        // 2. Check in-app drag and drop from Session Asset Desk
+        const inAppFiles = (window as any).__draggedStagedFiles as File[] | undefined;
+        if (inAppFiles && inAppFiles.length > 0) {
+          load(inAppFiles);
+          (window as any).__draggedStagedFiles = null;
+          return;
+        }
+        const singleInApp = (window as any).__draggedStagedFile as File | undefined;
+        if (singleInApp) {
+          load([singleInApp]);
+          (window as any).__draggedStagedFile = null;
+        }
+      }}
+      className="relative space-y-4 lg:h-full lg:flex lg:flex-col min-h-0"
+    >
+      {/* Drop Target Glowing Overlay */}
+      {isDropTargetActive && (
+        <div className="absolute inset-0 z-50 flex flex-col items-center justify-center rounded-3xl bg-cyan-600/90 text-white backdrop-blur-md shadow-2xl transition-all pointer-events-none">
+          <UploadCloud size={56} className="animate-bounce mb-3 text-cyan-200" />
+          <p className="text-2xl font-black tracking-tight">Drop Image to Resize</p>
+          <p className="text-xs font-semibold text-cyan-100 mt-1">Instant load into Image Resizer & Studio</p>
+        </div>
+      )}
       {/* Vice-Versa Quick Banner */}
       {onSwitchViceVersa && (
         <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 rounded-2xl border border-cyan-500/20 bg-cyan-500/5 p-4 text-xs dark:bg-cyan-950/20">

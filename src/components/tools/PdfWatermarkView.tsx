@@ -88,6 +88,12 @@ export default function PdfWatermarkView({
     }
   };
 
+  useEffect(() => {
+    if (initialFiles && initialFiles.length > 0) {
+      load(initialFiles);
+    }
+  }, [initialFiles]);
+
   const handleLogoUpload = (files: File[]) => {
     const picked = files[0];
     if (!picked) return;

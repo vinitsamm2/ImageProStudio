@@ -4,6 +4,7 @@ import {
   FileImage,
   FileText,
   FileUp,
+  GripVertical,
   Plus,
   Send,
   Trash2,
@@ -138,8 +139,25 @@ export default function AssetStagingDrawer({
               return (
                 <div
                   key={`${file.name}-${idx}`}
-                  className="group relative flex shrink-0 items-center gap-2.5 rounded-xl border border-slate-200/80 bg-white p-2 shadow-xs transition hover:border-cyan-400 dark:border-white/[0.08] dark:bg-slate-900"
+                  draggable={true}
+                  onDragStart={(e) => {
+                    (window as any).__draggedStagedFile = file;
+                    (window as any).__draggedStagedFiles = [file];
+                    e.dataTransfer.setData(
+                      "application/x-imagepro-file",
+                      JSON.stringify({ index: idx, name: file.name, type: file.type })
+                    );
+                    e.dataTransfer.setData("text/plain", file.name);
+                    e.dataTransfer.effectAllowed = "copyMove";
+                  }}
+                  onDragEnd={() => {
+                    (window as any).__draggedStagedFile = null;
+                    (window as any).__draggedStagedFiles = null;
+                  }}
+                  className="group relative flex shrink-0 items-center gap-2 rounded-xl border border-slate-200/80 bg-white p-2 shadow-xs transition-all cursor-grab active:cursor-grabbing hover:border-cyan-400 hover:shadow-md active:scale-95 dark:border-white/[0.08] dark:bg-slate-900 select-none"
+                  title={`Drag "${file.name}" to drop directly into ${activeToolDef.name} or click Send`}
                 >
+                  <GripVertical size={13} className="text-slate-400 group-hover:text-cyan-500 shrink-0" />
                   <div className="grid h-8 w-8 place-items-center rounded-lg bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300">
                     {isPdf ? <FileText size={15} className="text-rose-500" /> : <FileImage size={15} className="text-cyan-500" />}
                   </div>

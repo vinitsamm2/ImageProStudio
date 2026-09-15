@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ArrowLeftRight, Download, QrCode, RefreshCw, RotateCcw, RotateCw, Sparkles, Undo2 } from "lucide-react";
 import UploadZone from "../UploadZone";
 import {
@@ -40,6 +40,12 @@ export default function PdfRotateView({
       notify("Could not read PDF document.", "error");
     }
   };
+
+  useEffect(() => {
+    if (initialFiles && initialFiles.length > 0) {
+      load(initialFiles);
+    }
+  }, [initialFiles]);
 
   const rotateSingle = (pageNum: number, delta: number) => {
     setRotations((prev) => {
