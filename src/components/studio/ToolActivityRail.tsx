@@ -1,7 +1,6 @@
 import {
   Archive,
   ArrowDownUp,
-  ArrowLeftRight,
   ChevronLeft,
   ChevronRight,
   Combine,
@@ -245,7 +244,6 @@ export default function ToolActivityRail({
   onToggleCollapsed
 }: ToolActivityRailProps) {
   const [categoryFilter, setCategoryFilter] = useState<"all" | "pdf" | "image">("all");
-  const currentDef = STUDIO_TOOLS.find((t) => t.id === activeTool);
 
   const displayedTools = STUDIO_TOOLS.filter((t) => {
     if (categoryFilter === "all") return true;
@@ -404,26 +402,8 @@ export default function ToolActivityRail({
         </div>
       </div>
 
-      {/* Bottom Rail Footer: Active Tool Vice-Versa Link & Dark Mode */}
+      {/* Bottom Rail Footer: 100% Free & Copyright Notice */}
       <div className="p-2.5 border-t border-slate-200/70 dark:border-white/[0.06] space-y-2">
-        {/* Vice-Versa Quick Action Banner */}
-        {currentDef?.viceVersaId && !collapsed && (
-          <button
-            type="button"
-            onClick={() => onSelectTool(currentDef.viceVersaId!)}
-            className="w-full flex items-center justify-between rounded-xl border border-indigo-500/20 bg-indigo-500/5 px-2.5 py-2 text-[11px] font-bold text-indigo-700 transition hover:bg-indigo-500/10 dark:text-indigo-300 dark:bg-indigo-950/30"
-            title={`Switch to reciprocal tool: ${currentDef.viceVersaLabel}`}
-          >
-            <span className="flex items-center gap-1.5 truncate">
-              <ArrowLeftRight size={12} className="text-indigo-500" />
-              <span className="truncate">⇄ {currentDef.viceVersaLabel}</span>
-            </span>
-            <span className="rounded bg-indigo-500/10 px-1 py-0.2 font-mono text-[9px] text-indigo-500">
-              Flip
-            </span>
-          </button>
-        )}
-
         {!collapsed && (
           <div className="flex items-center gap-1.5 px-2 py-1 text-[10px] font-extrabold text-emerald-600 dark:text-emerald-400" title="100% Free Unlimited Use">
             <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />

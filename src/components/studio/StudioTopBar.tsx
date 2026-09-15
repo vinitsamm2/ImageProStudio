@@ -122,16 +122,17 @@ export default function StudioTopBar({
           )}
         </div>
 
-        {/* Vice-Versa Quick Action In TopBar */}
+        {/* Vice-Versa Quick Action In TopBar - Single Dedicated Place */}
         {currentTool.viceVersaId && (
           <button
             type="button"
             onClick={() => onSelectTool(currentTool.viceVersaId!)}
-            className="hidden sm:inline-flex items-center gap-1.5 rounded-xl border border-indigo-500/30 bg-indigo-500/10 px-2.5 py-1 text-xs font-bold text-indigo-700 transition hover:bg-indigo-500/20 dark:text-indigo-300 dark:bg-indigo-950/40"
+            className="inline-flex items-center gap-1.5 rounded-xl border border-indigo-500/30 bg-indigo-500/10 px-2 sm:px-2.5 py-1 text-xs font-bold text-indigo-700 transition hover:bg-indigo-500/20 dark:text-indigo-300 dark:bg-indigo-950/40"
             title={`Quick switch to reciprocal tool: ${currentTool.viceVersaLabel}`}
           >
-            <ArrowLeftRight size={12} className="text-indigo-500" />
-            <span>Switch to {currentTool.viceVersaLabel}</span>
+            <ArrowLeftRight size={12} className="text-indigo-500 shrink-0" />
+            <span className="hidden sm:inline">Switch to </span>
+            <span className="truncate">{currentTool.viceVersaLabel}</span>
           </button>
         )}
       </div>
