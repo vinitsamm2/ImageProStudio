@@ -1217,95 +1217,6 @@ export interface PdfExtractedTextItem {
   color: string;
 }
 
-export function normalizePdfFontName(rawName?: string): {
-  fontFamily: "sans" | "serif" | "mono" | "cursive";
-  cssFontString: string;
-  actualFontName: string;
-  fontWeight: "normal" | "bold";
-  fontStyle: "normal" | "italic";
-} {
-  const clean = (rawName || "").replace(/^[A-Z]{6}\+/, "").trim();
-  const lower = clean.toLowerCase();
-
-  const isBold =
-    lower.includes("bold") ||
-    lower.includes("black") ||
-    lower.includes("heavy") ||
-    lower.includes("semibold") ||
-    lower.includes("demibold") ||
-    lower.includes("-b") ||
-    lower.endsWith("bd") ||
-    lower.includes("700") ||
-    lower.includes("800") ||
-    lower.includes("900");
-
-  const isItalic =
-    lower.includes("italic") ||
-    lower.includes("oblique") ||
-    lower.includes("slanted") ||
-    lower.includes("-i") ||
-    lower.endsWith("it");
-
-  // Serif check (Times, Georgia, Cambria, Garamond)
-  if (
-    lower.includes("times") ||
-    lower.includes("serif") ||
-    lower.includes("georgia") ||
-    lower.includes("cambria") ||
-    lower.includes("garamond") ||
-    lower.includes("palatino") ||
-    lower.includes("roman") ||
-    lower.includes("minion")
-  ) {
-    let font = '"Times New Roman", Times, Georgia, Cambria, serif';
-    let name = "Times New Roman";
-    if (lower.includes("georgia")) { font = 'Georgia, "Times New Roman", Times, serif'; name = "Georgia"; }
-    else if (lower.includes("cambria")) { font = 'Cambria, "Times New Roman", Times, serif'; name = "Cambria"; }
-    else if (lower.includes("garamond")) { font = 'Garamond, "Times New Roman", Times, serif'; name = "Garamond"; }
-    return { fontFamily: "serif", cssFontString: font, actualFontName: name, fontWeight: isBold ? "bold" : "normal", fontStyle: isItalic ? "italic" : "normal" };
-  }
-
-  // Monospace check (Courier, Consolas, Menlo)
-  if (
-    lower.includes("courier") ||
-    lower.includes("mono") ||
-    lower.includes("consolas") ||
-    lower.includes("menlo") ||
-    lower.includes("monaco") ||
-    lower.includes("typewriter")
-  ) {
-    let font = '"Courier New", Courier, Consolas, Monaco, monospace';
-    let name = "Courier New";
-    if (lower.includes("consolas")) { font = 'Consolas, "Courier New", Courier, monospace'; name = "Consolas"; }
-    else if (lower.includes("menlo")) { font = 'Menlo, Consolas, "Courier New", monospace'; name = "Menlo"; }
-    return { fontFamily: "mono", cssFontString: font, actualFontName: name, fontWeight: isBold ? "bold" : "normal", fontStyle: isItalic ? "italic" : "normal" };
-  }
-
-  // Script / cursive check
-  if (
-    lower.includes("script") ||
-    lower.includes("cursive") ||
-    lower.includes("brush") ||
-    lower.includes("calli") ||
-    lower.includes("handwriting")
-  ) {
-    return { fontFamily: "cursive", cssFontString: '"Brush Script MT", "Dancing Script", cursive', actualFontName: "Dancing Script", fontWeight: isBold ? "bold" : "normal", fontStyle: isItalic ? "italic" : "normal" };
-  }
-
-  // Sans-Serif variants (Calibri, Arial, Helvetica, Verdana, Roboto)
-  let font = 'Arial, Helvetica, "Segoe UI", Roboto, sans-serif';
-  let name = "Arial";
-  if (lower.includes("calibri")) { font = 'Calibri, Carlito, Arial, "Segoe UI", sans-serif'; name = "Calibri"; }
-  else if (lower.includes("helvetica")) { font = 'Helvetica, Arial, "Segoe UI", sans-serif'; name = "Helvetica"; }
-  else if (lower.includes("verdana")) { font = 'Verdana, Arial, "Segoe UI", sans-serif'; name = "Verdana"; }
-  else if (lower.includes("tahoma")) { font = 'Tahoma, Arial, "Segoe UI", sans-serif'; name = "Tahoma"; }
-  else if (lower.includes("trebuchet")) { font = '"Trebuchet MS", Arial, sans-serif'; name = "Trebuchet MS"; }
-  else if (lower.includes("roboto")) { font = 'Roboto, Arial, sans-serif'; name = "Roboto"; }
-  else if (lower.includes("segoe")) { font = '"Segoe UI", Arial, sans-serif'; name = "Segoe UI"; }
-
-  return { fontFamily: "sans", cssFontString: font, actualFontName: name, fontWeight: isBold ? "bold" : "normal", fontStyle: isItalic ? "italic" : "normal" };
-}
-
 export async function extractPdfPageTextItems(
   file: File,
   pageNumber: number,
@@ -1383,24 +1294,75 @@ export async function extractPdfPageTextItems(
 
       // Extract comprehensive font family, weight, style and actual name from both item fontName & textContent.styles
       const fontStyleObj = item.fontName ? styles[item.fontName] : undefined;
-      const rawFontStr = `${item.fontName || ""} ${fontStyleObj?.fontFamily || ""}`;
-      const fontNorm = normalizePdfFontName(rawFontStr);
+      const fontCombined = `${item.fontName || ""} ${fontStyleObj?.fontFamily || ""}`.toLowerCase();
 
-      const fontFamily = fontNorm.fontFamily;
-      const fontWeight = fontNorm.fontWeight;
-      const fontStyle = fontNorm.fontStyle;
-      const actualFontName = fontNorm.actualFontName;
-
-      // In PDF coordinate space, height is in points (72 points = 1 inch)
-      const visualPtHeight = Math.abs(maxVy - minVy);
-      const matrixPt = Math.hypot(item.transform[2], item.transform[3]) || Math.abs(item.transform[3]) || 0;
-
-      if (matrixPt >= 6 && matrixPt <= 120) {
-        fontSize = Math.round(matrixPt);
-      } else if (visualPtHeight >= 6 && visualPtHeight <= 140) {
-        fontSize = Math.round(visualPtHeight * 0.85);
+      let fontFamily: "sans" | "serif" | "mono" | "cursive" = "sans";
+      if (
+        fontCombined.includes("times") ||
+        fontCombined.includes("serif") ||
+        fontCombined.includes("georgia") ||
+        fontCombined.includes("cambria") ||
+        fontCombined.includes("garamond") ||
+        fontCombined.includes("palatino") ||
+        fontCombined.includes("baskerville") ||
+        fontCombined.includes("minion") ||
+        fontCombined.includes("roman") ||
+        fontCombined.includes("caslon") ||
+        fontCombined.includes("bookman") ||
+        fontCombined.includes("century")
+      ) {
+        fontFamily = "serif";
+      } else if (
+        fontCombined.includes("courier") ||
+        fontCombined.includes("mono") ||
+        fontCombined.includes("consolas") ||
+        fontCombined.includes("menlo") ||
+        fontCombined.includes("monaco") ||
+        fontCombined.includes("typewriter")
+      ) {
+        fontFamily = "mono";
+      } else if (
+        fontCombined.includes("script") ||
+        fontCombined.includes("cursive") ||
+        fontCombined.includes("brush") ||
+        fontCombined.includes("calli") ||
+        fontCombined.includes("handwriting") ||
+        fontCombined.includes("comic")
+      ) {
+        fontFamily = "cursive";
+      } else {
+        fontFamily = "sans";
       }
-      if (fontSize < 7) fontSize = 11;
+
+      const fontWeight =
+        fontCombined.includes("bold") ||
+        fontCombined.includes("black") ||
+        fontCombined.includes("heavy") ||
+        fontCombined.includes("semibold") ||
+        fontCombined.includes("demibold") ||
+        fontCombined.includes("-b") ||
+        fontCombined.includes("bd") ||
+        fontCombined.includes("700") ||
+        fontCombined.includes("800") ||
+        fontCombined.includes("900")
+          ? "bold"
+          : "normal";
+
+      const fontStyle =
+        fontCombined.includes("italic") ||
+        fontCombined.includes("oblique") ||
+        fontCombined.includes("slanted") ||
+        fontCombined.includes("-i") ||
+        fontCombined.includes("it")
+          ? "italic"
+          : "normal";
+
+      let actualFontName = fontStyleObj?.fontFamily || item.fontName || "";
+      actualFontName = actualFontName.replace(/^[A-Z]{6}\+/, "");
+      actualFontName = actualFontName.split(",")[0].trim().replace(/['"]/g, "");
+      if (/^g_d\d+_f\d+$/i.test(actualFontName) || /^f\d+$/i.test(actualFontName)) {
+        actualFontName = "";
+      }
 
       rawSpans.push({
         text: item.str,
@@ -1640,12 +1602,6 @@ export interface PdfAnnotation {
   whiteoutColor?: string; // custom whiteout/patch background color (default #ffffff)
   isOriginalTextEdit?: boolean; // true if this annotation modifies/replaces original PDF text
   originalText?: string; // original unedited text for comparison
-  originalBounds?: {
-    xNorm: number;
-    yNorm: number;
-    widthNorm: number;
-    heightNorm: number;
-  };
 
   // Line / Stroke / Shape properties
   strokeColor?: string;
@@ -1702,8 +1658,7 @@ export async function compileEditedPdf(
   file: File,
   pagesPlan: EditorPagePlanItem[],
   annotations: PdfAnnotation[],
-  deletedImageNames: string[] = [],
-  pageOverlayImages: Record<number, string> = {}
+  deletedImageNames: string[] = []
 ): Promise<Blob> {
   const buffer = await file.arrayBuffer();
   const srcDoc = await PDFDocument.load(buffer, { ignoreEncryption: true });
@@ -1787,26 +1742,11 @@ export async function compileEditedPdf(
       page.setRotation(degrees(finalAngle));
     }
 
-    const { width, height } = page.getSize();
-
-    // If an interactive Fabric.js canvas overlay is provided for this page, embed it directly with PDF-LIB
-    if (pageOverlayImages && pageOverlayImages[pageIdx]) {
-      try {
-        const overlayDataUrl = pageOverlayImages[pageIdx];
-        const base64 = overlayDataUrl.replace(/^data:image\/[^;]+;base64,/, "");
-        const binary = atob(base64);
-        const bytes = new Uint8Array(binary.length);
-        for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-        const embeddedPng = await newDoc.embedPng(bytes);
-        page.drawImage(embeddedPng, { x: 0, y: 0, width, height });
-      } catch (overlayErr) {
-        console.warn("Could not embed page overlay image:", overlayErr);
-      }
-    }
-
     // Get annotations for this pageIndex
     const pageAnns = annotations.filter((a) => a.pageIndex === pageIdx);
     if (pageAnns.length === 0) continue;
+
+    const { width, height } = page.getSize();
 
     // High-resolution raster scale (2.0x for crisp vector quality)
     const scale = 2.0;
@@ -1834,9 +1774,8 @@ export async function compileEditedPdf(
       switch (ann.type) {
         case "text": {
           const hasWhiteout =
-            ann.underlayWhiteout !== false ||
+            ann.underlayWhiteout ||
             ann.isOriginalTextEdit ||
-            Boolean(ann.originalBounds) ||
             (ann.textHighlightColor && ann.textHighlightColor !== "transparent");
           const whiteoutBg =
             ann.whiteoutColor ||
@@ -1845,18 +1784,8 @@ export async function compileEditedPdf(
               : "#ffffff");
 
           if (hasWhiteout) {
-            const origX = (ann.originalBounds?.xNorm ?? ann.xNorm) * width;
-            const origY = (ann.originalBounds?.yNorm ?? ann.yNorm) * height;
-            const origW = (ann.originalBounds?.widthNorm ?? ann.widthNorm) * width;
-            const origH = (ann.originalBounds?.heightNorm ?? ann.heightNorm) * height;
-
-            const minX = Math.min(ax, origX) - 3;
-            const minY = Math.min(ay, origY) - 3;
-            const maxX = Math.max(ax + aw, origX + origW) + 3;
-            const maxY = Math.max(ay + ah, origY + origH) + 3;
-
             ctx.fillStyle = whiteoutBg;
-            ctx.fillRect(minX, minY, Math.max(4, maxX - minX), Math.max(4, maxY - minY));
+            ctx.fillRect(ax - 2, ay - 2, aw + 4, ah + 4);
           }
 
           if (ann.text && ann.text.length > 0) {
@@ -3294,108 +3223,4 @@ export async function convertWordToPdf(
   const outputBytes = await pdfDoc.save();
   return bytesToBlob(outputBytes, "application/pdf");
 }
-
-export async function createBlankPdfFile(filename: string = "untitled-document.pdf"): Promise<File> {
-  const pdfDoc = await PDFDocument.create();
-  pdfDoc.addPage([595.28, 841.89]); // Standard A4 (points)
-  const bytes = await pdfDoc.save();
-  return new File([new Uint8Array(bytes).buffer], filename, { type: "application/pdf" });
-}
-
-export async function createSampleContractPdfFile(): Promise<File> {
-  const pdfDoc = await PDFDocument.create();
-  const page = pdfDoc.addPage([595.28, 841.89]);
-  const fontBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
-  const fontRegular = await pdfDoc.embedFont(StandardFonts.Helvetica);
-
-  page.drawText("STANDARD SERVICE AGREEMENT", {
-    x: 50,
-    y: 780,
-    size: 18,
-    font: fontBold,
-    color: rgb(0.12, 0.16, 0.24)
-  });
-
-  page.drawText("Contract Reference: IPS-2026-0901", {
-    x: 50,
-    y: 755,
-    size: 10,
-    font: fontRegular,
-    color: rgb(0.4, 0.45, 0.55)
-  });
-
-  page.drawLine({
-    start: { x: 50, y: 742 },
-    end: { x: 545, y: 742 },
-    thickness: 1,
-    color: rgb(0.8, 0.85, 0.9)
-  });
-
-  page.drawText("1. PARTIES & SCOPE", {
-    x: 50,
-    y: 715,
-    size: 12,
-    font: fontBold,
-    color: rgb(0.15, 0.2, 0.3)
-  });
-
-  page.drawText(
-    "This Agreement is entered between ImagePro Studio Client ('Client') and Service Provider.",
-    { x: 50, y: 695, size: 10.5, font: fontRegular, color: rgb(0.25, 0.3, 0.38) }
-  );
-
-  page.drawText(
-    "You can click directly anywhere on this text to edit, add forms, or insert signatures.",
-    { x: 50, y: 675, size: 10.5, font: fontRegular, color: rgb(0.25, 0.3, 0.38) }
-  );
-
-  page.drawText("2. PROJECT TERMS & COMPENSATION", {
-    x: 50,
-    y: 635,
-    size: 12,
-    font: fontBold,
-    color: rgb(0.15, 0.2, 0.3)
-  });
-
-  page.drawText(
-    "Total agreed compensation for deliverables is $2,450.00 USD payable upon completion.",
-    { x: 50, y: 615, size: 10.5, font: fontRegular, color: rgb(0.25, 0.3, 0.38) }
-  );
-
-  page.drawText("Delivery Deadline: October 15, 2026", {
-    x: 50,
-    y: 595,
-    size: 10.5,
-    font: fontRegular,
-    color: rgb(0.25, 0.3, 0.38)
-  });
-
-  page.drawText("3. SIGNATURES & APPROVAL", {
-    x: 50,
-    y: 550,
-    size: 12,
-    font: fontBold,
-    color: rgb(0.15, 0.2, 0.3)
-  });
-
-  page.drawText("Authorized Representative Signature: ____________________________", {
-    x: 50,
-    y: 520,
-    size: 10.5,
-    font: fontRegular,
-    color: rgb(0.3, 0.35, 0.45)
-  });
-
-  page.drawText("Date: September 16, 2026", {
-    x: 50,
-    y: 495,
-    size: 10.5,
-    font: fontRegular,
-    color: rgb(0.3, 0.35, 0.45)
-  });
-
-  const bytes = await pdfDoc.save();
-  return new File([new Uint8Array(bytes).buffer], "sample-agreement.pdf", { type: "application/pdf" });
-}
-
 

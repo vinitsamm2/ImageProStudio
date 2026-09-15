@@ -4,7 +4,6 @@ import {
   ArrowRight,
   Check,
   CheckCheck,
-  CheckSquare,
   ChevronDown,
   ChevronLeft,
   ChevronRight,
@@ -48,7 +47,6 @@ import {
   ZoomOut
 } from "lucide-react";
 import UploadZone from "../UploadZone";
-import QuillPdfTextEditor from "./QuillPdfTextEditor";
 import {
   EditorPagePlanItem,
   EditorPoint,
@@ -58,13 +56,10 @@ import {
   PdfExtractedTextItem,
   PdfFileInfo,
   compileEditedPdf,
-  createBlankPdfFile,
-  createSampleContractPdfFile,
   downloadBlob,
   extractPdfPageImages,
   extractPdfPageTextItems,
   formatBytes,
-  normalizePdfFontName,
   readPdfInfo,
   renderPdfPageDetails,
   renderPdfPageToDataUrl,
@@ -79,7 +74,6 @@ type ToolMode =
   | "eraseAndType"
   | "erase"
   | "text"
-  | "forms"
   | "draw"
   | "highlight"
   | "rectangle"
@@ -120,44 +114,6 @@ const HIGHLIGHT_COLORS = [
   { name: "Pink", hex: "#fbcfe8" },
   { name: "Orange", hex: "#fed7aa" }
 ];
-
-const getAnnotationCssFont = (ann: PdfAnnotation): string => {
-  if (ann.actualFontName) {
-    const norm = normalizePdfFontName(ann.actualFontName);
-    return norm.cssFontString;
-  }
-  if (ann.fontFamily === "serif") {
-    return '"Times New Roman", Times, Georgia, Cambria, serif';
-  }
-  if (ann.fontFamily === "mono") {
-    return '"Courier New", Courier, Consolas, Monaco, monospace';
-  }
-  if (ann.fontFamily === "cursive") {
-    return '"Brush Script MT", "Dancing Script", cursive';
-  }
-  return 'Arial, Helvetica, "Segoe UI", Roboto, sans-serif';
-};
-
-const measureTextWidthNorm = (
-  text: string,
-  fontSizePt: number,
-  fontFamilyStr: string,
-  fontWeight = "normal",
-  fontStyle = "normal",
-  pageWidth = 595
-): number => {
-  try {
-    const canvas = document.createElement("canvas");
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return Math.min(0.98, ((text.length + 1) * fontSizePt * 0.6) / pageWidth);
-    ctx.font = `${fontStyle} ${fontWeight} ${fontSizePt}px ${fontFamilyStr}`;
-    const metrics = ctx.measureText(text || " ");
-    const extraPadding = fontSizePt * 0.7;
-    return Math.min(0.98, (metrics.width + extraPadding) / pageWidth);
-  } catch {
-    return Math.min(0.98, ((text.length + 2) * fontSizePt * 0.6) / pageWidth);
-  }
-};
 
 export default function PdfEditorView({
   notify,
@@ -200,7 +156,6 @@ export default function PdfEditorView({
 
   // Left sidebar tab: "pages" | "text"
   const [sidebarTab, setSidebarTab] = useState<"pages" | "text">("pages");
-  const [sidebarOpen, setSidebarOpen] = useState<boolean>(false);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState<boolean>(false);
   const [textSearchQuery, setTextSearchQuery] = useState<string>("");
 
@@ -217,14 +172,8 @@ export default function PdfEditorView({
   const [redoStack, setRedoStack] = useState<PdfAnnotation[][]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
-  // Active Tool & Mode (defaults to text for immediate Sejda-like editing)
-  const [activeTool, setActiveTool] = useState<ToolMode>("text");
-  const [formsMenuOpen, setFormsMenuOpen] = useState<boolean>(false);
-  const [formSymbol, setFormSymbol] = useState<"check" | "cross" | "radio" | "checkbox">("check");
-  const [annotateMenuOpen, setAnnotateMenuOpen] = useState<boolean>(false);
-  const [shapesMenuOpen, setShapesMenuOpen] = useState<boolean>(false);
-  const [moreMenuOpen, setMoreMenuOpen] = useState<boolean>(false);
-  const [showExportSuccessModal, setShowExportSuccessModal] = useState<boolean>(false);
+  // Active Tool & Mode
+  const [activeTool, setActiveTool] = useState<ToolMode>("select");
 
   // Tool properties
   const [activeColor, setActiveColor] = useState<string>("#0f172a");
@@ -248,7 +197,6 @@ export default function PdfEditorView({
 
   // In-progress interaction state
   const pageContainerRef = useRef<HTMLDivElement | null>(null);
-  const [pageOverlayImages, setPageOverlayImages] = useState<Record<number, string>>({});
   const [isInteracting, setIsInteracting] = useState(false);
   const [interactionStart, setInteractionStart] = useState<{ x: number; y: number } | null>(null);
   const [currentDrawPoints, setCurrentDrawPoints] = useState<EditorPoint[]>([]);
@@ -316,12 +264,8 @@ export default function PdfEditorView({
         rotation: 0
       }));
       setPagesPlan(plan);
-      if (typeof window !== "undefined") {
-        setSidebarOpen(false);
-        setMobileSidebarOpen(false);
-        const availWidth = Math.min(window.innerWidth - 32, 1400);
-        const autoFit = Math.max(0.55, Math.min(1.85, Number(((availWidth * 0.94) / 595).toFixed(2))));
-        setZoomScale(autoFit);
+      if (typeof window !== "undefined" && window.innerWidth < 640) {
+        setZoomScale(Math.max(0.45, Math.min(1.0, Number(((window.innerWidth - 48) / 595).toFixed(2)))));
       }
       notify(`Loaded PDF with ${pdf.pages} page(s). Click any text or pick a tool to start editing!`, "info");
     } catch (err) {
@@ -356,11 +300,6 @@ export default function PdfEditorView({
             setPageImage(res.dataUrl);
             setPageDimensions({ width: Math.round(res.width), height: Math.round(res.height) });
             setLoadingPage(false);
-            if (typeof window !== "undefined" && res.width > 0) {
-              const availWidth = Math.min(window.innerWidth - 32, 1400);
-              const autoFit = Math.max(0.55, Math.min(1.85, Number(((availWidth * 0.94) / res.width).toFixed(2))));
-              setZoomScale((prev) => (Math.abs(prev - 1.0) < 0.05 ? autoFit : prev));
-            }
           }
         })
         .catch((err) => {
@@ -738,7 +677,7 @@ export default function PdfEditorView({
       setHistory((prev) => [...prev.slice(-30), annotations]);
       setRedoStack([]);
       setAnnotations([...annotations, newAnn]);
-      setSelectedId(null);
+      setSelectedId(newAnn.id);
       setSelectedImageItem(null);
       notify("Logo removed cleanly without affecting background!", "success");
     },
@@ -755,19 +694,7 @@ export default function PdfEditorView({
   // Find nearest or overlapping detected text item on current page
   const findTextItemAtPoint = useCallback(
     (xNorm: number, yNorm: number, tolerance = 0.03): PdfExtractedTextItem | null => {
-      const allItems = extractedTexts[activePageIndex] || [];
-      const items = allItems.filter(
-        (item) =>
-          !annotations.some(
-            (a) =>
-              a.pageIndex === activePageIndex &&
-              ((a.originalBounds &&
-                Math.abs(a.originalBounds.xNorm - item.xNorm) < 0.025 &&
-                Math.abs(a.originalBounds.yNorm - item.yNorm) < 0.025) ||
-                (Math.abs(a.xNorm - item.xNorm) < 0.02 &&
-                  Math.abs(a.yNorm - item.yNorm) < 0.02))
-          )
-      );
+      const items = extractedTexts[activePageIndex] || [];
       for (const item of items) {
         if (
           xNorm >= item.xNorm - 0.01 &&
@@ -791,7 +718,7 @@ export default function PdfEditorView({
       }
       return closest;
     },
-    [extractedTexts, activePageIndex, annotations]
+    [extractedTexts, activePageIndex]
   );
 
   // Push history snapshot
@@ -819,14 +746,6 @@ export default function PdfEditorView({
     setAnnotations(next);
     notify("Action redone", "info");
   }, [redoStack, annotations, notify]);
-
-  const handleFitToWidth = useCallback(() => {
-    if (!pageDimensions.width || typeof window === "undefined") return;
-    const availWidth = Math.min(window.innerWidth - 32, 1400);
-    const fit = Math.max(0.45, Math.min(1.85, Number(((availWidth * 0.94) / pageDimensions.width).toFixed(2))));
-    setZoomScale(fit);
-    notify(`Zoom adjusted to fit viewport (${Math.round(fit * 100)}%)`, "info");
-  }, [pageDimensions.width, notify]);
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -874,50 +793,9 @@ export default function PdfEditorView({
       }
     };
 
-    const handlePaste = (e: ClipboardEvent) => {
-      if (document.activeElement?.tagName === "INPUT" || document.activeElement?.tagName === "TEXTAREA") {
-        return;
-      }
-      const items = e.clipboardData?.items;
-      if (!items) return;
-      for (let i = 0; i < items.length; i++) {
-        if (items[i].type.indexOf("image") !== -1) {
-          const file = items[i].getAsFile();
-          if (file) {
-            e.preventDefault();
-            const reader = new FileReader();
-            reader.onload = (re) => {
-              const dataUrl = re.target?.result as string;
-              if (dataUrl) {
-                const newAnn: PdfAnnotation = {
-                  id: uid("img-pasted"),
-                  pageIndex: activePageIndex,
-                  type: "image",
-                  xNorm: 0.35,
-                  yNorm: 0.35,
-                  widthNorm: 0.3,
-                  heightNorm: 0.2,
-                  imageDataUrl: dataUrl
-                };
-                pushHistory([...annotations, newAnn]);
-                setSelectedId(newAnn.id);
-                notify("Pasted image/logo added to document", "success");
-              }
-            };
-            reader.readAsDataURL(file);
-            break;
-          }
-        }
-      }
-    };
-
     window.addEventListener("keydown", handleKeyDown);
-    window.addEventListener("paste", handlePaste);
-    return () => {
-      window.removeEventListener("keydown", handleKeyDown);
-      window.removeEventListener("paste", handlePaste);
-    };
-  }, [selectedId, selectedImageItem, editingTextId, handleUndo, handleRedo, handleDeleteLogo, activePageIndex, annotations, pushHistory, notify]);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [selectedId, selectedImageItem, editingTextId, handleUndo, handleRedo, handleDeleteLogo]);
 
   // Handle editing detected text in place with exact font size and style matching
   const handleEditDetectedText = (item: PdfExtractedTextItem) => {
@@ -925,11 +803,8 @@ export default function PdfEditorView({
     const existing = annotations.find(
       (a) =>
         a.pageIndex === activePageIndex &&
-        ((a.originalBounds &&
-          Math.abs(a.originalBounds.xNorm - item.xNorm) < 0.02 &&
-          Math.abs(a.originalBounds.yNorm - item.yNorm) < 0.02) ||
-          (Math.abs(a.xNorm - item.xNorm) < 0.015 &&
-           Math.abs(a.yNorm - item.yNorm) < 0.015))
+        Math.abs(a.xNorm - item.xNorm) < 0.015 &&
+        Math.abs(a.yNorm - item.yNorm) < 0.015
     );
     if (existing) {
       setSelectedId(existing.id);
@@ -962,16 +837,14 @@ export default function PdfEditorView({
       item.heightNorm,
       ((item.fontSize || 14) * 1.35) / pageDimensions.height
     );
-    const boxWidthNorm = Math.max(item.widthNorm + 0.006, 0.04);
-    const startXNorm = Math.max(0, item.xNorm - 0.003);
-    const startYNorm = Math.max(0, item.yNorm - 0.002);
+    const boxWidthNorm = Math.max(item.widthNorm, 0.04);
 
     const newAnn: PdfAnnotation = {
       id: uid("txt-edit"),
       pageIndex: activePageIndex,
       type: "text",
-      xNorm: startXNorm,
-      yNorm: startYNorm,
+      xNorm: item.xNorm,
+      yNorm: item.yNorm,
       widthNorm: boxWidthNorm,
       heightNorm: boxHeightNorm,
       text: item.text,
@@ -985,13 +858,7 @@ export default function PdfEditorView({
       underlayWhiteout: true,
       whiteoutColor: matchedBg,
       isOriginalTextEdit: true,
-      originalText: item.text,
-      originalBounds: {
-        xNorm: startXNorm,
-        yNorm: startYNorm,
-        widthNorm: boxWidthNorm,
-        heightNorm: Math.max(item.heightNorm + 0.004, boxHeightNorm)
-      }
+      originalText: item.text
     };
 
     // Synchronize toolbar controls so active state matches clicked text
@@ -1004,9 +871,10 @@ export default function PdfEditorView({
     pushHistory([...annotations, newAnn]);
     setSelectedId(newAnn.id);
     setEditingTextId(newAnn.id);
-    setActiveTool("text");
+    setActiveTool("select");
     const fontDesc = `${item.actualFontName || item.fontFamily} ${item.fontSize}pt${item.fontWeight === "bold" ? " Bold" : ""}${item.fontStyle === "italic" ? " Italic" : ""}`;
     notify(`Editing text (Matched: ${fontDesc})`, "info");
+    setTimeout(() => textInputRef.current?.focus(), 50);
   };
 
   // Convert all detected text on current page to editable blocks
@@ -1318,13 +1186,8 @@ export default function PdfEditorView({
     }
 
     if (activeTool === "select" || activeTool === "editText") {
-      // If clicking outside any annotation, check if clicked on detected text to edit it
+      // If clicking outside any annotation, deselect
       if (!(e.target as HTMLElement).closest(".pdf-annotation-box")) {
-        const matchedItem = findTextItemAtPoint(xNorm, yNorm, 0.03);
-        if (matchedItem) {
-          handleEditDetectedText(matchedItem);
-          return;
-        }
         setSelectedId(null);
         setEditingTextId(null);
       }
@@ -1347,37 +1210,35 @@ export default function PdfEditorView({
 
     if (activeTool === "text") {
       // Check if clicking on or near an existing detected text item to match its font style and size!
-      const matchedItem = findTextItemAtPoint(xNorm, yNorm, 0.05);
+      const matchedItem = findTextItemAtPoint(xNorm, yNorm);
       if (matchedItem) {
         handleEditDetectedText(matchedItem);
         return;
       }
 
-      // Add text box at clicked location with clean opaque background to prevent overlapping
-      const boxHeightNorm = Math.max(0.045, ((fontSize || 14) * 1.35) / pageDimensions.height);
-      const sampledBg = sampleBackgroundColor(Math.max(0, xNorm - 0.01), Math.max(0, yNorm - 0.01), 0.22, 0.05) || "#ffffff";
+      // Add text box at clicked location with current active font properties
+      const boxHeightNorm = Math.max(0.06, ((fontSize || 14) * 1.35) / pageDimensions.height);
       const newTextAnn: PdfAnnotation = {
         id: uid("text"),
         pageIndex: activePageIndex,
         type: "text",
         xNorm: Math.min(0.75, xNorm),
         yNorm: Math.min(0.9, yNorm),
-        widthNorm: 0.24,
+        widthNorm: 0.28,
         heightNorm: boxHeightNorm,
-        text: "Type here",
+        text: "Click to edit text",
         fontSize,
         fontFamily,
         fontWeight: isBold ? "bold" : "normal",
         fontStyle: isItalic ? "italic" : "normal",
         textColor: activeColor,
-        underlayWhiteout: true,
-        whiteoutColor: sampledBg,
-        textHighlightColor: sampledBg
+        textHighlightColor: textHighlight
       };
       pushHistory([...annotations, newTextAnn]);
       setSelectedId(newTextAnn.id);
       setEditingTextId(newTextAnn.id);
-      notify("Text box placed. Type to edit content.", "info");
+      setActiveTool("select");
+      notify("Text added. Type to edit content.", "info");
       return;
     }
 
@@ -1398,62 +1259,6 @@ export default function PdfEditorView({
       setSelectedId(newStampAnn.id);
       setActiveTool("select");
       notify(`Stamped '${stampText}' onto document`, "success");
-      return;
-    }
-
-    if (activeTool === "forms") {
-      if (formSymbol === "checkbox") {
-        const newRectAnn: PdfAnnotation = {
-          id: uid("form-chk"),
-          pageIndex: activePageIndex,
-          type: "rectangle",
-          xNorm: Math.max(0.01, Math.min(0.97, xNorm - 0.012)),
-          yNorm: Math.max(0.01, Math.min(0.97, yNorm - 0.01)),
-          widthNorm: 0.025,
-          heightNorm: 0.02,
-          strokeWidth: 2,
-          strokeColor: activeColor || "#0f172a",
-          fillColor: "transparent"
-        };
-        pushHistory([...annotations, newRectAnn]);
-        setSelectedId(newRectAnn.id);
-        setActiveTool("select");
-        notify("Checkbox placed! Drag or resize as needed.", "success");
-        return;
-      }
-
-      const charMap: Record<string, string> = {
-        check: "✓",
-        cross: "✕",
-        radio: "●"
-      };
-      const symbolChar = charMap[formSymbol] || "✓";
-      const symbolColor =
-        formSymbol === "cross"
-          ? "#dc2626"
-          : formSymbol === "check"
-          ? "#16a34a"
-          : activeColor || "#0f172a";
-
-      const newSymbolAnn: PdfAnnotation = {
-        id: uid("form-sym"),
-        pageIndex: activePageIndex,
-        type: "text",
-        xNorm: Math.max(0.01, Math.min(0.97, xNorm - 0.015)),
-        yNorm: Math.max(0.01, Math.min(0.97, yNorm - 0.015)),
-        widthNorm: 0.035,
-        heightNorm: 0.03,
-        text: symbolChar,
-        fontSize: formSymbol === "radio" ? 18 : 22,
-        fontFamily: "sans",
-        fontWeight: "bold",
-        textColor: symbolColor,
-        textHighlightColor: "transparent"
-      };
-      pushHistory([...annotations, newSymbolAnn]);
-      setSelectedId(newSymbolAnn.id);
-      setActiveTool("select");
-      notify(`Placed ${symbolChar} onto form!`, "success");
       return;
     }
 
@@ -1851,23 +1656,20 @@ export default function PdfEditorView({
     if (!info) return;
     setExporting(true);
     try {
-      notify("Compiling vector annotations & PDF pages with PDF-LIB...", "info");
-      const overlaysToExport = { ...pageOverlayImages };
-      const blob = await compileEditedPdf(
-        info.file,
-        pagesPlan,
-        annotations,
-        deletedImageNames,
-        overlaysToExport
-      );
+      notify("Compiling vector annotations & PDF pages...", "info");
+      const blob = await compileEditedPdf(info.file, pagesPlan, annotations, deletedImageNames);
       const safeName = info.file.name.replace(/\.[^.]+$/, "");
       const outputFilename = `${safeName}-edited.pdf`;
 
       const finalFile = new File([blob], outputFilename, { type: "application/pdf" });
       setEditedFile(finalFile);
-      downloadBlob(blob, outputFilename);
-      setShowExportSuccessModal(true);
-      notify("Changes applied successfully! Document is ready.", "success");
+
+      if (onShareFile) {
+        onShareFile(finalFile);
+      } else {
+        downloadBlob(blob, outputFilename);
+      }
+      notify("Changes applied! Choose Download or QR Code.", "success");
     } catch (err) {
       console.error(err);
       notify("Failed to compile edited PDF. Please try again.", "error");
@@ -1892,157 +1694,70 @@ export default function PdfEditorView({
 
   if (!info) {
     return (
-      <div className="space-y-6 max-w-5xl mx-auto px-4 py-6">
-        {/* Sejda-inspired Hero Header */}
-        <div className="text-center space-y-3">
-          <div className="inline-flex items-center gap-2 rounded-full border border-blue-500/20 bg-blue-500/10 px-3.5 py-1 text-xs font-bold text-blue-600 dark:text-blue-400 shadow-xs">
-            <Sparkles size={13} className="text-blue-500 animate-pulse" />
-            <span>Next-Gen Floating PDF Editor</span>
-          </div>
-          <h1 className="text-3xl sm:text-4xl font-black tracking-tight text-slate-900 dark:text-white">
-            Edit PDF Documents Online
-          </h1>
-          <p className="text-sm sm:text-base text-slate-600 dark:text-slate-400 max-w-2xl mx-auto">
-            Edit text directly without overlapping, fill forms, draw signatures, whiteout logos, and annotate with a sleek floating menu capsule.
-          </p>
-        </div>
+      <div className="space-y-6">
+        <div className="rounded-3xl border border-slate-200/80 bg-white/70 p-6 shadow-sm backdrop-blur-md dark:border-white/[0.08] dark:bg-slate-900/50">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <div className="grid h-12 w-12 place-items-center rounded-2xl bg-gradient-to-tr from-blue-600 via-indigo-600 to-cyan-500 text-white shadow-md shadow-blue-500/20">
+                <FilePenLine size={24} />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h2 className="text-lg font-black text-slate-900 dark:text-white">PDF Editor</h2>
+                  <span className="rounded-full bg-blue-500/10 px-2 py-0.5 text-[10px] font-bold text-blue-600 dark:text-blue-400">
+                    PRO Suite
+                  </span>
+                </div>
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  Full in-browser PDF suite: Edit text, freehand draw, highlight, redact, stamp & insert images.
+                </p>
+              </div>
+            </div>
 
-        {/* Primary Action Hero Card */}
-        <div className="rounded-3xl border border-slate-200/80 bg-white/80 p-6 sm:p-10 shadow-xl backdrop-blur-xl dark:border-white/10 dark:bg-slate-900/70 text-center space-y-6">
-          <UploadZone
-            accept="application/pdf"
-            files={[]}
-            formats="PDF"
-            onFiles={load}
-            onRemove={() => {
-              setInfo(null);
-              setPagesPlan([]);
-              setAnnotations([]);
-            }}
-            label="Upload PDF file"
-            helperText="Drag & drop your PDF here, or click to choose from computer"
-          />
-
-          {/* Direct Quick Launch Options (Sejda style) */}
-          <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
-            <span className="text-xs font-bold text-slate-400">Or start immediately:</span>
-            <button
-              type="button"
-              onClick={async () => {
-                try {
-                  const blankDoc = await createBlankPdfFile("untitled-document.pdf");
-                  await load([blankDoc]);
-                  notify("Blank canvas ready for editing!", "success");
-                } catch (e: any) {
-                  notify(e?.message || "Failed to create blank document", "error");
-                }
-              }}
-              className="inline-flex items-center gap-1.5 rounded-full border border-slate-300 bg-white px-4 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 hover:border-slate-400 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700 transition-all shadow-xs cursor-pointer active:scale-95"
-            >
-              <FileText size={14} className="text-blue-500" />
-              <span>Start with Blank Document</span>
-            </button>
-            <button
-              type="button"
-              onClick={async () => {
-                try {
-                  const sampleDoc = await createSampleContractPdfFile();
-                  await load([sampleDoc]);
-                  notify("Sample agreement loaded! Try editing text, signing, or whiting out.", "success");
-                } catch (e: any) {
-                  notify(e?.message || "Failed to load sample document", "error");
-                }
-              }}
-              className="inline-flex items-center gap-1.5 rounded-full border border-emerald-300 bg-emerald-50 px-4 py-2 text-xs font-bold text-emerald-700 hover:bg-emerald-100 hover:border-emerald-400 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300 transition-all shadow-xs cursor-pointer active:scale-95"
-            >
-              <FileSignature size={14} className="text-emerald-600" />
-              <span>Try with Sample Agreement</span>
-            </button>
-          </div>
-
-          <div className="flex items-center justify-center gap-4 text-xs font-bold text-slate-500 dark:text-slate-400 border-t border-slate-200/60 dark:border-white/[0.06] pt-4">
-            <span className="inline-flex items-center gap-1 text-emerald-600 dark:text-emerald-400">
-              <ShieldCheck size={14} /> 100% In-Browser & Private
-            </span>
-            <span>•</span>
-            <span>Zero file uploads to external servers</span>
-            <span>•</span>
-            <span>Free & Unlimited</span>
+            <div className="flex items-center gap-2">
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3 py-1 text-xs font-bold text-emerald-600 dark:text-emerald-400">
+                <ShieldCheck size={14} />
+                100% In-Browser & Private
+              </span>
+            </div>
           </div>
         </div>
 
-        {/* Live Floating Menu Preview Showcase */}
-        <div className="rounded-3xl border border-blue-500/20 bg-gradient-to-b from-blue-50/50 to-indigo-50/30 p-6 dark:border-white/10 dark:from-slate-900/50 dark:to-slate-950/50 space-y-4">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-extrabold uppercase tracking-wider text-blue-600 dark:text-blue-400">
-              ⚡ Live Floating Capsule Dock Preview
-            </span>
-            <span className="text-[11px] font-bold text-slate-400 hidden sm:inline">
-              Floats above document for frictionless editing
-            </span>
-          </div>
-
-          {/* Mock Floating Capsule */}
-          <div className="mx-auto w-fit rounded-full border border-slate-200/90 bg-white/95 p-1.5 shadow-xl backdrop-blur-2xl dark:border-white/15 dark:bg-slate-900/95 flex items-center gap-1.5 flex-nowrap overflow-x-auto no-scrollbar pointer-events-none opacity-90">
-            <div className="flex items-center gap-1 pl-2 pr-2.5 py-1 rounded-full bg-slate-100 text-xs font-bold text-slate-700 dark:bg-slate-800 dark:text-slate-300">
-              <FilePenLine size={11} className="text-blue-600" />
-              <span>Sample.pdf</span>
-              <span className="text-[10px] text-blue-600 font-extrabold">1/1</span>
-            </div>
-            <div className="h-4 w-px bg-slate-200 dark:bg-white/[0.1]" />
-            <div className="flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-bold bg-emerald-600 text-white shadow-xs">
-              <Type size={14} />
-              <span>Text</span>
-            </div>
-            <div className="flex items-center gap-1 px-2.5 py-1.5 rounded-full text-xs font-bold text-slate-700 dark:text-slate-200">
-              <CheckSquare size={14} />
-              <span>Forms ▾</span>
-            </div>
-            <div className="flex items-center gap-1 px-2.5 py-1.5 rounded-full text-xs font-bold text-slate-700 dark:text-slate-200">
-              <ImageIcon size={14} />
-              <span>Images</span>
-            </div>
-            <div className="flex items-center gap-1 px-2.5 py-1.5 rounded-full text-xs font-bold text-slate-700 dark:text-slate-200">
-              <FileSignature size={14} />
-              <span>Sign</span>
-            </div>
-            <div className="flex items-center gap-1 px-2.5 py-1.5 rounded-full text-xs font-bold text-slate-700 dark:text-slate-200">
-              <Eraser size={14} />
-              <span>Whiteout</span>
-            </div>
-            <div className="flex items-center gap-1 px-2.5 py-1.5 rounded-full text-xs font-bold text-slate-700 dark:text-slate-200">
-              <PencilLine size={14} />
-              <span>Annotate ▾</span>
-            </div>
-            <div className="h-4 w-px bg-slate-200 dark:bg-white/[0.1]" />
-            <div className="inline-flex items-center gap-1 rounded-full bg-emerald-600 text-white px-3.5 py-1.5 text-xs font-extrabold shadow-md">
-              <CheckCheck size={14} />
-              <span>Apply changes</span>
-            </div>
-          </div>
-        </div>
+        <UploadZone
+          accept="application/pdf"
+          files={[]}
+          formats="PDF"
+          onFiles={load}
+          onRemove={() => {
+            setInfo(null);
+            setPagesPlan([]);
+            setAnnotations([]);
+          }}
+          label="Drop your PDF here to edit"
+          helperText="Supports multi-page contracts, legal forms, application PDFs, certificates & marksheets"
+        />
 
         {/* Feature Highlights Grid */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          <div className="rounded-2xl border border-slate-200/80 bg-white/60 p-4 dark:border-white/[0.06] dark:bg-slate-900/50 text-center">
-            <Type size={22} className="mx-auto text-blue-500" />
-            <h4 className="mt-2 text-xs font-bold text-slate-800 dark:text-slate-200">Inline Text Editing</h4>
-            <p className="mt-0.5 text-[10px] text-slate-400">Click any text to edit in place without overlapping</p>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2">
+          <div className="rounded-2xl border border-slate-200/80 bg-white/60 p-3.5 dark:border-white/[0.06] dark:bg-slate-900/50 text-center">
+            <Type size={20} className="mx-auto text-blue-500" />
+            <h4 className="mt-2 text-xs font-bold text-slate-800 dark:text-slate-200">Text & Fonts</h4>
+            <p className="mt-0.5 text-[10px] text-slate-400">Add custom text, sizes, colors & highlights</p>
           </div>
-          <div className="rounded-2xl border border-slate-200/80 bg-white/60 p-4 dark:border-white/[0.06] dark:bg-slate-900/50 text-center">
-            <CheckSquare size={22} className="mx-auto text-emerald-500" />
-            <h4 className="mt-2 text-xs font-bold text-slate-800 dark:text-slate-200">Interactive Forms</h4>
-            <p className="mt-0.5 text-[10px] text-slate-400">Add text fields, checkboxes & radio options</p>
+          <div className="rounded-2xl border border-slate-200/80 bg-white/60 p-3.5 dark:border-white/[0.06] dark:bg-slate-900/50 text-center">
+            <PenTool size={20} className="mx-auto text-indigo-500" />
+            <h4 className="mt-2 text-xs font-bold text-slate-800 dark:text-slate-200">Draw & Highlight</h4>
+            <p className="mt-0.5 text-[10px] text-slate-400">Smooth pen sketching & transparent markers</p>
           </div>
-          <div className="rounded-2xl border border-slate-200/80 bg-white/60 p-4 dark:border-white/[0.06] dark:bg-slate-900/50 text-center">
-            <Wand2 size={22} className="mx-auto text-indigo-500" />
-            <h4 className="mt-2 text-xs font-bold text-slate-800 dark:text-slate-200">Logo & BG Erase</h4>
-            <p className="mt-0.5 text-[10px] text-slate-400">AI auto-matching background inpainting</p>
+          <div className="rounded-2xl border border-slate-200/80 bg-white/60 p-3.5 dark:border-white/[0.06] dark:bg-slate-900/50 text-center">
+            <EyeOff size={20} className="mx-auto text-rose-500" />
+            <h4 className="mt-2 text-xs font-bold text-slate-800 dark:text-slate-200">Permanent Redact</h4>
+            <p className="mt-0.5 text-[10px] text-slate-400">Blackout or whiteout confidential details</p>
           </div>
-          <div className="rounded-2xl border border-slate-200/80 bg-white/60 p-4 dark:border-white/[0.06] dark:bg-slate-900/50 text-center">
-            <FileSignature size={22} className="mx-auto text-violet-500" />
-            <h4 className="mt-2 text-xs font-bold text-slate-800 dark:text-slate-200">Sign & Stamp</h4>
-            <p className="mt-0.5 text-[10px] text-slate-400">Draw smooth signatures or embed PNG stamps</p>
+          <div className="rounded-2xl border border-slate-200/80 bg-white/60 p-3.5 dark:border-white/[0.06] dark:bg-slate-900/50 text-center">
+            <Stamp size={20} className="mx-auto text-emerald-500" />
+            <h4 className="mt-2 text-xs font-bold text-slate-800 dark:text-slate-200">Stamps & Signatures</h4>
+            <p className="mt-0.5 text-[10px] text-slate-400">Approved, confidential & cursive signs</p>
           </div>
         </div>
       </div>
@@ -2050,827 +1765,506 @@ export default function PdfEditorView({
   }
 
   return (
-    <div className="space-y-2 sm:space-y-3 relative w-full">
-      {/* Floating Menu Capsule for PDF Editing */}
-      <div className="sticky top-2 sm:top-3 z-40 mx-auto w-fit max-w-[98vw] flex flex-col items-center gap-1.5 transition-all">
-        {/* Main Floating Island Toolbar */}
-        <div className="rounded-full border border-slate-200/90 bg-white/95 p-1.5 shadow-2xl backdrop-blur-2xl dark:border-white/15 dark:bg-slate-900/95 flex items-center gap-1 sm:gap-1.5 flex-nowrap overflow-x-auto no-scrollbar">
-          {/* Document File info pill */}
-          <div className="flex items-center gap-1.5 pl-2 pr-2.5 py-1 rounded-full bg-slate-100/80 dark:bg-slate-800/80 text-xs font-bold text-slate-700 dark:text-slate-300 shrink-0">
-            <div className="grid h-5 w-5 place-items-center rounded-full bg-blue-600 text-white text-[10px]">
-              <FilePenLine size={11} />
+    <div className="space-y-4">
+      {/* Top Header & Workstation Bar */}
+      <div className="rounded-3xl border border-slate-200/80 bg-white/80 p-3.5 sm:p-4 shadow-sm backdrop-blur-md dark:border-white/[0.08] dark:bg-slate-900/60 flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <div className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl bg-gradient-to-tr from-blue-600 via-indigo-600 to-cyan-500 text-white shadow-md shadow-blue-500/20">
+            <FilePenLine size={20} />
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <h3 className="text-sm font-extrabold text-slate-900 dark:text-white truncate max-w-[200px] sm:max-w-xs">
+                {info.file.name}
+              </h3>
+              <span className="rounded-full bg-slate-100 dark:bg-slate-800 px-2 py-0.5 text-[10px] font-bold text-slate-600 dark:text-slate-300">
+                {formatBytes(info.file.size)}
+              </span>
             </div>
-            <span className="truncate max-w-[90px] sm:max-w-[120px] hidden sm:inline" title={info.file.name}>
-              {info.file.name}
-            </span>
-            <span className="text-[10px] text-blue-600 dark:text-blue-400 font-extrabold whitespace-nowrap">
-              {activePageIndex + 1}/{pagesPlan.length}
-            </span>
+            <p className="text-[11px] text-slate-500 dark:text-slate-400">
+              Page {activePageIndex + 1} of {pagesPlan.length} • {pageAnnotations.length} annotation(s)
+            </p>
           </div>
+        </div>
 
-          <div className="h-5 w-px bg-slate-200 dark:bg-white/[0.1] mx-0.5 shrink-0" />
-
-          {/* 1. Text */}
-          <button
-            type="button"
-            onClick={() => {
-              setActiveTool("text");
-              setSelectedId(null);
-            }}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer shrink-0 ${
-              activeTool === "text" || activeTool === "editText"
-                ? "bg-emerald-600 text-white shadow-md shadow-emerald-500/25"
-                : "text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800"
-            }`}
-            title="Type text or click any existing text to edit"
-          >
-            <Type size={14} />
-            <span>Text</span>
-          </button>
-
-          {/* 2. Forms (Checkmark, Cross, Radio, Checkbox) */}
-          <div className="relative shrink-0">
-            <button
-              type="button"
-              onClick={() => setFormsMenuOpen((o) => !o)}
-              className={`flex items-center gap-1 px-2.5 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer ${
-                activeTool === "forms"
-                  ? "bg-emerald-600 text-white shadow-md shadow-emerald-500/25"
-                  : "text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800"
-              }`}
-              title="Insert Checkmark, Cross, Radio bullet, or Checkbox"
-            >
-              <CheckSquare size={14} />
-              <span>Forms</span>
-              <ChevronDown size={11} className="opacity-70" />
-            </button>
-
-            {formsMenuOpen && (
-              <div className="absolute left-0 top-full mt-2 z-50 w-44 rounded-2xl border border-slate-200 bg-white p-1.5 shadow-xl dark:border-slate-700 dark:bg-slate-800 space-y-1 text-xs animate-in fade-in zoom-in-95 duration-150">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setFormSymbol("check");
-                    setActiveTool("forms");
-                    setFormsMenuOpen(false);
-                    notify("Click anywhere on PDF to place Checkmark (✓)", "info");
-                  }}
-                  className={`w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-xl font-bold transition-colors cursor-pointer text-left ${
-                    formSymbol === "check" && activeTool === "forms"
-                      ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300"
-                      : "hover:bg-slate-100 dark:hover:bg-slate-700"
-                  }`}
-                >
-                  <span className="grid h-6 w-6 place-items-center rounded-lg bg-emerald-500/15 text-emerald-600 font-black text-sm">
-                    ✓
-                  </span>
-                  <span>Checkmark</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setFormSymbol("cross");
-                    setActiveTool("forms");
-                    setFormsMenuOpen(false);
-                    notify("Click anywhere on PDF to place Cross mark (✕)", "info");
-                  }}
-                  className={`w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-xl font-bold transition-colors cursor-pointer text-left ${
-                    formSymbol === "cross" && activeTool === "forms"
-                      ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300"
-                      : "hover:bg-slate-100 dark:hover:bg-slate-700"
-                  }`}
-                >
-                  <span className="grid h-6 w-6 place-items-center rounded-lg bg-rose-500/15 text-rose-600 font-black text-sm">
-                    ✕
-                  </span>
-                  <span>Cross Mark</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setFormSymbol("radio");
-                    setActiveTool("forms");
-                    setFormsMenuOpen(false);
-                    notify("Click anywhere on PDF to place Radio bullet (●)", "info");
-                  }}
-                  className={`w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-xl font-bold transition-colors cursor-pointer text-left ${
-                    formSymbol === "radio" && activeTool === "forms"
-                      ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300"
-                      : "hover:bg-slate-100 dark:hover:bg-slate-700"
-                  }`}
-                >
-                  <span className="grid h-6 w-6 place-items-center rounded-lg bg-blue-500/15 text-blue-600 font-black text-sm">
-                    ●
-                  </span>
-                  <span>Radio Bullet</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setFormSymbol("checkbox");
-                    setActiveTool("forms");
-                    setFormsMenuOpen(false);
-                    notify("Click anywhere on PDF to place Checkbox (☐)", "info");
-                  }}
-                  className={`w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-xl font-bold transition-colors cursor-pointer text-left ${
-                    formSymbol === "checkbox" && activeTool === "forms"
-                      ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300"
-                      : "hover:bg-slate-100 dark:hover:bg-slate-700"
-                  }`}
-                >
-                  <span className="grid h-6 w-6 place-items-center rounded-lg border-2 border-slate-400 bg-white font-black text-xs">
-                    {" "}
-                  </span>
-                  <span>Checkbox Field</span>
-                </button>
-              </div>
-            )}
-          </div>
-
-          {/* 3. Images */}
-          <label className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-full text-xs font-bold text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800 transition-all cursor-pointer shrink-0">
-            <ImageIcon size={14} />
-            <span>Images</span>
-            <input
-              type="file"
-              accept="image/*"
-              className="hidden"
-              onChange={(e) => {
-                const file = e.target.files?.[0];
-                if (file) handleImageUpload(file);
-              }}
-            />
-          </label>
-
-          {/* 4. Sign */}
-          <button
-            type="button"
-            onClick={() => setShowSignModal(true)}
-            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-full text-xs font-bold text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800 transition-all cursor-pointer shrink-0"
-            title="Create cursive signature, draw or upload signature"
-          >
-            <FileSignature size={14} />
-            <span>Sign</span>
-          </button>
-
-          {/* 5. Whiteout */}
-          <button
-            type="button"
-            onClick={() => {
-              setActiveTool("erase");
-              setSelectedId(null);
-              notify("Whiteout tool active: Drag a rectangle to conceal or erase content cleanly", "info");
-            }}
-            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer shrink-0 ${
-              activeTool === "erase"
-                ? "bg-emerald-600 text-white shadow-md shadow-emerald-500/25"
-                : "text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800"
-            }`}
-            title="Cover part of page with matching background patch or whiteout"
-          >
-            <Eraser size={14} />
-            <span>Whiteout</span>
-          </button>
-
-          {/* 6. Annotate (Highlight & Pen) */}
-          <div className="relative shrink-0">
-            <button
-              type="button"
-              onClick={() => setAnnotateMenuOpen((o) => !o)}
-              className={`flex items-center gap-1 px-2.5 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer ${
-                activeTool === "highlight" || activeTool === "draw"
-                  ? "bg-emerald-600 text-white shadow-md shadow-emerald-500/25"
-                  : "text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800"
-              }`}
-              title="Highlight or Pen sketch"
-            >
-              <Highlighter size={14} />
-              <span>Annotate</span>
-              <ChevronDown size={11} className="opacity-70" />
-            </button>
-
-            {annotateMenuOpen && (
-              <div className="absolute left-0 top-full mt-2 z-50 w-36 rounded-2xl border border-slate-200 bg-white p-1.5 shadow-xl dark:border-slate-700 dark:bg-slate-800 space-y-1 text-xs animate-in fade-in zoom-in-95 duration-150">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setActiveTool("highlight");
-                    setAnnotateMenuOpen(false);
-                    notify("Highlight tool active: Drag over text or area to highlight", "info");
-                  }}
-                  className={`w-full flex items-center gap-2 px-2.5 py-1.5 rounded-xl font-bold text-left cursor-pointer ${
-                    activeTool === "highlight"
-                      ? "bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300"
-                      : "hover:bg-slate-100 dark:hover:bg-slate-700"
-                  }`}
-                >
-                  <Highlighter size={14} className="text-amber-500" />
-                  <span>Highlight</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setActiveTool("draw");
-                    setAnnotateMenuOpen(false);
-                    notify("Freehand Pen active: Draw anywhere on document", "info");
-                  }}
-                  className={`w-full flex items-center gap-2 px-2.5 py-1.5 rounded-xl font-bold text-left cursor-pointer ${
-                    activeTool === "draw"
-                      ? "bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300"
-                      : "hover:bg-slate-100 dark:hover:bg-slate-700"
-                  }`}
-                >
-                  <PenTool size={14} className="text-blue-500" />
-                  <span>Draw Pen</span>
-                </button>
-              </div>
-            )}
-          </div>
-
-          {/* 7. Shapes */}
-          <div className="relative shrink-0">
-            <button
-              type="button"
-              onClick={() => setShapesMenuOpen((o) => !o)}
-              className={`flex items-center gap-1 px-2.5 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer ${
-                ["rectangle", "circle", "line", "arrow"].includes(activeTool)
-                  ? "bg-emerald-600 text-white shadow-md shadow-emerald-500/25"
-                  : "text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800"
-              }`}
-              title="Add Rectangle, Circle, Line or Arrow"
-            >
-              <Square size={14} />
-              <span>Shapes</span>
-              <ChevronDown size={11} className="opacity-70" />
-            </button>
-
-            {shapesMenuOpen && (
-              <div className="absolute left-0 top-full mt-2 z-50 w-36 rounded-2xl border border-slate-200 bg-white p-1.5 shadow-xl dark:border-slate-700 dark:bg-slate-800 space-y-1 text-xs animate-in fade-in zoom-in-95 duration-150">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setActiveTool("rectangle");
-                    setShapesMenuOpen(false);
-                  }}
-                  className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-xl font-bold hover:bg-slate-100 dark:hover:bg-slate-700 text-left cursor-pointer"
-                >
-                  <Square size={14} />
-                  <span>Rectangle</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setActiveTool("circle");
-                    setShapesMenuOpen(false);
-                  }}
-                  className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-xl font-bold hover:bg-slate-100 dark:hover:bg-slate-700 text-left cursor-pointer"
-                >
-                  <Circle size={14} />
-                  <span>Circle</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setActiveTool("line");
-                    setShapesMenuOpen(false);
-                  }}
-                  className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-xl font-bold hover:bg-slate-100 dark:hover:bg-slate-700 text-left cursor-pointer"
-                >
-                  <Minus size={14} />
-                  <span>Line</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setActiveTool("arrow");
-                    setShapesMenuOpen(false);
-                  }}
-                  className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-xl font-bold hover:bg-slate-100 dark:hover:bg-slate-700 text-left cursor-pointer"
-                >
-                  <ArrowRight size={14} />
-                  <span>Arrow</span>
-                </button>
-              </div>
-            )}
-          </div>
-
-          {/* 8. More */}
-          <div className="relative shrink-0">
-            <button
-              type="button"
-              onClick={() => setMoreMenuOpen((o) => !o)}
-              className="flex items-center gap-1 px-2 py-1.5 rounded-full text-xs font-bold text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800 transition-all cursor-pointer"
-              title="More tools"
-            >
-              <span>More</span>
-              <ChevronDown size={11} className="opacity-70" />
-            </button>
-
-            {moreMenuOpen && (
-              <div className="absolute left-0 top-full mt-2 z-50 w-44 rounded-2xl border border-slate-200 bg-white p-1.5 shadow-xl dark:border-slate-700 dark:bg-slate-800 space-y-1 text-xs animate-in fade-in zoom-in-95 duration-150">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setFindAndReplaceOpen(true);
-                    setMoreMenuOpen(false);
-                  }}
-                  className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-xl font-bold hover:bg-slate-100 dark:hover:bg-slate-700 text-left cursor-pointer"
-                >
-                  <Replace size={14} className="text-blue-500" />
-                  <span>Find & Replace</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setActiveTool("stamp");
-                    setMoreMenuOpen(false);
-                  }}
-                  className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-xl font-bold hover:bg-slate-100 dark:hover:bg-slate-700 text-left cursor-pointer"
-                >
-                  <Stamp size={14} className="text-emerald-500" />
-                  <span>Stamps</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setActiveTool("redact");
-                    setMoreMenuOpen(false);
-                  }}
-                  className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-xl font-bold hover:bg-slate-100 dark:hover:bg-slate-700 text-left cursor-pointer"
-                >
-                  <EyeOff size={14} className="text-rose-500" />
-                  <span>Permanent Redact</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    clearCurrentPageAnnotations();
-                    setMoreMenuOpen(false);
-                  }}
-                  className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-xl font-bold text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 text-left cursor-pointer"
-                >
-                  <Eraser size={14} />
-                  <span>Clear This Page</span>
-                </button>
-              </div>
-            )}
-          </div>
-
-          <div className="h-5 w-px bg-slate-200 dark:bg-white/[0.1] mx-0.5 shrink-0" />
-
-          {/* Undo / Redo */}
+        {/* Global Controls (Undo, Redo, Zoom, Clear) */}
+        <div className="flex items-center gap-1.5 sm:gap-2">
           <button
             type="button"
             onClick={handleUndo}
             disabled={history.length === 0}
-            className="grid h-7 w-7 place-items-center rounded-full text-slate-700 hover:bg-slate-100 disabled:opacity-30 dark:text-slate-200 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+            className="grid h-8 w-8 place-items-center rounded-xl border border-slate-200 bg-white text-slate-700 shadow-xs hover:bg-slate-50 disabled:opacity-40 dark:border-white/[0.08] dark:bg-slate-800 dark:text-slate-200"
             title="Undo (Ctrl+Z)"
           >
-            <Undo2 size={13} />
+            <Undo2 size={15} />
           </button>
           <button
             type="button"
             onClick={handleRedo}
             disabled={redoStack.length === 0}
-            className="grid h-7 w-7 place-items-center rounded-full text-slate-700 hover:bg-slate-100 disabled:opacity-30 dark:text-slate-200 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+            className="grid h-8 w-8 place-items-center rounded-xl border border-slate-200 bg-white text-slate-700 shadow-xs hover:bg-slate-50 disabled:opacity-40 dark:border-white/[0.08] dark:bg-slate-800 dark:text-slate-200"
             title="Redo (Ctrl+Y)"
           >
-            <Redo2 size={13} />
+            <Redo2 size={15} />
           </button>
 
-          <div className="h-5 w-px bg-slate-200 dark:bg-white/[0.1] mx-0.5 shrink-0" />
+          <div className="h-5 w-px bg-slate-200 dark:bg-white/[0.1] mx-0.5" />
 
-          {/* Zoom controls & Fit to Viewport */}
+          {/* Zoom Controls */}
           <button
             type="button"
             onClick={() => setZoomScale((z) => Math.max(0.4, Number((z - 0.15).toFixed(2))))}
-            className="grid h-7 w-7 place-items-center rounded-full text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800 cursor-pointer"
+            className="grid h-8 w-8 place-items-center rounded-xl border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 dark:border-white/[0.08] dark:bg-slate-800 dark:text-slate-200"
             title="Zoom Out"
           >
-            <ZoomOut size={13} />
+            <ZoomOut size={15} />
           </button>
-          <span className="min-w-[34px] text-center font-mono text-[11px] font-bold text-slate-700 dark:text-slate-300">
+          <span className="min-w-[40px] text-center font-mono text-xs font-bold text-slate-700 dark:text-slate-300">
             {Math.round(zoomScale * 100)}%
           </span>
           <button
             type="button"
             onClick={() => setZoomScale((z) => Math.min(2.0, Number((z + 0.15).toFixed(2))))}
-            className="grid h-7 w-7 place-items-center rounded-full text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800 cursor-pointer"
+            className="grid h-8 w-8 place-items-center rounded-xl border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 dark:border-white/[0.08] dark:bg-slate-800 dark:text-slate-200"
             title="Zoom In"
           >
-            <ZoomIn size={13} />
+            <ZoomIn size={15} />
           </button>
           <button
             type="button"
-            onClick={handleFitToWidth}
-            className="inline-flex items-center rounded-full bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 px-2 py-0.5 text-[10px] font-black hover:bg-blue-100 transition-colors shadow-2xs cursor-pointer"
-            title="Maximize document to viewport width"
+            onClick={() => {
+              if (pageDimensions.width > 0 && typeof window !== "undefined") {
+                const availWidth = Math.min(window.innerWidth - 48, 1200);
+                const fit = Math.max(0.4, Math.min(1.2, Number((availWidth / pageDimensions.width).toFixed(2))));
+                setZoomScale(fit);
+              }
+            }}
+            className="hidden xs:inline-flex items-center gap-1 rounded-xl border border-slate-200 bg-white px-2 h-8 text-[11px] font-bold text-slate-700 hover:bg-slate-50 dark:border-white/[0.08] dark:bg-slate-800 dark:text-slate-200"
+            title="Fit to screen width"
           >
             Fit
           </button>
 
-          <div className="h-5 w-px bg-slate-200 dark:bg-white/[0.1] mx-0.5 shrink-0" />
+          <div className="h-5 w-px bg-slate-200 dark:bg-white/[0.1] mx-0.5" />
 
-          {/* Pages Drawer Toggle */}
-          <button
-            type="button"
-            onClick={() => setSidebarOpen((v) => !v)}
-            className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-bold transition-all cursor-pointer ${
-              sidebarOpen
-                ? "bg-blue-600 text-white shadow-xs"
-                : "text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800"
-            }`}
-            title="Open page thumbnail drawer and text inspector"
-          >
-            <Layers size={13} />
-            <span className="hidden sm:inline">Pages</span>
-            <span className="rounded-full bg-black/10 dark:bg-white/15 px-1 text-[10px]">
-              {pagesPlan.length}
-            </span>
-          </button>
-
-          {/* Find & Replace Toggle */}
+          {/* Find & Replace button */}
           <button
             type="button"
             onClick={() => setFindAndReplaceOpen((o) => !o)}
-            className={`grid h-7 w-7 place-items-center rounded-full transition-colors cursor-pointer ${
+            className={`flex items-center gap-1.5 rounded-xl border px-3 h-8 text-xs font-bold transition-all ${
               findAndReplaceOpen
-                ? "bg-blue-100 text-blue-700 dark:bg-blue-900/60 dark:text-blue-300"
-                : "text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800"
+                ? "border-blue-500 bg-blue-50 text-blue-600 dark:bg-blue-950/40 dark:text-blue-400 shadow-xs ring-2 ring-blue-500/20"
+                : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50 dark:border-white/[0.08] dark:bg-slate-800 dark:text-slate-200"
             }`}
-            title="Find & Replace (Ctrl+F)"
+            title="Find & Replace text across PDF (Ctrl+F)"
           >
-            <Replace size={13} />
+            <Replace size={14} className="text-blue-600 dark:text-blue-400" />
+            <span className="hidden sm:inline">Find & Replace</span>
+            <span className="text-[10px] font-mono px-1 rounded bg-slate-100 dark:bg-slate-700 text-slate-500">
+              ^F
+            </span>
           </button>
 
-          <div className="h-5 w-px bg-slate-200 dark:bg-white/[0.1] mx-0.5 shrink-0" />
-
-          {/* Prominent Apply Changes Button */}
           <button
             type="button"
-            onClick={handleExport}
-            disabled={exporting}
-            className="inline-flex items-center gap-1.5 rounded-full bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white px-3.5 sm:px-4 py-1.5 text-xs font-extrabold shadow-md shadow-emerald-600/30 transition-all shrink-0 cursor-pointer disabled:opacity-50"
-            title="Save & apply changes to export edited PDF"
+            onClick={clearCurrentPageAnnotations}
+            disabled={pageAnnotations.length === 0}
+            className="flex items-center gap-1 rounded-xl border border-slate-200 bg-white px-2.5 h-8 text-xs font-bold text-rose-600 hover:bg-rose-50 disabled:opacity-40 dark:border-white/[0.08] dark:bg-slate-800 dark:text-rose-400 dark:hover:bg-rose-950/20"
+            title="Clear annotations on current page"
           >
-            {exporting ? (
-              <>
-                <RefreshCw size={13} className="animate-spin" />
-                <span className="hidden sm:inline">Applying...</span>
-              </>
-            ) : (
-              <>
-                <CheckCheck size={14} />
-                <span>Apply changes</span>
-              </>
-            )}
+            <Eraser size={13} />
+            <span className="hidden sm:inline">Clear Page</span>
           </button>
         </div>
+      </div>
 
-        {/* Floating Contextual Properties Bar */}
+      {/* Primary Tool Mode Selection Dock */}
+      <div className="flex items-center gap-1.5 rounded-2xl border border-slate-200/80 bg-white/70 p-2 shadow-sm backdrop-blur-md dark:border-white/[0.08] dark:bg-slate-900/60 overflow-x-auto no-scrollbar flex-nowrap lg:flex-wrap">
+        {[
+          { id: "select" as const, label: "Select", icon: MousePointer, key: "V" },
+          { id: "editText" as const, label: "Edit Text", icon: Sparkles, key: "E", pro: true },
+          { id: "eraseAndType" as const, label: "Erase & Type", icon: PencilLine, key: "W", pro: true },
+          { id: "erase" as const, label: "Erase / Remove Logo", icon: Eraser, key: "X", pro: true },
+          { id: "text" as const, label: "Add Text", icon: Type, key: "T" },
+          { id: "draw" as const, label: "Pen", icon: PenTool, key: "P" },
+          { id: "highlight" as const, label: "Highlight", icon: Highlighter, key: "H" },
+          { id: "rectangle" as const, label: "Rectangle", icon: Square },
+          { id: "circle" as const, label: "Circle", icon: Circle },
+          { id: "line" as const, label: "Line", icon: Minus },
+          { id: "arrow" as const, label: "Arrow", icon: ArrowRight },
+          { id: "redact" as const, label: "Redact", icon: EyeOff },
+          { id: "stamp" as const, label: "Stamp", icon: Stamp },
+          { id: "sign" as const, label: "Sign", icon: FileSignature }
+        ].map((tool) => {
+          const Icon = tool.icon;
+          const isCurrent = activeTool === tool.id;
+          const hasProBadge = "pro" in tool;
+
+          return (
+            <button
+              key={tool.id}
+              type="button"
+              onClick={() => {
+                if (tool.id === "sign") {
+                  setShowSignModal(true);
+                } else {
+                  setActiveTool(tool.id);
+                  if (tool.id !== "select") setSelectedId(null);
+                }
+              }}
+              className={`relative shrink-0 whitespace-nowrap flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-bold transition-all ${
+                isCurrent
+                  ? "bg-blue-600 text-white shadow-md shadow-blue-500/25"
+                  : "text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
+              }`}
+            >
+              <Icon size={14} className={hasProBadge && !isCurrent ? "text-blue-600 dark:text-blue-400" : ""} />
+              <span>{tool.label}</span>
+              {hasProBadge && (
+                <span className={`text-[9px] font-black px-1 rounded-sm ${
+                  isCurrent ? "bg-white/20 text-white" : "bg-blue-500/10 text-blue-600 dark:text-blue-400"
+                }`}>
+                  PRO
+                </span>
+              )}
+              {tool.key && !hasProBadge && (
+                <span className={`text-[10px] font-mono px-1 rounded ${
+                  isCurrent ? "bg-white/20 text-white" : "bg-slate-200/60 text-slate-500 dark:bg-slate-800 dark:text-slate-400"
+                }`}>
+                  {tool.key}
+                </span>
+              )}
+            </button>
+          );
+        })}
+
+        {/* Upload Image Button */}
+        <label className="shrink-0 whitespace-nowrap flex items-center gap-1.5 cursor-pointer rounded-xl px-3 py-1.5 text-xs font-bold text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800 transition-all">
+          <ImageIcon size={14} />
+          <span>Insert Image</span>
+          <input
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (file) handleImageUpload(file);
+            }}
+          />
+        </label>
+
+        <div className="h-5 w-px bg-slate-200 dark:bg-white/[0.1] mx-0.5 ml-auto hidden sm:block shrink-0" />
+
+        {/* Quick Text Detection Toggle */}
+        <button
+          type="button"
+          onClick={() => setDetectTextActive(!detectTextActive)}
+          className={`hidden sm:flex shrink-0 whitespace-nowrap items-center gap-1.5 rounded-xl px-2.5 py-1.5 text-xs font-bold transition-all ${
+            detectTextActive
+              ? "bg-blue-50 text-blue-600 border border-blue-200 dark:bg-blue-950/40 dark:border-blue-800 dark:text-blue-400"
+              : "text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"
+          }`}
+          title="Toggle interactive bounding box hover on PDF text"
+        >
+          {detectTextActive ? <Eye size={13} /> : <EyeOff size={13} />}
+          <span className="text-[11px]">{detectTextActive ? "Detect Text: ON" : "Detect Text: OFF"}</span>
+        </button>
+      </div>
+
+      {/* Contextual Properties Bar */}
+      <div className="flex items-center gap-2.5 sm:gap-3 rounded-2xl border border-slate-200/80 bg-slate-50/80 px-3 sm:px-4 py-2.5 dark:border-white/[0.06] dark:bg-slate-900/40 text-xs overflow-x-auto no-scrollbar flex-nowrap lg:flex-wrap">
+        {/* Color Palette for Text, Draw, Shapes */}
         {(activeTool === "text" ||
-          activeTool === "editText" ||
           activeTool === "draw" ||
-          activeTool === "highlight" ||
-          activeTool === "erase" ||
-          ["rectangle", "circle", "line", "arrow"].includes(activeTool) ||
+          activeTool === "rectangle" ||
+          activeTool === "circle" ||
+          activeTool === "line" ||
+          activeTool === "arrow" ||
           selectedAnnotation) && (
-          <div className="rounded-full border border-slate-200/80 bg-white/95 px-3.5 py-1 shadow-xl backdrop-blur-xl dark:border-white/10 dark:bg-slate-900/95 flex items-center gap-2 sm:gap-2.5 text-xs overflow-x-auto no-scrollbar max-w-[96vw] animate-in fade-in slide-in-from-top-1 duration-150">
-            {/* Color Palette for Text, Draw, Shapes */}
-            {(activeTool === "text" ||
-              activeTool === "draw" ||
-              activeTool === "rectangle" ||
-              activeTool === "circle" ||
-              activeTool === "line" ||
-              activeTool === "arrow" ||
-              selectedAnnotation) && (
-              <div className="flex items-center gap-1.5 shrink-0">
-                <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400">Color:</span>
-                <div className="flex items-center gap-1">
-                  {COLOR_PALETTE.map((c) => (
-                    <button
-                      key={c.hex}
-                      type="button"
-                      onClick={() => {
-                        setActiveColor(c.hex);
-                        if (selectedId) {
-                          setAnnotations((prev) =>
-                            prev.map((a) =>
-                              a.id === selectedId
-                                ? { ...a, textColor: c.hex, strokeColor: c.hex }
-                                : a
-                            )
-                          );
-                        }
-                      }}
-                      className={`h-4.5 w-4.5 rounded-full border border-slate-300 dark:border-slate-600 transition-transform cursor-pointer ${
-                        activeColor === c.hex ? "scale-125 ring-2 ring-blue-500 ring-offset-1" : "hover:scale-110"
-                      }`}
-                      style={{ backgroundColor: c.hex }}
-                      title={c.name}
-                    />
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Text Specific Options */}
-            {(activeTool === "text" || (selectedAnnotation && selectedAnnotation.type === "text")) && (
-              <>
-                <div className="h-4 w-px bg-slate-200 dark:bg-white/[0.1] shrink-0" />
-                <div className="flex items-center gap-1 shrink-0">
-                  <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400">Size:</span>
-                  <div className="flex items-center">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const currentSz = selectedAnnotation?.fontSize || fontSize;
-                        const nextSz = Math.max(6, currentSz - 1);
-                        setFontSize(nextSz);
-                        if (selectedId) {
-                          setAnnotations((prev) =>
-                            prev.map((a) => (a.id === selectedId ? { ...a, fontSize: nextSz } : a))
-                          );
-                        }
-                      }}
-                      className="rounded-l-full border border-r-0 border-slate-200 bg-slate-50 px-1.5 py-0.5 text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 cursor-pointer"
-                      title="Decrease font size (-1pt)"
-                    >
-                      <Minus size={11} />
-                    </button>
-                    <select
-                      value={selectedAnnotation?.fontSize || fontSize}
-                      onChange={(e) => {
-                        const size = Number(e.target.value);
-                        setFontSize(size);
-                        if (selectedId) {
-                          setAnnotations((prev) =>
-                            prev.map((a) => (a.id === selectedId ? { ...a, fontSize: size } : a))
-                          );
-                        }
-                      }}
-                      className="border-y border-slate-200 bg-white px-1.5 py-0.5 text-[11px] font-bold text-slate-800 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
-                    >
-                      {(() => {
-                        const activeSz = selectedAnnotation?.fontSize || fontSize;
-                        const allSizes = Array.from(
-                          new Set([6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 22, 24, 28, 32, 36, 40, 48, 64, activeSz])
-                        ).sort((a, b) => a - b);
-                        return allSizes.map((s) => (
-                          <option key={s} value={s}>
-                            {s}pt
-                          </option>
-                        ));
-                      })()}
-                    </select>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const currentSz = selectedAnnotation?.fontSize || fontSize;
-                        const nextSz = Math.min(120, currentSz + 1);
-                        setFontSize(nextSz);
-                        if (selectedId) {
-                          setAnnotations((prev) =>
-                            prev.map((a) => (a.id === selectedId ? { ...a, fontSize: nextSz } : a))
-                          );
-                        }
-                      }}
-                      className="rounded-r-full border border-l-0 border-slate-200 bg-slate-50 px-1.5 py-0.5 text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 cursor-pointer"
-                      title="Increase font size (+1pt)"
-                    >
-                      <Plus size={11} />
-                    </button>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-1 shrink-0">
-                  <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400">Font:</span>
-                  <select
-                    value={selectedAnnotation?.fontFamily || fontFamily}
-                    onChange={(e) => {
-                      const f = e.target.value as any;
-                      setFontFamily(f);
-                      if (selectedId) {
-                        setAnnotations((prev) =>
-                          prev.map((a) => (a.id === selectedId ? { ...a, fontFamily: f } : a))
-                        );
-                      }
-                    }}
-                    className="rounded-lg border border-slate-200 bg-white px-2 py-0.5 text-[11px] font-bold text-slate-800 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
-                  >
-                    {selectedAnnotation?.actualFontName && (
-                      <option value={selectedAnnotation.fontFamily}>
-                        Original ({selectedAnnotation.actualFontName})
-                      </option>
-                    )}
-                    <option value="sans">Sans-Serif</option>
-                    <option value="serif">Serif</option>
-                    <option value="mono">Monospace</option>
-                    <option value="cursive">Cursive</option>
-                  </select>
-                </div>
-
+          <div className="flex items-center gap-2">
+            <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400">Color:</span>
+            <div className="flex items-center gap-1">
+              {COLOR_PALETTE.map((c) => (
                 <button
+                  key={c.hex}
                   type="button"
                   onClick={() => {
-                    const currentBold = selectedAnnotation ? selectedAnnotation.fontWeight === "bold" : isBold;
-                    const nextBold = !currentBold;
-                    setIsBold(nextBold);
+                    setActiveColor(c.hex);
                     if (selectedId) {
                       setAnnotations((prev) =>
                         prev.map((a) =>
-                          a.id === selectedId ? { ...a, fontWeight: nextBold ? "bold" : "normal" } : a
-                        )
-                      );
-                    }
-                  }}
-                  className={`h-6 w-6 rounded-md font-black text-xs transition-colors cursor-pointer ${
-                    (selectedAnnotation ? selectedAnnotation.fontWeight === "bold" : isBold)
-                      ? "bg-slate-900 text-white dark:bg-white dark:text-slate-900"
-                      : "border border-slate-200 text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-200"
-                  }`}
-                  title="Bold (Ctrl+B)"
-                >
-                  B
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    const currentItalic = selectedAnnotation ? selectedAnnotation.fontStyle === "italic" : isItalic;
-                    const nextItalic = !currentItalic;
-                    setIsItalic(nextItalic);
-                    if (selectedId) {
-                      setAnnotations((prev) =>
-                        prev.map((a) =>
-                          a.id === selectedId ? { ...a, fontStyle: nextItalic ? "italic" : "normal" } : a
-                        )
-                      );
-                    }
-                  }}
-                  className={`h-6 w-6 rounded-md italic font-black text-xs transition-colors cursor-pointer ${
-                    (selectedAnnotation ? selectedAnnotation.fontStyle === "italic" : isItalic)
-                      ? "bg-slate-900 text-white dark:bg-white dark:text-slate-900"
-                      : "border border-slate-200 text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-200"
-                  }`}
-                  title="Italic (Ctrl+I)"
-                >
-                  I
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    const currentWhiteout = selectedAnnotation
-                      ? selectedAnnotation.underlayWhiteout !== false
-                      : true;
-                    const nextWhiteout = !currentWhiteout;
-                    if (selectedId) {
-                      setAnnotations((prev) =>
-                        prev.map((a) =>
-                          a.id === selectedId ? { ...a, underlayWhiteout: nextWhiteout } : a
-                        )
-                      );
-                    }
-                  }}
-                  className={`rounded-full px-2 py-0.5 text-[10px] font-bold transition-all cursor-pointer ${
-                    (selectedAnnotation ? selectedAnnotation.underlayWhiteout !== false : true)
-                      ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300"
-                      : "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400"
-                  }`}
-                  title="Toggle whiteout background to conceal original PDF text under this edit"
-                >
-                  {(selectedAnnotation ? selectedAnnotation.underlayWhiteout !== false : true)
-                    ? "Hide BG: ON"
-                    : "Hide BG: OFF"}
-                </button>
-              </>
-            )}
-
-            {/* Erase / Logo Remover Options */}
-            {(activeTool === "erase" || (selectedAnnotation && selectedAnnotation.type === "erase")) && (
-              <>
-                <div className="h-4 w-px bg-slate-200 dark:bg-white/[0.1] shrink-0" />
-                <button
-                  type="button"
-                  onClick={() => {
-                    const nextMatch = !eraseColorAutoMatch;
-                    setEraseColorAutoMatch(nextMatch);
-                    if (nextMatch && selectedAnnotation && selectedAnnotation.type === "erase") {
-                      const sampled = sampleBackgroundColor(
-                        selectedAnnotation.xNorm,
-                        selectedAnnotation.yNorm,
-                        selectedAnnotation.widthNorm,
-                        selectedAnnotation.heightNorm
-                      );
-                      setAnnotations((prev) =>
-                        prev.map((a) => (a.id === selectedAnnotation.id ? { ...a, fillColor: sampled } : a))
-                      );
-                      notify(`Auto-matched background to ${sampled.toUpperCase()}`, "success");
-                    }
-                  }}
-                  className={`flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-bold transition-all cursor-pointer border ${
-                    eraseColorAutoMatch
-                      ? "bg-blue-600 text-white border-blue-600 shadow-xs"
-                      : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700"
-                  }`}
-                  title="Automatically samples surrounding background color so erasures blend seamlessly"
-                >
-                  <Sparkles size={11} />
-                  <span>Auto-Match BG {eraseColorAutoMatch ? "ON" : "OFF"}</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    setIsEyedropperActive((prev) => !prev);
-                    if (!isEyedropperActive) {
-                      notify("Eyedropper active: Click anywhere on the PDF page to sample its color", "info");
-                    }
-                  }}
-                  className={`flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-bold transition-all cursor-pointer border ${
-                    isEyedropperActive
-                      ? "bg-amber-500 text-white border-amber-600 shadow-xs ring-2 ring-amber-400/50 animate-pulse"
-                      : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700"
-                  }`}
-                  title="Pick exact background color from anywhere on the document"
-                >
-                  <Pipette size={11} />
-                  <span>{isEyedropperActive ? "Sampling..." : "Pick Color"}</span>
-                </button>
-
-                {selectedAnnotation && selectedAnnotation.type === "erase" && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const patch = generateBackgroundInpaintPatch(
-                        selectedAnnotation.xNorm,
-                        selectedAnnotation.yNorm,
-                        selectedAnnotation.widthNorm,
-                        selectedAnnotation.heightNorm
-                      );
-                      setAnnotations((prev) =>
-                        prev.map((a) =>
-                          a.id === selectedAnnotation.id
-                            ? { ...a, imageDataUrl: patch || undefined, eraseMode: "inpaint" }
+                          a.id === selectedId
+                            ? { ...a, textColor: c.hex, strokeColor: c.hex }
                             : a
                         )
                       );
-                      notify("Background cleanly reconstructed!", "success");
-                    }}
-                    className="flex items-center gap-1 rounded-full bg-emerald-600 text-white px-2.5 py-0.5 text-[11px] font-bold hover:bg-emerald-500 shadow-xs cursor-pointer"
-                    title="Re-sample surrounding background and seamlessly blend without affecting background"
-                  >
-                    <Wand2 size={11} />
-                    <span>Re-Clean BG</span>
-                  </button>
-                )}
-              </>
-            )}
+                    }
+                  }}
+                  className={`h-5 w-5 rounded-full border border-slate-300 dark:border-slate-600 transition-transform ${
+                    activeColor === c.hex ? "scale-125 ring-2 ring-blue-500 ring-offset-1" : "hover:scale-110"
+                  }`}
+                  style={{ backgroundColor: c.hex }}
+                  title={c.name}
+                />
+              ))}
+            </div>
+          </div>
+        )}
 
-            {/* Pen & Shapes Stroke Width */}
-            {(activeTool === "draw" ||
-              ["rectangle", "circle", "line", "arrow"].includes(activeTool)) && (
-              <>
-                <div className="h-4 w-px bg-slate-200 dark:bg-white/[0.1] shrink-0" />
-                <div className="flex items-center gap-1.5 shrink-0">
-                  <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400">Width:</span>
-                  <input
-                    type="range"
-                    min={1}
-                    max={16}
-                    value={strokeWidth}
-                    onChange={(e) => setStrokeWidth(Number(e.target.value))}
-                    className="h-1.5 w-16 rounded-lg bg-slate-200 accent-blue-600 dark:bg-slate-700 cursor-pointer"
-                  />
-                  <span className="font-mono text-[10px] font-bold">{strokeWidth}px</span>
-                </div>
-              </>
-            )}
+        {/* Text Specific Options */}
+        {(activeTool === "text" || (selectedAnnotation && selectedAnnotation.type === "text")) && (
+          <>
+            <div className="h-4 w-px bg-slate-200 dark:bg-white/[0.1]" />
+            <div className="flex items-center gap-2">
+              <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400">Size:</span>
+              <select
+                value={selectedAnnotation?.fontSize || fontSize}
+                onChange={(e) => {
+                  const size = Number(e.target.value);
+                  setFontSize(size);
+                  if (selectedId) {
+                    setAnnotations((prev) =>
+                      prev.map((a) => (a.id === selectedId ? { ...a, fontSize: size } : a))
+                    );
+                  }
+                }}
+                className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs font-bold text-slate-800 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+              >
+                {(() => {
+                  const activeSz = selectedAnnotation?.fontSize || fontSize;
+                  const allSizes = Array.from(
+                    new Set([8, 9, 10, 11, 12, 13, 14, 15, 16, 18, 20, 22, 24, 28, 32, 36, 40, 48, 64, activeSz])
+                  ).sort((a, b) => a - b);
+                  return allSizes.map((s) => (
+                    <option key={s} value={s}>
+                      {s}pt
+                    </option>
+                  ));
+                })()}
+              </select>
+            </div>
 
-            {/* Highlight Color */}
-            {activeTool === "highlight" && (
-              <>
-                <div className="h-4 w-px bg-slate-200 dark:bg-white/[0.1] shrink-0" />
-                <div className="flex items-center gap-1.5 shrink-0">
-                  <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400">Marker:</span>
-                  <div className="flex items-center gap-1">
-                    {HIGHLIGHT_COLORS.map((hc) => (
-                      <button
-                        key={hc.hex}
-                        type="button"
-                        onClick={() => setHighlightColor(hc.hex)}
-                        className={`h-4.5 w-6 rounded-sm border border-slate-300 dark:border-slate-600 transition-transform cursor-pointer ${
-                          highlightColor === hc.hex ? "scale-110 ring-2 ring-blue-500" : "hover:scale-105"
-                        }`}
-                        style={{ backgroundColor: hc.hex }}
-                        title={hc.name}
-                      />
-                    ))}
-                  </div>
-                </div>
-              </>
-            )}
+            <div className="flex items-center gap-2">
+              <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400">Font:</span>
+              <select
+                value={selectedAnnotation?.fontFamily || fontFamily}
+                onChange={(e) => {
+                  const f = e.target.value as any;
+                  setFontFamily(f);
+                  if (selectedId) {
+                    setAnnotations((prev) =>
+                      prev.map((a) => (a.id === selectedId ? { ...a, fontFamily: f } : a))
+                    );
+                  }
+                }}
+                className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs font-bold text-slate-800 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+              >
+                <option value="sans">Sans (Arial / Inter)</option>
+                <option value="serif">Serif (Times / Georgia)</option>
+                <option value="mono">Monospace (Courier)</option>
+                <option value="cursive">Cursive (Script)</option>
+              </select>
+              {selectedAnnotation?.actualFontName && (
+                <span
+                  className="hidden sm:inline-block rounded-md bg-blue-500/10 px-1.5 py-0.5 text-[10px] font-bold text-blue-600 dark:bg-blue-500/20 dark:text-blue-300 truncate max-w-[110px]"
+                  title={`Original PDF typeface: ${selectedAnnotation.actualFontName}`}
+                >
+                  {selectedAnnotation.actualFontName}
+                </span>
+              )}
+            </div>
+
+            <button
+              type="button"
+              onClick={() => {
+                const currentBold = selectedAnnotation ? selectedAnnotation.fontWeight === "bold" : isBold;
+                const nextBold = !currentBold;
+                setIsBold(nextBold);
+                if (selectedId) {
+                  setAnnotations((prev) =>
+                    prev.map((a) => (a.id === selectedId ? { ...a, fontWeight: nextBold ? "bold" : "normal" } : a))
+                  );
+                }
+              }}
+              className={`h-7 w-7 rounded-lg border font-black transition-all ${
+                (selectedAnnotation ? selectedAnnotation.fontWeight === "bold" : isBold)
+                  ? "border-blue-500 bg-blue-600 text-white shadow-xs"
+                  : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300"
+              }`}
+              title="Toggle Bold"
+            >
+              B
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                const currentItalic = selectedAnnotation ? selectedAnnotation.fontStyle === "italic" : isItalic;
+                const nextItalic = !currentItalic;
+                setIsItalic(nextItalic);
+                if (selectedId) {
+                  setAnnotations((prev) =>
+                    prev.map((a) => (a.id === selectedId ? { ...a, fontStyle: nextItalic ? "italic" : "normal" } : a))
+                  );
+                }
+              }}
+              className={`h-7 w-7 rounded-lg border italic font-serif font-bold transition-all ${
+                (selectedAnnotation ? selectedAnnotation.fontStyle === "italic" : isItalic)
+                  ? "border-blue-500 bg-blue-600 text-white shadow-xs"
+                  : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300"
+              }`}
+              title="Toggle Italic"
+            >
+              I
+            </button>
+
+            {/* Whiteout / Background controls */}
+            <div className="h-4 w-px bg-slate-200 dark:bg-white/[0.1]" />
+            <div className="flex flex-wrap items-center gap-1.5">
+              <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400">Background:</span>
+              <button
+                type="button"
+                onClick={() => {
+                  if (selectedAnnotation && selectedAnnotation.type === "text") {
+                    const matchedBg = sampleBackgroundColor(
+                      selectedAnnotation.xNorm,
+                      selectedAnnotation.yNorm,
+                      selectedAnnotation.widthNorm,
+                      selectedAnnotation.heightNorm
+                    );
+                    const txtColor = isColorDark(matchedBg) ? "#ffffff" : selectedAnnotation.textColor;
+                    setAnnotations((prev) =>
+                      prev.map((a) =>
+                        a.id === selectedId
+                          ? {
+                              ...a,
+                              underlayWhiteout: true,
+                              whiteoutColor: matchedBg,
+                              textHighlightColor: matchedBg,
+                              textColor: txtColor
+                            }
+                          : a
+                      )
+                    );
+                    notify(`Auto-matched text background to ${matchedBg.toUpperCase()}`, "success");
+                  } else {
+                    notify("Select a text box on the page to auto-match its background", "info");
+                  }
+                }}
+                className="flex items-center gap-1 rounded-lg px-2 py-0.5 text-[10px] font-bold border border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100 dark:bg-blue-950/30 dark:text-blue-300 dark:border-blue-900/50"
+                title="Automatically match background color directly under this text"
+              >
+                <Sparkles size={10} />
+                <span>Auto-Match</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsEyedropperActive((prev) => !prev);
+                  if (!isEyedropperActive) {
+                    notify("Click anywhere on PDF to pick background color for this text", "info");
+                  }
+                }}
+                className={`flex items-center gap-1 rounded-lg px-2 py-0.5 text-[10px] font-bold border transition-all ${
+                  isEyedropperActive
+                    ? "bg-amber-500 text-white border-amber-600 shadow-xs ring-2 ring-amber-400/50 animate-pulse"
+                    : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700"
+                }`}
+                title="Pick exact color from anywhere on the document"
+              >
+                <Pipette size={10} />
+                <span>Pick</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (selectedId) {
+                    setAnnotations((prev) =>
+                      prev.map((a) =>
+                        a.id === selectedId
+                          ? { ...a, underlayWhiteout: true, whiteoutColor: "#ffffff", textHighlightColor: "#ffffff" }
+                          : a
+                      )
+                    );
+                  }
+                }}
+                className={`rounded-lg px-2 py-0.5 text-[10px] font-bold border transition-all ${
+                  selectedAnnotation?.underlayWhiteout &&
+                  (!selectedAnnotation?.whiteoutColor || selectedAnnotation?.whiteoutColor === "#ffffff")
+                    ? "bg-white text-blue-600 border-blue-500 ring-2 ring-blue-500/20 shadow-xs"
+                    : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700"
+                }`}
+                title="Whiteout background (erases original PDF text)"
+              >
+                White
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (selectedId) {
+                    setAnnotations((prev) =>
+                      prev.map((a) =>
+                        a.id === selectedId
+                          ? { ...a, underlayWhiteout: true, whiteoutColor: "#fef9c3", textHighlightColor: "#fef9c3" }
+                          : a
+                      )
+                    );
+                  }
+                }}
+                className={`rounded-lg px-2 py-0.5 text-[10px] font-bold border transition-all ${
+                  selectedAnnotation?.whiteoutColor === "#fef9c3"
+                    ? "bg-yellow-100 text-yellow-800 border-yellow-400 ring-2 ring-yellow-400/20 shadow-xs"
+                    : "bg-yellow-50 text-yellow-700 border-yellow-200 hover:bg-yellow-100 dark:bg-yellow-950/30 dark:text-yellow-300 dark:border-yellow-900/50"
+                }`}
+                title="Warm paper tint"
+              >
+                Warm
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (selectedId) {
+                    setAnnotations((prev) =>
+                      prev.map((a) =>
+                        a.id === selectedId
+                          ? { ...a, underlayWhiteout: false, textHighlightColor: "transparent" }
+                          : a
+                      )
+                    );
+                  }
+                }}
+                className={`rounded-lg px-2 py-0.5 text-[10px] font-bold border transition-all ${
+                  !selectedAnnotation?.underlayWhiteout && selectedAnnotation?.textHighlightColor === "transparent"
+                    ? "bg-slate-200 text-slate-800 border-slate-400 dark:bg-slate-700 dark:text-white"
+                    : "bg-transparent text-slate-500 border-slate-200 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-400"
+                }`}
+                title="Clear background"
+              >
+                Clear
+              </button>
+              {/* Custom Underlay Color */}
+              <label
+                className="relative flex h-5 w-5 cursor-pointer items-center justify-center rounded-md border border-slate-300 bg-linear-to-br from-red-400 via-green-400 to-blue-400 shadow-2xs hover:scale-105"
+                title="Custom background color"
+              >
+                <input
+                  type="color"
+                  value={selectedAnnotation?.whiteoutColor || "#ffffff"}
+                  onChange={(e) => {
+                    const col = e.target.value;
+                    if (selectedId) {
+                      setAnnotations((prev) =>
+                        prev.map((a) =>
+                          a.id === selectedId
+                            ? { ...a, underlayWhiteout: true, whiteoutColor: col, textHighlightColor: col }
+                            : a
+                        )
+                      );
+                    }
+                  }}
+                  className="absolute inset-0 cursor-pointer opacity-0"
+                />
+              </label>
+            </div>
 
             {selectedAnnotation?.originalText !== undefined && (
               <div className="flex items-center gap-1.5 pl-1 border-l border-slate-200 dark:border-white/[0.1]">
@@ -2896,63 +2290,340 @@ export default function PdfEditorView({
                 </button>
               </div>
             )}
+          </>
+        )}
 
-            {/* Selected Annotation Actions */}
-            {selectedAnnotation && (
-              <div className="ml-auto flex items-center gap-1 shrink-0">
+        {/* Pen & Shapes Stroke Width */}
+        {(activeTool === "draw" ||
+          activeTool === "rectangle" ||
+          activeTool === "circle" ||
+          activeTool === "line" ||
+          activeTool === "arrow") && (
+          <>
+            <div className="h-4 w-px bg-slate-200 dark:bg-white/[0.1]" />
+            <div className="flex items-center gap-2">
+              <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400">Thickness:</span>
+              <input
+                type="range"
+                min={1}
+                max={16}
+                value={strokeWidth}
+                onChange={(e) => setStrokeWidth(Number(e.target.value))}
+                className="h-1.5 w-24 rounded-lg bg-slate-200 accent-blue-600 dark:bg-slate-700"
+              />
+              <span className="font-mono text-[11px] font-bold">{strokeWidth}px</span>
+            </div>
+          </>
+        )}
+
+        {/* Highlight Colors */}
+        {activeTool === "highlight" && (
+          <div className="flex items-center gap-2">
+            <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400">Marker Color:</span>
+            <div className="flex items-center gap-1.5">
+              {HIGHLIGHT_COLORS.map((hc) => (
                 <button
+                  key={hc.hex}
                   type="button"
-                  onClick={() => duplicateAnnotation(selectedAnnotation.id)}
-                  className="flex items-center gap-1 rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[10px] font-bold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 cursor-pointer"
-                  title="Duplicate (Ctrl+D)"
-                >
-                  <Copy size={11} />
-                  <span>Duplicate</span>
-                </button>
+                  onClick={() => setHighlightColor(hc.hex)}
+                  className={`h-5 w-7 rounded border border-slate-300 transition-transform ${
+                    highlightColor === hc.hex ? "ring-2 ring-blue-500 scale-110" : ""
+                  }`}
+                  style={{ backgroundColor: hc.hex }}
+                  title={hc.name}
+                />
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Redaction Options */}
+        {activeTool === "redact" && (
+          <div className="flex items-center gap-2">
+            <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400">Redaction Type:</span>
+            <button
+              type="button"
+              onClick={() => setRedactColor("#000000")}
+              className={`rounded-lg px-2.5 py-1 text-[11px] font-bold ${
+                redactColor === "#000000"
+                  ? "bg-black text-white ring-2 ring-blue-500"
+                  : "bg-slate-200 text-slate-800 dark:bg-slate-800 dark:text-slate-200"
+              }`}
+            >
+              Blackout
+            </button>
+            <button
+              type="button"
+              onClick={() => setRedactColor("#ffffff")}
+              className={`rounded-lg px-2.5 py-1 text-[11px] font-bold border ${
+                redactColor === "#ffffff"
+                  ? "bg-white text-slate-900 ring-2 ring-blue-500 border-blue-500"
+                  : "bg-slate-100 text-slate-800 border-slate-300 dark:bg-slate-800 dark:text-slate-200"
+              }`}
+            >
+              Whiteout
+            </button>
+            <span className="text-[10px] text-slate-400 ml-2 italic">
+              Permanently burns into PDF output to conceal sensitive data
+            </span>
+          </div>
+        )}
+
+        {/* Stamps Selector */}
+        {activeTool === "stamp" && (
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400">Preset:</span>
+            <div className="flex flex-wrap items-center gap-1.5">
+              {STAMP_PRESETS.map((s) => (
                 <button
+                  key={s.label}
                   type="button"
-                  onClick={() => deleteAnnotation(selectedAnnotation.id)}
-                  className="flex items-center gap-1 rounded-full border border-rose-200 bg-rose-50 px-2 py-0.5 text-[10px] font-bold text-rose-600 hover:bg-rose-100 dark:border-rose-900/40 dark:bg-rose-950/30 dark:text-rose-400 cursor-pointer"
-                  title="Delete (Backspace/Delete)"
+                  onClick={() => setSelectedStamp(s)}
+                  className={`rounded-lg border px-2 py-0.5 text-[10px] font-black tracking-wider transition-all ${
+                    selectedStamp.label === s.label
+                      ? "ring-2 ring-blue-500 scale-105"
+                      : "opacity-80 hover:opacity-100"
+                  }`}
+                  style={{ color: s.color, borderColor: s.color }}
                 >
-                  <Trash2 size={11} />
-                  <span>Delete</span>
+                  {s.label}
                 </button>
-              </div>
+              ))}
+            </div>
+            <input
+              type="text"
+              placeholder="Or Custom Stamp Text..."
+              value={customStampText}
+              onChange={(e) => setCustomStampText(e.target.value)}
+              className="rounded-lg border border-slate-200 bg-white px-2.5 py-0.5 text-[11px] font-bold text-slate-800 placeholder:text-slate-400 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+            />
+          </div>
+        )}
+
+        {/* Erase / Logo Remover Options */}
+        {(activeTool === "erase" || (selectedAnnotation && selectedAnnotation.type === "erase")) && (
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 flex items-center gap-1">
+              <Eraser size={12} className="text-rose-500" />
+              Erase Match:
+            </span>
+
+            {/* Auto Match Background Toggle */}
+            <button
+              type="button"
+              onClick={() => {
+                const nextMatch = !eraseColorAutoMatch;
+                setEraseColorAutoMatch(nextMatch);
+                if (nextMatch && selectedAnnotation && selectedAnnotation.type === "erase") {
+                  const sampled = sampleBackgroundColor(
+                    selectedAnnotation.xNorm,
+                    selectedAnnotation.yNorm,
+                    selectedAnnotation.widthNorm,
+                    selectedAnnotation.heightNorm
+                  );
+                  setAnnotations((prev) =>
+                    prev.map((a) => (a.id === selectedAnnotation.id ? { ...a, fillColor: sampled } : a))
+                  );
+                  notify(`Auto-matched background to ${sampled.toUpperCase()}`, "success");
+                }
+              }}
+              className={`flex items-center gap-1 rounded-lg px-2.5 py-1 text-[11px] font-bold transition-all border ${
+                eraseColorAutoMatch
+                  ? "bg-blue-600 text-white border-blue-600 shadow-xs"
+                  : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700"
+              }`}
+              title="Automatically samples surrounding background color so erasures blend seamlessly"
+            >
+              <Sparkles size={11} />
+              <span>Auto-Match BG {eraseColorAutoMatch ? "ON" : "OFF"}</span>
+            </button>
+
+            {/* Background Preservation Badge */}
+            <span className="inline-flex items-center gap-1 rounded-lg bg-emerald-50 px-2.5 py-1 text-[11px] font-bold text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 border border-emerald-200/80 dark:border-emerald-800/50">
+              <Sparkles size={12} className="text-emerald-600" />
+              <span>Background Preserved</span>
+            </span>
+
+            {/* Re-Clean Background Button for selected erase annotation */}
+            {selectedAnnotation && selectedAnnotation.type === "erase" && (
+              <button
+                type="button"
+                onClick={() => {
+                  const patch = generateBackgroundInpaintPatch(
+                    selectedAnnotation.xNorm,
+                    selectedAnnotation.yNorm,
+                    selectedAnnotation.widthNorm,
+                    selectedAnnotation.heightNorm
+                  );
+                  setAnnotations((prev) =>
+                    prev.map((a) =>
+                      a.id === selectedAnnotation.id
+                        ? { ...a, imageDataUrl: patch || undefined, eraseMode: "inpaint" }
+                        : a
+                    )
+                  );
+                  notify("Background cleanly reconstructed!", "success");
+                }}
+                className="flex items-center gap-1 rounded-lg bg-emerald-600 text-white px-2.5 py-1 text-[11px] font-bold hover:bg-emerald-500 shadow-xs cursor-pointer"
+                title="Re-sample surrounding background and seamlessly blend without affecting background"
+              >
+                <Wand2 size={11} />
+                <span>Re-Clean BG</span>
+              </button>
             )}
+
+            {/* Eyedropper Color Picker */}
+            <button
+              type="button"
+              onClick={() => {
+                setIsEyedropperActive((prev) => !prev);
+                if (!isEyedropperActive) {
+                  notify("Eyedropper active: Click anywhere on the PDF page to sample its color", "info");
+                }
+              }}
+              className={`flex items-center gap-1 rounded-lg px-2.5 py-1 text-[11px] font-bold transition-all border ${
+                isEyedropperActive
+                  ? "bg-amber-500 text-white border-amber-600 shadow-xs ring-2 ring-amber-400/50 animate-pulse"
+                  : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700"
+              }`}
+              title="Pick exact background color from anywhere on the document"
+            >
+              <Pipette size={12} />
+              <span>{isEyedropperActive ? "Sampling..." : "Pick Color"}</span>
+            </button>
+
+            {/* Erase Color Presets */}
+            <div className="flex items-center gap-1 pl-1 border-l border-slate-200 dark:border-white/[0.1]">
+              {[
+                { name: "Pure White", hex: "#ffffff" },
+                { name: "Warm Cream", hex: "#fef9c3" },
+                { name: "Off-White", hex: "#f8fafc" },
+                { name: "Light Gray", hex: "#e2e8f0" },
+                { name: "Dark Header", hex: "#0f172a" }
+              ].map((c) => {
+                const currentColor =
+                  selectedAnnotation?.type === "erase"
+                    ? selectedAnnotation.fillColor || "#ffffff"
+                    : eraseColor;
+                const isSelected = currentColor.toLowerCase() === c.hex.toLowerCase();
+                return (
+                  <button
+                    key={c.hex}
+                    type="button"
+                    onClick={() => {
+                      setEraseColor(c.hex);
+                      setEraseColorAutoMatch(false);
+                      if (selectedAnnotation && selectedAnnotation.type === "erase") {
+                        setAnnotations((prev) =>
+                          prev.map((a) => (a.id === selectedAnnotation.id ? { ...a, fillColor: c.hex } : a))
+                        );
+                      }
+                    }}
+                    className={`h-5 w-5 rounded-md border border-slate-300 shadow-2xs transition-transform ${
+                      isSelected ? "ring-2 ring-blue-500 scale-110" : "hover:scale-105"
+                    }`}
+                    style={{ backgroundColor: c.hex }}
+                    title={c.name}
+                  />
+                );
+              })}
+
+              {/* Custom Color Picker Input */}
+              <label
+                className="relative flex h-5 w-5 cursor-pointer items-center justify-center rounded-md border border-slate-300 bg-linear-to-br from-red-400 via-green-400 to-blue-400 shadow-2xs hover:scale-105"
+                title="Choose custom background color"
+              >
+                <input
+                  type="color"
+                  value={
+                    selectedAnnotation?.type === "erase"
+                      ? selectedAnnotation.fillColor || "#ffffff"
+                      : eraseColor
+                  }
+                  onChange={(e) => {
+                    const col = e.target.value;
+                    setEraseColor(col);
+                    setEraseColorAutoMatch(false);
+                    if (selectedAnnotation && selectedAnnotation.type === "erase") {
+                      setAnnotations((prev) =>
+                        prev.map((a) => (a.id === selectedAnnotation.id ? { ...a, fillColor: col } : a))
+                      );
+                    }
+                  }}
+                  className="absolute inset-0 cursor-pointer opacity-0"
+                />
+              </label>
+            </div>
+
+            {selectedAnnotation && selectedAnnotation.type === "erase" && (
+              <button
+                type="button"
+                onClick={() => {
+                  const sampled = sampleBackgroundColor(
+                    selectedAnnotation.xNorm,
+                    selectedAnnotation.yNorm,
+                    selectedAnnotation.widthNorm,
+                    selectedAnnotation.heightNorm
+                  );
+                  setAnnotations((prev) =>
+                    prev.map((a) => (a.id === selectedAnnotation.id ? { ...a, fillColor: sampled } : a))
+                  );
+                  setEraseColor(sampled);
+                  notify(`Re-sampled background: ${sampled.toUpperCase()}`, "success");
+                }}
+                className="rounded-lg border border-slate-200 bg-white px-2 py-0.5 text-[10px] font-bold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+                title="Re-sample background color directly under this patch"
+              >
+                Re-sample BG
+              </button>
+            )}
+          </div>
+        )}
+
+        {/* Selected Annotation Actions */}
+        {selectedAnnotation && (
+          <div className="ml-auto flex items-center gap-1.5">
+            <button
+              type="button"
+              onClick={() => duplicateAnnotation(selectedAnnotation.id)}
+              className="flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2 py-1 text-[11px] font-bold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+              title="Duplicate (Ctrl+D)"
+            >
+              <Copy size={12} />
+              <span>Duplicate</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => deleteAnnotation(selectedAnnotation.id)}
+              className="flex items-center gap-1 rounded-lg border border-rose-200 bg-rose-50 px-2 py-1 text-[11px] font-bold text-rose-600 hover:bg-rose-100 dark:border-rose-900/40 dark:bg-rose-950/30 dark:text-rose-400"
+              title="Delete (Backspace/Delete)"
+            >
+              <Trash2 size={12} />
+              <span>Delete</span>
+            </button>
           </div>
         )}
       </div>
 
-      {/* Slide-over Pages Drawer & Text Inspector */}
-      {sidebarOpen && (
-        <div className="fixed inset-0 z-50 flex">
-          <div
-            className="fixed inset-0 bg-slate-950/40 backdrop-blur-xs transition-opacity animate-in fade-in duration-200"
-            onClick={() => setSidebarOpen(false)}
-          />
-          <div className="relative z-10 w-80 max-w-[88vw] h-full bg-white/95 dark:bg-slate-900/95 backdrop-blur-2xl border-r border-slate-200/80 dark:border-white/10 p-4 shadow-2xl flex flex-col space-y-3 overflow-y-auto animate-in slide-in-from-left duration-200">
-            {/* Drawer Header */}
-            <div className="flex items-center justify-between pb-2 border-b border-slate-200/70 dark:border-white/10">
-              <div className="flex items-center gap-2">
-                <Layers size={17} className="text-blue-600" />
-                <span className="font-extrabold text-sm text-slate-800 dark:text-white">Document Drawer</span>
-                <span className="rounded-full bg-blue-50 dark:bg-blue-950/60 px-2 py-0.5 text-xs font-bold text-blue-600 dark:text-blue-400">
-                  {pagesPlan.length} page(s)
-                </span>
-              </div>
-              <button
-                type="button"
-                onClick={() => setSidebarOpen(false)}
-                className="grid h-7 w-7 place-items-center rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 dark:hover:text-white cursor-pointer"
-                title="Close drawer"
-              >
-                <X size={16} />
-              </button>
-            </div>
+      {/* Main Workspace Layout (Sidebar Rail + Stage) */}
+      <div className="flex flex-col lg:flex-row items-start gap-4">
+        {/* Mobile Toggle for Page Rail & Text Inspector */}
+        <div className="flex lg:hidden items-center justify-between w-full">
+          <button
+            type="button"
+            onClick={() => setMobileSidebarOpen(!mobileSidebarOpen)}
+            className="inline-flex items-center gap-2 rounded-2xl border border-slate-200/80 bg-white/90 px-3.5 py-2 text-xs font-bold text-slate-700 shadow-xs hover:bg-slate-100 dark:border-white/[0.08] dark:bg-slate-900/80 dark:text-slate-200"
+          >
+            <Layers size={14} className="text-blue-600" />
+            <span>{mobileSidebarOpen ? "Hide Pages & Text Inspector" : `Show Pages (${pagesPlan.length}) & Text Inspector`}</span>
+            <ChevronDown size={14} className={`transition-transform duration-200 ${mobileSidebarOpen ? "rotate-180" : ""}`} />
+          </button>
+        </div>
 
-            {/* Tabs: Pages vs Text */}
-            <div className="flex items-center rounded-xl bg-slate-100 p-1 dark:bg-slate-800">
+        {/* Left Page Rail / Text Inspector */}
+        <div className={`${mobileSidebarOpen ? "block" : "hidden lg:block"} w-full lg:w-56 shrink-0 rounded-3xl border border-slate-200/80 bg-white/70 p-3 shadow-sm backdrop-blur-md dark:border-white/[0.08] dark:bg-slate-900/50 space-y-2.5`}>
+          {/* Tabs: Pages vs Text */}
+          <div className="flex items-center rounded-xl bg-slate-100 p-1 dark:bg-slate-800">
             <button
               type="button"
               onClick={() => setSidebarTab("pages")}
@@ -3287,12 +2958,10 @@ export default function PdfEditorView({
             </div>
           )}
         </div>
-      </div>
-      )}
 
-      {/* Maximum Viewport Center Stage: Page Canvas & Overlays */}
-      <div className="w-full flex flex-col items-center justify-start min-h-[calc(100vh-100px)] py-1 px-1 sm:px-2 overflow-x-auto">
-        <div className="relative p-1 sm:p-2 w-full flex flex-col items-center">
+        {/* Center Stage: Page Canvas & Overlays */}
+        <div className="flex-1 w-full flex flex-col items-center overflow-x-auto">
+          <div className="relative p-2 sm:p-4 rounded-3xl border border-slate-200/80 bg-slate-100/60 dark:border-white/[0.08] dark:bg-slate-950/40 w-full flex justify-center">
             {loadingPage && (
               <div className="absolute inset-0 z-20 flex items-center justify-center bg-white/60 dark:bg-slate-950/60 backdrop-blur-xs rounded-3xl">
                 <div className="flex items-center gap-2 rounded-2xl bg-white px-4 py-2 shadow-lg dark:bg-slate-900 border border-slate-200 dark:border-white/[0.1]">
@@ -3302,65 +2971,13 @@ export default function PdfEditorView({
               </div>
             )}
 
-            {/* Sejda Style Page Header Action Strip */}
-            <div
-              className="flex items-center justify-between pb-2.5 text-xs font-semibold text-slate-500 dark:text-slate-400 w-full"
-              style={{ width: `${Math.round(pageDimensions.width * zoomScale)}px`, maxWidth: "100%" }}
-            >
-              <span className="flex items-center gap-1.5 font-bold text-slate-700 dark:text-slate-200">
-                <span>Page {activePageIndex + 1}</span>
-                <span className="text-[10px] font-normal text-slate-400">({pageDimensions.width} × {pageDimensions.height} pt)</span>
-              </span>
-
-              <div className="flex items-center gap-1">
-                <button
-                  type="button"
-                  onClick={rotateCurrentPage}
-                  className="flex items-center gap-1 px-2 py-1 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 text-[11px] font-bold shadow-2xs transition-colors cursor-pointer"
-                  title="Rotate page 90 degrees"
-                >
-                  <RotateCw size={12} />
-                  <span className="hidden xs:inline">Rotate</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={duplicateCurrentPage}
-                  className="flex items-center gap-1 px-2 py-1 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 text-[11px] font-bold shadow-2xs transition-colors cursor-pointer"
-                  title="Duplicate page"
-                >
-                  <Copy size={12} />
-                  <span className="hidden xs:inline">Duplicate</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={addBlankPage}
-                  className="flex items-center gap-1 px-2 py-1 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 text-[11px] font-bold shadow-2xs transition-colors cursor-pointer"
-                  title="Insert blank page after this page"
-                >
-                  <Plus size={12} />
-                  <span className="hidden xs:inline">Insert</span>
-                </button>
-                {pagesPlan.length > 1 && (
-                  <button
-                    type="button"
-                    onClick={deleteCurrentPage}
-                    className="flex items-center gap-1 px-2 py-1 rounded-lg border border-rose-200 bg-white text-rose-600 hover:bg-rose-50 dark:border-rose-900/50 dark:bg-slate-800 dark:text-rose-400 text-[11px] font-bold shadow-2xs transition-colors cursor-pointer"
-                    title="Delete page"
-                  >
-                    <Trash2 size={12} />
-                    <span className="hidden xs:inline">Delete</span>
-                  </button>
-                )}
-              </div>
-            </div>
-
             {/* Interactive Page Container */}
             <div
               ref={pageContainerRef}
               onPointerDown={handleStagePointerDown}
               onPointerMove={handleStagePointerMove}
               onPointerUp={handleStagePointerUp}
-              className={`relative overflow-hidden rounded-sm shadow-2xl border border-slate-300 dark:border-slate-700 bg-white select-none transition-all duration-75 ${
+              className={`relative overflow-hidden rounded-2xl shadow-xl border border-slate-200/80 bg-white dark:border-white/[0.1] select-none transition-transform duration-100 ${
                 isEyedropperActive
                   ? "cursor-crosshair"
                   : activeTool === "select"
@@ -3372,8 +2989,7 @@ export default function PdfEditorView({
               style={{
                 width: `${Math.round(pageDimensions.width * zoomScale)}px`,
                 minHeight: `${Math.round(pageDimensions.height * zoomScale)}px`,
-                aspectRatio: `${pageDimensions.width} / ${pageDimensions.height}`,
-                maxWidth: "100%"
+                aspectRatio: `${pageDimensions.width} / ${pageDimensions.height}`
               }}
             >
               {/* Eyedropper sampling indicator banner */}
@@ -3384,7 +3000,7 @@ export default function PdfEditorView({
                 </div>
               )}
 
-              {/* Rendered PDF Page Background Image (Mozilla PDF.js) */}
+              {/* Rendered PDF Page Background Image */}
               {pageImage && (
                 <img
                   src={pageImage}
@@ -3394,37 +3010,14 @@ export default function PdfEditorView({
                 />
               )}
 
-              {/* Original Text Whiteout Mask Layer: Permanently and cleanly conceals the original underlying PDF text */}
-              <div className="absolute inset-0 pointer-events-none z-5">
-                {pageAnnotations.map((ann) => {
-                  if (ann.type !== "text" || !ann.originalBounds) return null;
-                  return (
-                    <div
-                      key={`whiteout-orig-${ann.id}`}
-                      className="absolute pointer-events-none rounded-xs"
-                      style={{
-                        left: `${ann.originalBounds.xNorm * 100}%`,
-                        top: `${ann.originalBounds.yNorm * 100}%`,
-                        width: `${ann.originalBounds.widthNorm * 100}%`,
-                        height: `${ann.originalBounds.heightNorm * 100}%`,
-                        backgroundColor: ann.whiteoutColor || "#ffffff"
-                      }}
-                    />
-                  );
-                })}
-              </div>
-
               {/* Text Detection Layer (Click to Edit Existing Text) */}
               {detectTextActive && activeTool !== "draw" && (
-                <div className="absolute inset-0 pointer-events-none z-10">
+                <div className="absolute inset-0 pointer-events-none z-15">
                   {(extractedTexts[activePageIndex] || []).map((item) => {
                     const isAlreadyEdited = pageAnnotations.some(
                       (a) =>
-                        (a.originalBounds &&
-                          Math.abs(a.originalBounds.xNorm - item.xNorm) < 0.025 &&
-                          Math.abs(a.originalBounds.yNorm - item.yNorm) < 0.025) ||
-                        (Math.abs(a.xNorm - item.xNorm) < 0.02 &&
-                          Math.abs(a.yNorm - item.yNorm) < 0.02)
+                        Math.abs(a.xNorm - item.xNorm) < 0.015 &&
+                        Math.abs(a.yNorm - item.yNorm) < 0.015
                     );
                     if (isAlreadyEdited) return null;
 
@@ -3441,7 +3034,7 @@ export default function PdfEditorView({
                         key={item.id}
                         onPointerEnter={() => setHoveredTextId(item.id)}
                         onPointerLeave={() => setHoveredTextId(null)}
-                        onPointerDown={(e) => {
+                        onClick={(e) => {
                           e.stopPropagation();
                           handleEditDetectedText(item);
                         }}
@@ -3449,8 +3042,8 @@ export default function PdfEditorView({
                           isFindMatch
                             ? "bg-amber-400/30 border-2 border-amber-500 shadow-md ring-2 ring-amber-400/50 z-25 animate-pulse"
                             : isHovered || activeTool === "editText"
-                            ? "bg-blue-500/15 border border-blue-500 shadow-xs z-15 ring-2 ring-blue-400/30"
-                            : "hover:bg-blue-500/10 border border-dashed border-blue-400/40 hover:border-blue-500"
+                            ? "bg-blue-500/20 border border-blue-500 shadow-xs z-25"
+                            : "hover:bg-blue-500/15 border border-dashed border-blue-400/30 hover:border-blue-500"
                         }`}
                         style={{
                           left: `${item.xNorm * 100}%`,
@@ -3516,12 +3109,8 @@ export default function PdfEditorView({
                         title="Click to select logo and directly delete without affecting background"
                       >
                         {(isHovered || isSelected) && (
-                          <div
-                            className={`absolute ${
-                              imgItem.yNorm < 0.05 ? "top-full mt-1.5" : "-top-8"
-                            } left-0 bg-slate-900/95 text-white text-[10px] font-bold px-2 py-1 rounded-lg shadow-xl whitespace-nowrap flex items-center gap-1.5 z-40 backdrop-blur-xs border border-white/[0.15]`}
-                          >
-                            <span className="text-amber-300 font-semibold">Logo</span>
+                          <div className="absolute -top-7 left-0 bg-slate-900/95 text-white text-[10px] font-bold px-2 py-0.5 rounded-lg shadow-xl whitespace-nowrap flex items-center gap-1.5 z-40 backdrop-blur-xs border border-white/[0.1]">
+                            <span className="text-amber-300">Logo / Image</span>
                             <button
                               type="button"
                               onClick={(ev) => {
@@ -3531,7 +3120,7 @@ export default function PdfEditorView({
                               className="flex items-center gap-1 bg-rose-600 hover:bg-rose-500 text-white px-2 py-0.5 rounded text-[9px] font-bold cursor-pointer transition-colors shadow-xs"
                             >
                               <Trash2 size={10} />
-                              <span>Remove Logo</span>
+                              <span>Delete Logo</span>
                             </button>
                           </div>
                         )}
@@ -3555,7 +3144,7 @@ export default function PdfEditorView({
                   <div
                     key={ann.id}
                     className={`pdf-annotation-box absolute group ${
-                      isSelected ? "ring-2 ring-blue-500 ring-offset-1 z-25" : "z-20"
+                      isSelected ? "ring-2 ring-blue-500 ring-offset-1 z-20" : "z-10"
                     }`}
                     style={{
                       left,
@@ -3565,17 +3154,11 @@ export default function PdfEditorView({
                       transform: ann.rotation ? `rotate(${ann.rotation}deg)` : undefined
                     }}
                     onPointerDown={(e) => {
-                      if (activeTool === "select" || activeTool === "editText" || activeTool === "text") {
+                      if (activeTool === "select" || activeTool === "editText") {
                         e.stopPropagation();
                         setSelectedId(ann.id);
 
-                        // In text mode, clicking text box immediately opens inline editing
-                        if (activeTool === "text" && ann.type === "text" && !isEditing) {
-                          setEditingTextId(ann.id);
-                          return;
-                        }
-
-                        // Start dragging if not editing
+                        // Start dragging
                         if (!isEditing) {
                           setDraggingId(ann.id);
                           if (pageContainerRef.current) {
@@ -3590,86 +3173,56 @@ export default function PdfEditorView({
                         }
                       }
                     }}
-                    onClick={(e) => {
-                      if (ann.type === "text") {
-                        e.stopPropagation();
-                        setSelectedId(ann.id);
-                        if (activeTool === "text" || activeTool === "editText") {
-                          setEditingTextId(ann.id);
-                        }
-                      }
-                    }}
                     onDoubleClick={() => {
                       if (ann.type === "text") {
                         setEditingTextId(ann.id);
+                        setTimeout(() => textInputRef.current?.focus(), 50);
                       }
                     }}
                   >
-                    {/* If this annotation replaces original PDF text, render an underlay whiteout over original bounds */}
-                    {ann.type === "text" && ann.originalBounds && (
-                      <div
-                        className="absolute pointer-events-none rounded-xs"
-                        style={{
-                          left: `${((ann.originalBounds.xNorm - ann.xNorm) / ann.widthNorm) * 100}%`,
-                          top: `${((ann.originalBounds.yNorm - ann.yNorm) / ann.heightNorm) * 100}%`,
-                          width: `${(ann.originalBounds.widthNorm / ann.widthNorm) * 100}%`,
-                          height: `${(ann.originalBounds.heightNorm / ann.heightNorm) * 100}%`,
-                          backgroundColor: ann.whiteoutColor || "#ffffff",
-                          zIndex: -1
-                        }}
-                      />
-                    )}
-
                     {/* Render according to type */}
                     {ann.type === "text" && (
                       <div
-                        className="h-full w-full overflow-visible p-0 leading-tight flex items-start rounded-xs"
+                        className="h-full w-full overflow-hidden p-0.5 leading-tight flex items-start"
                         style={{
                           fontSize: `${(ann.fontSize || 16) * zoomScale}px`,
-                          fontFamily: getAnnotationCssFont(ann),
+                          fontFamily: [
+                            ann.actualFontName ? `"${ann.actualFontName}"` : null,
+                            ann.fontFamily === "serif"
+                              ? '"Times New Roman", Times, Georgia, Cambria, serif'
+                              : ann.fontFamily === "mono"
+                              ? '"Courier New", Courier, Consolas, Monaco, monospace'
+                              : ann.fontFamily === "cursive"
+                              ? "'Dancing Script', cursive"
+                              : 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif'
+                          ]
+                            .filter(Boolean)
+                            .join(", "),
                           fontWeight: ann.fontWeight || "normal",
                           fontStyle: ann.fontStyle || "normal",
                           color: ann.textColor || "#0f172a",
                           backgroundColor:
-                            ann.underlayWhiteout !== false
+                            ann.underlayWhiteout
                               ? ann.whiteoutColor || "#ffffff"
                               : ann.textHighlightColor || "transparent"
                         }}
                       >
                         {isEditing ? (
-                          <QuillPdfTextEditor
-                            annotation={ann}
-                            zoomScale={zoomScale}
-                            pageWidth={pageDimensions.width || 595}
-                            pageHeight={pageDimensions.height || 842}
-                            cssFontFamily={getAnnotationCssFont(ann)}
-                            onUpdate={(updated) => {
+                          <textarea
+                            ref={textInputRef}
+                            value={ann.text || ""}
+                            onChange={(e) => {
+                              const newText = e.target.value;
                               setAnnotations((prev) =>
-                                prev.map((a) => (a.id === ann.id ? { ...a, ...updated } : a))
+                                prev.map((a) => (a.id === ann.id ? { ...a, text: newText } : a))
                               );
-                              if (updated.fontSize) setFontSize(updated.fontSize);
-                              if (updated.fontWeight) setIsBold(updated.fontWeight === "bold");
-                              if (updated.fontStyle) setIsItalic(updated.fontStyle === "italic");
-                              if (updated.textColor) setActiveColor(updated.textColor);
                             }}
-                            onFinish={() => setEditingTextId(null)}
+                            onBlur={() => setEditingTextId(null)}
+                            className="h-full w-full resize-none bg-transparent p-0 outline-hidden font-inherit text-inherit"
+                            autoFocus
                           />
                         ) : (
-                          <span
-                            style={{
-                              backgroundColor:
-                                ann.underlayWhiteout !== false
-                                  ? ann.whiteoutColor || "#ffffff"
-                                  : "transparent",
-                              whiteSpace: "pre-wrap",
-                              wordBreak: "break-word",
-                              lineHeight: "1.15",
-                              padding: "0 2px"
-                            }}
-                            className="inline-block w-full"
-                          >
-                            {ann.text}
-                          </span>
+                          <span className="whitespace-pre-wrap break-words">{ann.text}</span>
                         )}
                       </div>
                     )}
@@ -3721,8 +3274,12 @@ export default function PdfEditorView({
                             draggable={false}
                           />
                         ) : null}
-                        {isSelected && !ann.deletedImageName && (
-                          <div className="absolute inset-0 border border-dashed border-emerald-500/60 pointer-events-none" />
+                        {isSelected && (
+                          <div className="absolute inset-0 border border-dashed border-emerald-500 pointer-events-none flex items-center justify-center">
+                            <span className="text-[10px] bg-slate-900/90 text-emerald-300 font-bold px-1.5 py-0.5 rounded shadow whitespace-nowrap">
+                              {ann.deletedImageName ? "Removed Logo (Clean BG)" : "Seamless Patch"}
+                            </span>
+                          </div>
                         )}
                       </div>
                     )}
@@ -3850,195 +3407,6 @@ export default function PdfEditorView({
                             }`}
                           />
                         ))}
-
-                        {/* Contextual Quick Actions Floating Pill (Sejda style in-place controls) */}
-                        <div
-                          className={`absolute ${
-                            ann.yNorm < 0.08 ? "top-full mt-2" : "-top-10"
-                          } left-1/2 -translate-x-1/2 bg-slate-900/95 text-white px-2.5 py-1 rounded-xl shadow-2xl flex items-center gap-1.5 z-40 backdrop-blur-xs border border-white/[0.15] text-[11px] whitespace-nowrap pointer-events-auto`}
-                          onPointerDown={(e) => e.stopPropagation()}
-                        >
-                          {ann.type === "text" ? (
-                            <>
-                              {/* Font Family selector */}
-                              <select
-                                value={ann.fontFamily || "sans"}
-                                onChange={(e) => {
-                                  const newF = e.target.value as any;
-                                  setAnnotations((prev) =>
-                                    prev.map((a) => (a.id === ann.id ? { ...a, fontFamily: newF } : a))
-                                  );
-                                }}
-                                className="bg-slate-800 text-white rounded-md px-1.5 py-0.5 text-[10px] font-bold border border-white/20 outline-hidden cursor-pointer"
-                              >
-                                {ann.actualFontName && (
-                                  <option value={ann.fontFamily}>
-                                    {ann.actualFontName} (Original)
-                                  </option>
-                                )}
-                                <option value="sans">Sans (Arial / Calibri)</option>
-                                <option value="serif">Serif (Times / Georgia)</option>
-                                <option value="mono">Mono (Courier)</option>
-                                <option value="cursive">Cursive (Script)</option>
-                              </select>
-
-                              {/* Font Size Stepper */}
-                              <div className="flex items-center rounded-md border border-white/20 bg-slate-800">
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    const nextSz = Math.max(6, (ann.fontSize || 14) - 1);
-                                    setAnnotations((prev) =>
-                                      prev.map((a) => (a.id === ann.id ? { ...a, fontSize: nextSz } : a))
-                                    );
-                                  }}
-                                  className="px-1.5 py-0.5 hover:bg-white/15 text-slate-300 hover:text-white transition-colors cursor-pointer text-[10px]"
-                                  title="Smaller (-1pt)"
-                                >
-                                  -
-                                </button>
-                                <span className="px-1 text-[10px] font-mono font-bold text-white min-w-[24px] text-center">
-                                  {ann.fontSize || 14}pt
-                                </span>
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    const nextSz = Math.min(120, (ann.fontSize || 14) + 1);
-                                    setAnnotations((prev) =>
-                                      prev.map((a) => (a.id === ann.id ? { ...a, fontSize: nextSz } : a))
-                                    );
-                                  }}
-                                  className="px-1.5 py-0.5 hover:bg-white/15 text-slate-300 hover:text-white transition-colors cursor-pointer text-[10px]"
-                                  title="Larger (+1pt)"
-                                >
-                                  +
-                                </button>
-                              </div>
-
-                              {/* Bold & Italic */}
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  const nextB = ann.fontWeight === "bold" ? "normal" : "bold";
-                                  setAnnotations((prev) =>
-                                    prev.map((a) => (a.id === ann.id ? { ...a, fontWeight: nextB } : a))
-                                  );
-                                }}
-                                className={`px-1.5 py-0.5 rounded font-black text-[10px] cursor-pointer transition-colors ${
-                                  ann.fontWeight === "bold" ? "bg-white/30 text-white" : "text-slate-300 hover:bg-white/15"
-                                }`}
-                                title="Bold"
-                              >
-                                B
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  const nextI = ann.fontStyle === "italic" ? "normal" : "italic";
-                                  setAnnotations((prev) =>
-                                    prev.map((a) => (a.id === ann.id ? { ...a, fontStyle: nextI } : a))
-                                  );
-                                }}
-                                className={`px-1.5 py-0.5 rounded italic font-bold text-[10px] cursor-pointer transition-colors ${
-                                  ann.fontStyle === "italic" ? "bg-white/30 text-white" : "text-slate-300 hover:bg-white/15"
-                                }`}
-                                title="Italic"
-                              >
-                                I
-                              </button>
-
-                              {/* Color swatch input */}
-                              <label
-                                className="h-4 w-4 rounded-full border border-white/40 cursor-pointer overflow-hidden shadow-xs relative"
-                                title="Text color"
-                              >
-                                <span
-                                  className="absolute inset-0 block"
-                                  style={{ backgroundColor: ann.textColor || "#0f172a" }}
-                                />
-                                <input
-                                  type="color"
-                                  value={ann.textColor || "#0f172a"}
-                                  onChange={(e) => {
-                                    const col = e.target.value;
-                                    setAnnotations((prev) =>
-                                      prev.map((a) => (a.id === ann.id ? { ...a, textColor: col } : a))
-                                    );
-                                  }}
-                                  className="opacity-0 absolute inset-0 cursor-pointer"
-                                />
-                              </label>
-
-                              {/* Whiteout toggle */}
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setAnnotations((prev) =>
-                                    prev.map((a) =>
-                                      a.id === ann.id
-                                        ? { ...a, underlayWhiteout: !a.underlayWhiteout }
-                                        : a
-                                    )
-                                  );
-                                }}
-                                className={`px-1.5 py-0.5 rounded text-[9px] font-bold cursor-pointer transition-colors ${
-                                  ann.underlayWhiteout
-                                    ? "bg-emerald-600 text-white"
-                                    : "text-slate-400 hover:bg-white/15"
-                                }`}
-                                title="Toggle whiteout patch under text to conceal original PDF"
-                              >
-                                {ann.underlayWhiteout ? "Hide BG: ON" : "Hide BG: OFF"}
-                              </button>
-                            </>
-                          ) : (
-                            <span className="font-semibold text-slate-300 text-[10px] uppercase tracking-wider px-1">
-                              {ann.type === "image" ? "Logo / Image" : ann.type}
-                            </span>
-                          )}
-
-                          <div className="h-3 w-px bg-white/20" />
-
-                          {ann.type === "text" && !isEditing && (
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setEditingTextId(ann.id);
-                                setTimeout(() => textInputRef.current?.focus(), 50);
-                              }}
-                              className="flex items-center gap-1 px-1.5 py-0.5 rounded hover:bg-white/15 text-white transition-colors cursor-pointer text-[10px] font-medium"
-                              title="Edit text"
-                            >
-                              <FilePenLine size={11} />
-                              <span>Edit</span>
-                            </button>
-                          )}
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              duplicateAnnotation(ann.id);
-                            }}
-                            className="flex items-center gap-1 px-1.5 py-0.5 rounded hover:bg-white/15 text-white transition-colors cursor-pointer text-[10px] font-medium"
-                            title="Duplicate element"
-                          >
-                            <Copy size={11} />
-                            <span>Duplicate</span>
-                          </button>
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              deleteAnnotation(ann.id);
-                            }}
-                            className="flex items-center gap-1 px-2 py-0.5 rounded bg-rose-600 hover:bg-rose-500 text-white transition-colors cursor-pointer text-[10px] font-bold shadow-xs"
-                            title="Remove element"
-                          >
-                            <Trash2 size={11} />
-                            <span>Remove</span>
-                          </button>
-                        </div>
                       </>
                     )}
                   </div>
@@ -4084,59 +3452,34 @@ export default function PdfEditorView({
             </div>
           </div>
         </div>
+      </div>
 
-      {/* Floating Bottom Navigation & Export Dock */}
-      <div className="sticky bottom-3 z-30 mx-auto w-fit max-w-[96vw] rounded-full border border-slate-200/90 bg-white/95 px-3 py-1.5 shadow-2xl backdrop-blur-xl dark:border-white/10 dark:bg-slate-900/95 flex items-center justify-between gap-2 sm:gap-3">
-        {/* Left: Page Navigation */}
-        <div className="flex items-center gap-1 sm:gap-2">
-          <button
-            type="button"
-            onClick={() => setActivePageIndex((p) => Math.max(0, p - 1))}
-            disabled={activePageIndex === 0}
-            className="flex items-center gap-1 rounded-xl border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-40 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 cursor-pointer"
-            title="Previous page"
-          >
-            <ChevronLeft size={14} />
-            <span className="hidden sm:inline">Prev</span>
-          </button>
-          <span className="px-2 font-bold text-xs text-slate-800 dark:text-slate-200 whitespace-nowrap">
-            Page {activePageIndex + 1} of {pagesPlan.length}
-          </span>
-          <button
-            type="button"
-            onClick={() => setActivePageIndex((p) => Math.min(pagesPlan.length - 1, p + 1))}
-            disabled={activePageIndex >= pagesPlan.length - 1}
-            className="flex items-center gap-1 rounded-xl border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-40 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 cursor-pointer"
-            title="Next page"
-          >
-            <span className="hidden sm:inline">Next</span>
-            <ChevronRight size={14} />
-          </button>
-
-          <div className="h-4 w-px bg-slate-200 dark:bg-white/[0.1] mx-1 hidden sm:block" />
-
-          <button
-            type="button"
-            onClick={addBlankPage}
-            className="hidden sm:inline-flex items-center gap-1 rounded-xl border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 cursor-pointer"
-            title="Insert blank page after this page"
-          >
-            <Plus size={13} />
-            <span>Insert Page</span>
-          </button>
+      {/* Bottom Action / Export Bar */}
+      <div className="rounded-3xl border border-slate-200/80 bg-white/80 p-4 shadow-sm backdrop-blur-md dark:border-white/[0.08] dark:bg-slate-900/60 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div className="space-y-1">
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-black text-slate-800 dark:text-slate-200">
+              Ready to Save & Export
+            </span>
+            <span className="rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-bold text-emerald-600 dark:text-emerald-400">
+              {annotations.length} Total Annotation(s)
+            </span>
+          </div>
+          <p className="text-[11px] text-slate-500 dark:text-slate-400">
+            Vector high-DPI rasterization • 100% compliant with examination & corporate portals
+          </p>
         </div>
 
-        {/* Center / Right: Big Sejda Green "Apply changes" Button */}
-        <div className="flex items-center gap-2 ml-auto sm:ml-0">
+        <div className="flex flex-wrap items-center gap-2.5">
           {onSwitchViceVersa && (
             <button
               type="button"
               onClick={onSwitchViceVersa}
-              className="hidden lg:inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
-              title="Compress PDF"
+              className="btn-secondary h-10 px-3.5 text-xs font-bold"
+              title="Need smaller file size for exam portals?"
             >
-              <ArrowLeftRight size={13} />
-              <span>Compress</span>
+              <ArrowLeftRight size={14} />
+              <span>Compress PDF</span>
             </button>
           )}
 
@@ -4144,10 +3487,10 @@ export default function PdfEditorView({
             <button
               type="button"
               onClick={() => onShareFile(editedFile)}
-              className="inline-flex items-center gap-1.5 rounded-xl border border-indigo-500/30 bg-indigo-500/10 px-3 py-2 text-xs font-bold text-indigo-600 hover:bg-indigo-500/20 dark:text-indigo-400 shadow-xs transition-all cursor-pointer"
+              className="inline-flex items-center gap-1.5 rounded-2xl border border-indigo-500/30 bg-indigo-500/10 px-4 h-10 text-xs font-bold text-indigo-600 hover:bg-indigo-500/20 dark:text-indigo-400 shadow-xs transition-all"
             >
-              <QrCode size={14} />
-              <span className="hidden sm:inline">Share</span>
+              <QrCode size={15} />
+              <span>Share to Phone</span>
             </button>
           )}
 
@@ -4155,17 +3498,17 @@ export default function PdfEditorView({
             type="button"
             onClick={handleExport}
             disabled={exporting}
-            className="flex items-center gap-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white px-6 sm:px-8 py-2.5 text-xs sm:text-sm font-black shadow-lg shadow-emerald-600/30 transition-all hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50 cursor-pointer"
+            className="inline-flex items-center gap-2 rounded-2xl bg-gradient-to-r from-blue-600 via-indigo-600 to-cyan-500 px-6 h-10 text-xs font-black text-white shadow-lg shadow-blue-500/25 hover:opacity-95 disabled:opacity-50 transition-all cursor-pointer"
           >
             {exporting ? (
               <>
-                <RefreshCw size={16} className="animate-spin" />
-                <span>Applying changes...</span>
+                <RefreshCw size={15} className="animate-spin" />
+                <span>Compiling PDF...</span>
               </>
             ) : (
               <>
-                <CheckCheck size={17} />
-                <span>Apply changes</span>
+                <Download size={15} />
+                <span>Apply Changes & Download / QR</span>
               </>
             )}
           </button>
@@ -4431,74 +3774,6 @@ export default function PdfEditorView({
               <CheckCheck size={14} />
               <span>Replace All ({getFindMatches().length})</span>
             </button>
-          </div>
-        </div>
-      )}
-
-      {/* Sejda Style Export Success Modal */}
-      {showExportSuccessModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-sm animate-in fade-in duration-150">
-          <div className="relative w-full max-w-md rounded-3xl border border-slate-200 bg-white p-6 shadow-2xl dark:border-white/[0.1] dark:bg-slate-900 dark:text-white text-center space-y-5">
-            <div className="mx-auto grid h-16 w-16 place-items-center rounded-2xl bg-emerald-500/15 text-emerald-600 dark:bg-emerald-500/20 dark:text-emerald-400 ring-8 ring-emerald-500/10">
-              <CheckCheck size={32} />
-            </div>
-
-            <div>
-              <h3 className="text-xl font-black text-slate-900 dark:text-white">
-                Your task is complete!
-              </h3>
-              <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                All changes have been applied to your PDF.
-              </p>
-            </div>
-
-            {editedFile && (
-              <div className="rounded-2xl border border-slate-200/80 bg-slate-50 p-3 text-left dark:border-white/[0.06] dark:bg-slate-800/50 flex items-center justify-between">
-                <div className="truncate max-w-[240px]">
-                  <div className="text-xs font-bold text-slate-800 dark:text-slate-200 truncate">
-                    {editedFile.name}
-                  </div>
-                  <div className="text-[10px] text-slate-400">
-                    {formatBytes(editedFile.size)} • {pagesPlan.length} page(s)
-                  </div>
-                </div>
-                <span className="rounded-full bg-emerald-500/15 px-2 py-0.5 text-[10px] font-bold text-emerald-600 dark:text-emerald-400">
-                  Ready
-                </span>
-              </div>
-            )}
-
-            <div className="space-y-2 pt-1">
-              {editedFile && (
-                <button
-                  type="button"
-                  onClick={() => downloadBlob(editedFile, editedFile.name)}
-                  className="w-full flex items-center justify-center gap-2 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white py-3 text-sm font-black shadow-lg shadow-emerald-600/30 transition-all cursor-pointer"
-                >
-                  <Download size={16} />
-                  <span>Download PDF</span>
-                </button>
-              )}
-
-              {editedFile && onShareFile && (
-                <button
-                  type="button"
-                  onClick={() => onShareFile(editedFile)}
-                  className="w-full flex items-center justify-center gap-2 rounded-2xl border border-indigo-500/30 bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 py-2.5 text-xs font-bold transition-all cursor-pointer"
-                >
-                  <QrCode size={14} />
-                  <span>Share via QR Code to Phone</span>
-                </button>
-              )}
-
-              <button
-                type="button"
-                onClick={() => setShowExportSuccessModal(false)}
-                className="w-full rounded-2xl border border-slate-200 bg-white hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 py-2.5 text-xs font-bold text-slate-700 transition-colors cursor-pointer"
-              >
-                Keep Editing Document
-              </button>
-            </div>
           </div>
         </div>
       )}
