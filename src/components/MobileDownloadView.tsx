@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import {
   CheckCircle2,
+  Clock,
   Download,
   ExternalLink,
   FileCheck,
@@ -33,6 +34,7 @@ export default function MobileDownloadView({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [downloading, setDownloading] = useState(false);
+  const [secondsRemaining, setSecondsRemaining] = useState<number | null>(null);
 
   const directFileUrl = `/api/share/file/${downloadId}`;
 
@@ -40,10 +42,13 @@ export default function MobileDownloadView({
     const fetchInfo = async () => {
       try {
         const res = await fetch(`/api/share/info/${downloadId}`);
-        if (!res.ok) throw new Error("File expired or not found on transfer session.");
+        if (!res.ok) throw new Error("File expired: Temporary storage automatically deleted after 5 minutes.");
         const data = await res.json();
         if (data.ok) {
           setMeta({ name: data.name, size: data.size, type: data.type });
+          if (typeof data.remainingSeconds === "number") {
+            setSecondsRemaining(data.remainingSeconds);
+          }
         } else {
           setError(data.error || "File expired.");
         }
@@ -56,6 +61,21 @@ export default function MobileDownloadView({
 
     fetchInfo();
   }, [downloadId]);
+
+  // Live countdown for the 5-minute temporary store auto-deletion
+  useEffect(() => {
+    if (secondsRemaining === null || secondsRemaining <= 0) return;
+    const timer = setInterval(() => {
+      setSecondsRemaining((prev) => {
+        if (prev === null || prev <= 1) {
+          setError("File expired: Temporary storage was automatically deleted after 5 minutes.");
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [secondsRemaining]);
 
   const isPdf = Boolean(meta?.name.toLowerCase().endsWith(".pdf") || meta?.type?.includes("pdf"));
 
@@ -155,9 +175,9 @@ export default function MobileDownloadView({
           </div>
         ) : error ? (
           <div className="rounded-3xl border border-rose-500/30 bg-rose-500/10 p-6 space-y-3">
-            <p className="text-sm font-bold text-rose-400">File Expired or Unavailable</p>
+            <p className="text-sm font-bold text-rose-400">File Expired or Deleted</p>
             <p className="text-xs text-slate-400 leading-relaxed">
-              Transfer sessions expire after 1 hour or when the computer's dev server stops.
+              Temporary transfer data is automatically deleted after 5 minutes for your privacy. Please scan a fresh QR code from your computer.
             </p>
             <button
               type="button"
@@ -188,6 +208,14 @@ export default function MobileDownloadView({
                 <span className="uppercase">{isPdf ? "PDF Document" : "Image File"}</span>
               </div>
             </div>
+
+            {/* 5-minute Auto-deletion Live Countdown Pill */}
+            {secondsRemaining !== null && secondsRemaining > 0 && (
+              <div className="inline-flex items-center gap-1.5 rounded-full bg-amber-500/15 border border-amber-500/30 px-3.5 py-1 text-xs font-bold text-amber-300 shadow-sm">
+                <Clock size={13} className="text-amber-400 animate-pulse" />
+                <span>Auto-deletes in: <span className="font-mono">{Math.floor(secondsRemaining / 60)}m {secondsRemaining % 60 < 10 ? `0${secondsRemaining % 60}` : secondsRemaining % 60}s</span></span>
+              </div>
+            )}
 
             {/* Exam Acceptance Banner */}
             <div className="rounded-2xl border border-indigo-500/30 bg-indigo-500/10 p-3 text-xs text-indigo-200 text-left flex items-start gap-2.5">

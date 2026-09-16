@@ -44,18 +44,20 @@ const saveStats = () => {
   }
 };
 
-// Ephemeral memory store for mobile QR sharing (auto-purged after 30 min)
+// Ephemeral memory store for mobile QR sharing (auto-purged after 5 min)
 const fileStore = new Map();
+const FILE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+
 const purgeExpired = () => {
   const now = Date.now();
   for (const [id, item] of fileStore.entries()) {
-    if (now - item.created > 1800000) {
+    if (now - item.created > FILE_TTL_MS) {
       fileStore.delete(id);
     }
   }
 };
 
-const purgeTimer = setInterval(purgeExpired, 60000);
+const purgeTimer = setInterval(purgeExpired, 15000); // Check every 15 seconds
 if (typeof purgeTimer.unref === "function") {
   purgeTimer.unref();
 }
@@ -149,7 +151,9 @@ app.post("/api/share", (req, res) => {
       directFileUrl,
       name,
       type,
-      size: buffer.length
+      size: buffer.length,
+      qrExpiresIn: 60, // QR code available for 1 minute
+      fileExpiresIn: 300 // Temporary store data deleted in 5 minutes
     });
   });
 });
@@ -158,7 +162,7 @@ app.post("/api/share", (req, res) => {
 app.get("/api/share/file/:id", (req, res) => {
   const id = req.params.id;
   const item = fileStore.get(id);
-  if (item) {
+  if (item && Date.now() - item.created <= FILE_TTL_MS) {
     const isPdf = item.name.toLowerCase().endsWith(".pdf") || (item.type && item.type.includes("pdf"));
     const contentType = isPdf ? "application/pdf" : (item.type || "application/octet-stream");
 
@@ -175,23 +179,27 @@ app.get("/api/share/file/:id", (req, res) => {
     );
     return res.end(item.buffer);
   }
-  res.status(404).send("File expired or not found");
+  if (item) fileStore.delete(id);
+  res.status(404).send("File expired or automatically deleted after 5 minutes");
 });
 
 // GET /api/share/info/:id - Metadata
 app.get("/api/share/info/:id", (req, res) => {
   const id = req.params.id;
   const item = fileStore.get(id);
-  if (item) {
+  if (item && Date.now() - item.created <= FILE_TTL_MS) {
     const isPdf = item.name.toLowerCase().endsWith(".pdf") || (item.type && item.type.includes("pdf"));
+    const remainingSeconds = Math.max(0, Math.ceil((FILE_TTL_MS - (Date.now() - item.created)) / 1000));
     return res.json({
       ok: true,
       name: item.name,
       size: item.buffer.length,
-      type: isPdf ? "application/pdf" : item.type
+      type: isPdf ? "application/pdf" : item.type,
+      remainingSeconds
     });
   }
-  res.status(404).json({ ok: false, error: "File expired or not found" });
+  if (item) fileStore.delete(id);
+  res.status(404).json({ ok: false, error: "File expired or automatically deleted after 5 minutes" });
 });
 
 // Health check

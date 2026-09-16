@@ -625,23 +625,27 @@ type LanguageContextType = {
 
 /**
  * Automatically detects the user's regional language based on browser languages
- * and Intl timezone region. Defaults to English ('en') if region is not matched.
+ * and Intl timezone region. Defaults to English ('en') if region is not matched
+ * or if the region is India (where English is the standard for portal/exam tools).
  */
 export function detectRegionLanguage(): LanguageCode {
   if (typeof window === "undefined") return "en";
   try {
-    // 1. Check user preferred browser languages
-    const navLangs = navigator.languages ? Array.from(navigator.languages) : [navigator.language || ""];
-    for (const l of navLangs) {
-      const code = (l || "").toLowerCase().split("-")[0] as LanguageCode;
-      if (["hi", "es", "fr", "de", "ja", "ko", "zh"].includes(code)) {
-        return code;
-      }
+    const tz = (Intl.DateTimeFormat().resolvedOptions().timeZone || "").toLowerCase();
+    // India explicitly defaults to English
+    if (tz.includes("kolkata") || tz.includes("calcutta") || tz.includes("india")) {
+      return "en";
     }
 
-    // 2. Check region from Intl timezone
-    const tz = (Intl.DateTimeFormat().resolvedOptions().timeZone || "").toLowerCase();
-    if (tz.includes("kolkata") || tz.includes("calcutta") || tz.includes("india")) return "hi";
+    // Check primary user preferred browser language
+    const navLangs = navigator.languages ? Array.from(navigator.languages) : [navigator.language || ""];
+    const primary = (navLangs[0] || "").toLowerCase().split("-")[0] as LanguageCode;
+    if (primary === "en") return "en";
+    if (["es", "fr", "de", "ja", "ko", "zh", "hi"].includes(primary)) {
+      return primary;
+    }
+
+    // Check region from other timezones
     if (tz.includes("tokyo") || tz.includes("japan")) return "ja";
     if (tz.includes("seoul") || tz.includes("pyongyang") || tz.includes("korea")) return "ko";
     if (
@@ -702,6 +706,11 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
     const saved = localStorage.getItem("imagepro-lang") as LanguageCode;
     if (saved && TRANSLATIONS[saved]) return saved;
 
+    const detected = detectRegionLanguage();
+    if (detected === "en") {
+      return "en";
+    }
+
     // Check googtrans cookie if already present in browser
     const match = document.cookie.match(/(?:^|;)\s*googtrans=\/en\/([a-zA-Z\-]+)/);
     if (match && match[1]) {
@@ -709,7 +718,7 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
       if (cookieLang && TRANSLATIONS[cookieLang]) return cookieLang;
     }
 
-    return detectRegionLanguage();
+    return detected;
   });
 
   const setLanguage = (lang: LanguageCode) => {

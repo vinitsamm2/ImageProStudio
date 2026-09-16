@@ -55,15 +55,16 @@ function mobileSharePlugin(): Plugin {
     }
   };
 
-  // Periodically purge files older than 1 hour (unref'd so it doesn't hold open CI/build processes)
+  // Periodically purge files older than 5 minutes (auto-deleted in 5 min)
+  const FILE_TTL_MS = 5 * 60 * 1000;
   const purgeTimer = setInterval(() => {
     const now = Date.now();
     for (const [id, item] of fileStore.entries()) {
-      if (now - item.created > 3600000) {
+      if (now - item.created > FILE_TTL_MS) {
         fileStore.delete(id);
       }
     }
-  }, 60000);
+  }, 15000);
   if (typeof purgeTimer.unref === "function") {
     purgeTimer.unref();
   }
@@ -116,7 +117,7 @@ function mobileSharePlugin(): Plugin {
       return;
     }
 
-    // POST /api/share - Upload file for QR sharing
+    // POST /api/share - Upload file for QR sharing (auto-deleted in 5 min, QR valid for 1 min)
     if (req.method === "POST" && url.pathname === "/api/share") {
       const chunks: Buffer[] = [];
       req.on("data", (chunk: Buffer) => chunks.push(chunk));
@@ -133,7 +134,16 @@ function mobileSharePlugin(): Plugin {
 
         res.setHeader("Content-Type", "application/json");
         res.setHeader("Access-Control-Allow-Origin", "*");
-        res.end(JSON.stringify({ ok: true, id, downloadUrl, directFileUrl, name, size: buffer.length }));
+        res.end(JSON.stringify({
+          ok: true,
+          id,
+          downloadUrl,
+          directFileUrl,
+          name,
+          size: buffer.length,
+          qrExpiresIn: 60, // 1 minute
+          fileExpiresIn: 300 // 5 minutes
+        }));
       });
       return;
     }
@@ -142,7 +152,7 @@ function mobileSharePlugin(): Plugin {
     if (req.method === "GET" && url.pathname.startsWith("/api/share/file/")) {
       const id = url.pathname.split("/").pop() || "";
       const item = fileStore.get(id);
-      if (item) {
+      if (item && Date.now() - item.created <= FILE_TTL_MS) {
         res.setHeader("Content-Type", item.type);
         res.setHeader("Content-Disposition", `attachment; filename="${encodeURIComponent(item.name)}"`);
         res.setHeader("Content-Length", item.buffer.length);
@@ -150,8 +160,9 @@ function mobileSharePlugin(): Plugin {
         res.end(item.buffer);
         return;
       }
+      if (item) fileStore.delete(id);
       res.statusCode = 404;
-      res.end("File expired or not found");
+      res.end("File expired or automatically deleted after 5 minutes");
       return;
     }
 
@@ -159,16 +170,24 @@ function mobileSharePlugin(): Plugin {
     if (req.method === "GET" && url.pathname.startsWith("/api/share/info/")) {
       const id = url.pathname.split("/").pop() || "";
       const item = fileStore.get(id);
-      if (item) {
+      if (item && Date.now() - item.created <= FILE_TTL_MS) {
+        const remainingSeconds = Math.max(0, Math.ceil((FILE_TTL_MS - (Date.now() - item.created)) / 1000));
         res.setHeader("Content-Type", "application/json");
         res.setHeader("Access-Control-Allow-Origin", "*");
-        res.end(JSON.stringify({ ok: true, name: item.name, size: item.buffer.length, type: item.type }));
+        res.end(JSON.stringify({
+          ok: true,
+          name: item.name,
+          size: item.buffer.length,
+          type: item.type,
+          remainingSeconds
+        }));
         return;
       }
+      if (item) fileStore.delete(id);
       res.statusCode = 404;
       res.setHeader("Content-Type", "application/json");
       res.setHeader("Access-Control-Allow-Origin", "*");
-      res.end(JSON.stringify({ ok: false, error: "File expired or not found" }));
+      res.end(JSON.stringify({ ok: false, error: "File expired or automatically deleted after 5 minutes" }));
       return;
     }
 

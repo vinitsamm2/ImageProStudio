@@ -1,18 +1,21 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import QRCode from "qrcode";
 import {
   Check,
   CheckCircle2,
+  Clock,
   Copy,
   Download,
   FileImage,
   FileText,
   Loader2,
   QrCode,
+  RefreshCw,
   Share2,
   ShieldCheck,
   Smartphone,
   Sparkles,
+  Timer,
   X
 } from "lucide-react";
 import { downloadBlob, formatBytes } from "../lib/files";
@@ -61,82 +64,102 @@ export default function ShareQrModal({
   const [loading, setLoading] = useState(false);
   const [copied, setCopied] = useState(false);
   const [downloaded, setDownloaded] = useState(false);
+  const [qrSecondsLeft, setQrSecondsLeft] = useState<number>(60);
+  const [isQrExpired, setIsQrExpired] = useState<boolean>(false);
 
+  const generateShareQr = useCallback(async () => {
+    if (!file) return;
+    const current = getFileProps(file);
+    setLoading(true);
+    setIsQrExpired(false);
+    setQrSecondsLeft(60);
+
+    try {
+      const isPdf = current.name.toLowerCase().endsWith(".pdf");
+      const contentType = isPdf
+        ? "application/pdf"
+        : (current.blob.type || "application/octet-stream");
+
+      // Upload to local/cloud ephemeral transfer endpoint (data automatically deleted in 5 min)
+      const res = await fetch("/api/share", {
+        method: "POST",
+        headers: {
+          "Content-Type": contentType,
+          "x-file-name": encodeURIComponent(current.name)
+        },
+        body: current.blob
+      });
+
+      if (!res.ok) throw new Error("Local transfer endpoint response not ok");
+
+      const data = await res.json();
+      if (data.ok && data.downloadUrl) {
+        setDownloadUrl(data.downloadUrl);
+        const qrCodeImage = await QRCode.toDataURL(data.downloadUrl, {
+          width: 320,
+          margin: 2,
+          color: {
+            dark: "#0f172a",
+            light: "#ffffff"
+          }
+        });
+        setQrDataUrl(qrCodeImage);
+        setQrSecondsLeft(60);
+        setIsQrExpired(false);
+      }
+    } catch {
+      // Fallback if local endpoint is unreachable
+      const currentUrl = `${window.location.origin}/download?name=${encodeURIComponent(current.name)}`;
+      setDownloadUrl(currentUrl);
+      try {
+        const fallbackQr = await QRCode.toDataURL(currentUrl, {
+          width: 320,
+          margin: 2,
+          color: { dark: "#0f172a", light: "#ffffff" }
+        });
+        setQrDataUrl(fallbackQr);
+        setQrSecondsLeft(60);
+        setIsQrExpired(false);
+      } catch {
+        // Ignored
+      }
+    } finally {
+      setLoading(false);
+    }
+  }, [file]);
+
+  // Initial generation on open
   useEffect(() => {
     if (!isOpen || !file) {
       setQrDataUrl("");
       setDownloadUrl("");
       setLoading(false);
       setDownloaded(false);
+      setIsQrExpired(false);
+      setQrSecondsLeft(60);
       return;
     }
 
-    const current = getFileProps(file);
-    let isMounted = true;
-    setLoading(true);
-
-    const generateShareQr = async () => {
-      try {
-        const isPdf = current.name.toLowerCase().endsWith(".pdf");
-        const contentType = isPdf
-          ? "application/pdf"
-          : (current.blob.type || "application/octet-stream");
-
-        // Upload to local ephemeral transfer endpoint
-        const res = await fetch("/api/share", {
-          method: "POST",
-          headers: {
-            "Content-Type": contentType,
-            "x-file-name": encodeURIComponent(current.name)
-          },
-          body: current.blob
-        });
-
-        if (!res.ok) throw new Error("Local transfer endpoint response not ok");
-
-        const data = await res.json();
-        if (!isMounted) return;
-
-        if (data.ok && data.downloadUrl) {
-          setDownloadUrl(data.downloadUrl);
-          const qrCodeImage = await QRCode.toDataURL(data.downloadUrl, {
-            width: 320,
-            margin: 2,
-            color: {
-              dark: "#0f172a",
-              light: "#ffffff"
-            }
-          });
-          if (isMounted) {
-            setQrDataUrl(qrCodeImage);
-          }
-        }
-      } catch {
-        // Fallback if local endpoint is unreachable
-        if (!isMounted) return;
-        const currentUrl = `${window.location.origin}/download?name=${encodeURIComponent(current.name)}`;
-        setDownloadUrl(currentUrl);
-        try {
-          const fallbackQr = await QRCode.toDataURL(currentUrl, {
-            width: 320,
-            margin: 2,
-            color: { dark: "#0f172a", light: "#ffffff" }
-          });
-          if (isMounted) setQrDataUrl(fallbackQr);
-        } catch {
-          // Ignored
-        }
-      } finally {
-        if (isMounted) setLoading(false);
-      }
-    };
-
     generateShareQr();
+  }, [isOpen, file, generateShareQr]);
 
-    return () => {
-      isMounted = false;
-    };
-  }, [isOpen, file]);
+  // 1-minute QR code countdown timer
+  useEffect(() => {
+    if (!isOpen || loading || isQrExpired) return;
+
+    const timer = setInterval(() => {
+      setQrSecondsLeft((prev) => {
+        if (prev <= 1) {
+          clearInterval(timer);
+          setIsQrExpired(true);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [isOpen, loading, isQrExpired]);
 
   if (!isOpen || !file) return null;
 
@@ -151,8 +174,18 @@ export default function ShareQrModal({
     setTimeout(() => setDownloaded(false), 3000);
   };
 
+  const handleRegenerateQr = () => {
+    notify("Generating a new 1-minute QR code...", "info");
+    generateShareQr();
+  };
+
   // Native Web Share API
   const handleNativeShare = async () => {
+    if (isQrExpired) {
+      notify("QR code expired. Regenerating code for sharing...", "info");
+      await generateShareQr();
+    }
+
     try {
       const shareFileObj = new File([current.blob], current.name, {
         type: current.blob.type || (isPdf ? "application/pdf" : "image/jpeg")
@@ -189,6 +222,9 @@ export default function ShareQrModal({
 
   const handleCopyLink = () => {
     if (!downloadUrl) return;
+    if (isQrExpired) {
+      notify("Notice: QR code was active for 1 min. Link remains valid within 5 min store window.", "info");
+    }
     navigator.clipboard.writeText(downloadUrl);
     setCopied(true);
     notify("Mobile download link copied to clipboard!", "success");
@@ -197,7 +233,7 @@ export default function ShareQrModal({
 
   const handleWhatsAppShare = () => {
     const text = encodeURIComponent(
-      `Download ${current.name} (${formatBytes(fileSize)}):\n${downloadUrl || window.location.href}`
+      `Download ${current.name} (${formatBytes(fileSize)}):\n${downloadUrl || window.location.href}\n(Available for 5 minutes)`
     );
     window.open(`https://api.whatsapp.com/send?text=${text}`, "_blank");
   };
@@ -226,7 +262,7 @@ export default function ShareQrModal({
                 </span>
               </div>
               <p className="text-xs text-slate-500 dark:text-slate-400">
-                Choose to download directly or scan QR code to open on mobile
+                Direct download or scan QR code on mobile (valid 1 min • auto-deleted in 5 min)
               </p>
             </div>
           </div>
@@ -312,7 +348,7 @@ export default function ShareQrModal({
             </div>
           </div>
 
-          {/* Option 2: QR Code / Mobile Download */}
+          {/* Option 2: QR Code / Mobile Download (1 min QR • 5 min store) */}
           <div className="flex flex-col justify-between rounded-2xl border border-slate-200/80 bg-gradient-to-b from-white to-slate-50/80 p-4.5 dark:border-white/[0.08] dark:from-slate-800/80 dark:to-slate-900/90 shadow-sm">
             <div className="space-y-2">
               <div className="flex items-center justify-between">
@@ -328,19 +364,62 @@ export default function ShareQrModal({
                 <Smartphone size={15} className="text-purple-500" />
               </div>
 
-              {/* QR Code Container */}
-              <div className="relative mx-auto flex h-36 w-36 sm:h-40 sm:w-40 items-center justify-center rounded-2xl border border-slate-200/80 bg-white p-2 shadow-inner dark:border-white/[0.1] dark:bg-white">
+              {/* Real-time Expiry Status Header */}
+              <div className="flex items-center justify-between gap-1.5 px-1 py-1 rounded-xl bg-purple-50/60 dark:bg-purple-950/30 border border-purple-200/60 dark:border-purple-800/30 text-[10px]">
+                <div className="flex items-center gap-1.5 font-bold">
+                  <Timer size={12} className={isQrExpired ? "text-rose-500" : qrSecondsLeft <= 15 ? "text-amber-500 animate-pulse" : "text-purple-600 dark:text-purple-400"} />
+                  {isQrExpired ? (
+                    <span className="text-rose-600 dark:text-rose-400 font-extrabold">QR Expired (1m limit)</span>
+                  ) : (
+                    <span className={qrSecondsLeft <= 15 ? "text-amber-600 dark:text-amber-400" : "text-purple-700 dark:text-purple-300"}>
+                      QR valid: <span className="font-mono font-extrabold">00:{qrSecondsLeft < 10 ? `0${qrSecondsLeft}` : qrSecondsLeft}</span>
+                    </span>
+                  )}
+                </div>
+                <div className="flex items-center gap-1 text-[9px] font-extrabold text-amber-700 dark:text-amber-300 bg-amber-500/10 px-1.5 py-0.5 rounded-md border border-amber-500/20">
+                  <Clock size={10} />
+                  <span>Deleted in 5 min</span>
+                </div>
+              </div>
+
+              {/* QR Code Container with 1-min Expired Overlay */}
+              <div className="relative mx-auto flex h-36 w-36 sm:h-40 sm:w-40 items-center justify-center rounded-2xl border border-slate-200/80 bg-white p-2 shadow-inner dark:border-white/[0.1] dark:bg-white overflow-hidden">
                 {loading ? (
                   <div className="flex flex-col items-center gap-2 text-slate-500">
                     <Loader2 size={24} className="animate-spin text-cyan-600" />
                     <span className="text-[10px] font-semibold">Generating QR...</span>
                   </div>
                 ) : qrDataUrl ? (
-                  <img
-                    src={qrDataUrl}
-                    alt="Scan to download on phone"
-                    className="h-full w-full rounded-xl object-contain shadow-xs"
-                  />
+                  <>
+                    <img
+                      src={qrDataUrl}
+                      alt="Scan to download on phone"
+                      className={`h-full w-full rounded-xl object-contain shadow-xs transition-all duration-300 ${
+                        isQrExpired ? "blur-[3px] opacity-25" : ""
+                      }`}
+                    />
+
+                    {/* Expired Overlay after 1 min */}
+                    {isQrExpired && (
+                      <div className="absolute inset-0 bg-slate-950/85 backdrop-blur-[2px] flex flex-col items-center justify-center p-2 text-center space-y-2 animate-in fade-in duration-200 z-10">
+                        <div className="grid h-8 w-8 place-items-center rounded-xl bg-amber-500/20 text-amber-400 border border-amber-500/40">
+                          <Clock size={16} className="animate-pulse" />
+                        </div>
+                        <div className="space-y-0.5">
+                          <p className="text-[11px] font-extrabold text-white">QR Code Expired</p>
+                          <p className="text-[9px] text-slate-400 leading-tight">Available for 1 min only</p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={handleRegenerateQr}
+                          className="inline-flex items-center gap-1 rounded-lg bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 px-2.5 py-1 text-[10px] font-extrabold text-white shadow-md transition transform active:scale-95"
+                        >
+                          <RefreshCw size={11} />
+                          <span>New QR Code</span>
+                        </button>
+                      </div>
+                    )}
+                  </>
                 ) : (
                   <div className="text-[10px] text-slate-400 text-center px-2">
                     Use direct share below
@@ -348,9 +427,22 @@ export default function ShareQrModal({
                 )}
               </div>
 
-              <p className="text-[10px] text-center font-bold text-slate-600 dark:text-slate-300">
-                Point phone camera or Google Lens to scan
-              </p>
+              <div className="flex items-center justify-center gap-2">
+                <p className="text-[10px] text-center font-bold text-slate-600 dark:text-slate-300">
+                  {isQrExpired ? "Click 'New QR Code' to scan again" : "Point phone camera or Google Lens to scan"}
+                </p>
+                {!isQrExpired && (
+                  <button
+                    type="button"
+                    onClick={handleRegenerateQr}
+                    className="text-[10px] text-purple-600 hover:text-purple-700 dark:text-purple-400 underline underline-offset-2 font-bold inline-flex items-center gap-0.5"
+                    title="Refresh QR timer"
+                  >
+                    <RefreshCw size={10} />
+                    <span>Reset</span>
+                  </button>
+                )}
+              </div>
             </div>
 
             {/* Mobile Actions: Share & Copy */}
@@ -379,9 +471,9 @@ export default function ShareQrModal({
 
         {/* Footer Guarantee */}
         <div className="mt-4 flex flex-col xs:flex-row items-center justify-between gap-2.5 border-t border-slate-100 pt-3 dark:border-white/[0.06] text-[10px]">
-          <div className="flex items-center gap-1 text-slate-400 dark:text-slate-500">
-            <ShieldCheck size={12} className="text-emerald-500 shrink-0" />
-            <span>100% Free & Unlimited • Zero Cloud Storage</span>
+          <div className="flex items-center gap-1.5 text-slate-400 dark:text-slate-500">
+            <ShieldCheck size={13} className="text-emerald-500 shrink-0" />
+            <span>QR available for 1 min • Temporary data auto-deleted in 5 min</span>
           </div>
 
           <div className="flex items-center gap-3">

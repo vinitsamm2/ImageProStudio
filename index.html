@@ -145,18 +145,21 @@
       try {
         function detectRegionLanguage() {
           try {
-            // Check browser preferred languages first
-            var navLangs = navigator.languages ? Array.from(navigator.languages) : [navigator.language || ''];
-            for (var i = 0; i < navLangs.length; i++) {
-              var code = (navLangs[i] || '').toLowerCase().split('-')[0];
-              if (['hi', 'es', 'fr', 'de', 'ja', 'ko', 'zh'].indexOf(code) !== -1) {
-                return code;
-              }
+            var tz = (Intl.DateTimeFormat().resolvedOptions().timeZone || '').toLowerCase();
+            // India explicitly defaults to English
+            if (tz.indexOf('kolkata') !== -1 || tz.indexOf('calcutta') !== -1 || tz.indexOf('india') !== -1) {
+              return 'en';
             }
 
-            // Detect region by timezone
-            var tz = (Intl.DateTimeFormat().resolvedOptions().timeZone || '').toLowerCase();
-            if (tz.indexOf('kolkata') !== -1 || tz.indexOf('calcutta') !== -1 || tz.indexOf('india') !== -1) return 'hi';
+            // Check primary browser preferred language
+            var navLangs = navigator.languages ? Array.from(navigator.languages) : [navigator.language || ''];
+            var primary = (navLangs[0] || '').toLowerCase().split('-')[0];
+            if (primary === 'en') return 'en';
+            if (['es', 'fr', 'de', 'ja', 'ko', 'zh', 'hi'].indexOf(primary) !== -1) {
+              return primary;
+            }
+
+            // Detect region by timezone for other languages
             if (tz.indexOf('tokyo') !== -1 || tz.indexOf('japan') !== -1) return 'ja';
             if (tz.indexOf('seoul') !== -1 || tz.indexOf('pyongyang') !== -1 || tz.indexOf('korea') !== -1) return 'ko';
             if (tz.indexOf('shanghai') !== -1 || tz.indexOf('beijing') !== -1 || tz.indexOf('chongqing') !== -1 ||
