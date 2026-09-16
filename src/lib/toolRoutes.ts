@@ -572,11 +572,25 @@ export function updatePageSeo(toolId: ToolId | null): void {
   const origin = "https://www.imageprostudio.in";
 
   if (!toolId) {
-    // Default Home Page SEO
-    document.title = "ImagePro Studio — 100% Free In-Browser Media Workstation";
-    const desc = "The browser-based media studio for students and job applicants. Resize 35x45mm passport photos, scale 10–20KB signatures, compress PDF marksheets under 200KB, edit, sign, and convert with 100% privacy.";
-    updateMetaTag("name", "description", desc);
-    updateCanonicalLink(origin);
+    // Default Home Page SEO - 100% aligned with index.html
+    const homeTitle = "ImagePro Studio | PDF to JPG & Image Resizer for Govt Job & Exam Forms";
+    const homeDesc = "Convert PDF to JPG/PNG online. Compress certificates under 200KB and resize passport photos to 35x45mm for UPSC, SSC, NEET, and JEE applications. 100% private.";
+
+    document.title = homeTitle;
+    updateMetaTag("name", "description", homeDesc);
+    updateMetaTag("property", "og:title", homeTitle);
+    updateMetaTag("property", "og:description", homeDesc);
+    updateMetaTag("property", "og:url", `${origin}/`);
+    updateMetaTag("name", "twitter:title", homeTitle);
+    updateMetaTag("name", "twitter:description", homeDesc);
+    updateMetaTag("name", "twitter:url", `${origin}/`);
+    updateCanonicalLink(`${origin}/`);
+
+    // Remove any dynamic tool structured data script tag so the static schemas in index.html remain canonical
+    const dynamicScript = document.getElementById("dynamic-tool-ldjson");
+    if (dynamicScript) {
+      dynamicScript.remove();
+    }
     return;
   }
 
@@ -586,11 +600,14 @@ export function updatePageSeo(toolId: ToolId | null): void {
   // Title
   document.title = seo.title;
 
-  // Meta Description
+  // Meta Description & Social Tags
   updateMetaTag("name", "description", seo.metaDescription);
   updateMetaTag("property", "og:title", seo.title);
   updateMetaTag("property", "og:description", seo.metaDescription);
   updateMetaTag("property", "og:url", `${origin}${seo.slug}`);
+  updateMetaTag("name", "twitter:title", seo.title);
+  updateMetaTag("name", "twitter:description", seo.metaDescription);
+  updateMetaTag("name", "twitter:url", `${origin}${seo.slug}`);
 
   // Canonical Link
   updateCanonicalLink(`${origin}${seo.slug}`);

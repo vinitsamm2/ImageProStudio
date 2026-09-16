@@ -28,6 +28,7 @@ type StudioTopBarProps = {
   onSelectTool: (id: ToolId) => void;
   isCatalogOpen: boolean;
   onToggleCatalog: () => void;
+  onGoHome?: () => void;
   onOpenCommandPalette: () => void;
   onOpenAbout?: () => void;
   dark: boolean;
@@ -42,6 +43,7 @@ export default function StudioTopBar({
   onSelectTool,
   isCatalogOpen,
   onToggleCatalog,
+  onGoHome,
   onOpenCommandPalette,
   onOpenAbout,
   dark,
@@ -53,7 +55,7 @@ export default function StudioTopBar({
   const { t } = useLanguage();
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const currentTool = STUDIO_TOOLS.find((t) => t.id === activeTool) || STUDIO_TOOLS[0];
-  const Icon = currentTool.icon;
+  const Icon = isCatalogOpen ? Grid : currentTool.icon;
 
   return (
     <header className="relative z-20 flex h-14 items-center justify-between border-b border-slate-200/80 bg-white/80 px-2 sm:px-4 lg:px-6 backdrop-blur-2xl transition-all dark:border-white/[0.08] dark:bg-slate-950/70 gap-2 min-w-0">
@@ -70,7 +72,7 @@ export default function StudioTopBar({
 
         {/* Mobile Brand Logo */}
         <div className="lg:hidden flex items-center shrink-0" title="ImagePro Studio">
-          <BrandLogo size={28} onClick={onToggleCatalog} />
+          <BrandLogo size={28} onClick={onGoHome || onToggleCatalog} />
         </div>
 
         {/* Tool Dropdown Breadcrumb */}
@@ -83,7 +85,9 @@ export default function StudioTopBar({
             <div className="grid h-5 w-5 shrink-0 place-items-center rounded-md bg-cyan-600 text-white shadow-xs">
               <Icon size={12} />
             </div>
-            <span className="font-extrabold truncate">{t(currentTool.id, currentTool.name)}</span>
+            <span className="font-extrabold truncate">
+              {isCatalogOpen ? t("allTools", "All Tools Catalog") : t(currentTool.id, currentTool.name)}
+            </span>
             <ChevronDown size={13} className="shrink-0 text-slate-400" />
           </button>
 

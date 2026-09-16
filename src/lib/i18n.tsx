@@ -75,7 +75,7 @@ export const TRANSLATIONS: Record<LanguageCode, Record<string, string>> = {
     turnAnyFile: "Turn Any File into",
     perfection: "Perfection.",
     heroSubtitle: "The In-Browser Media Workstation",
-    heroDesc: "Engineered specifically for Students & Employees filling competitive examinations and recruitment forms (UPSC, SSC, NEET, JEE, GATE, IBPS, State PSC, Universities & Corporate Portals). Resize 35×45mm passport photos, scale 10–20KB signatures, compress PDF marksheets under 200KB, watermark, sign, and convert with 100% acceptance guarantee. Free, unlimited, and private.",
+    heroDesc: "Convert PDF to JPG/PNG online. Compress certificates under 200KB and resize passport photos to 35x45mm for UPSC, SSC, NEET, and JEE applications. 100% private.",
     exploreTheSuite: "Explore The Suite",
     studioToolsUtilities: "Studio Tools & Utilities",
     allToolsCount: "All Tools",

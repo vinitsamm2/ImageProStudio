@@ -22,6 +22,7 @@ type StudioLayoutProps = {
   onSendToTool: (toolId: ToolId, files: File[]) => void;
   catalogContent: ReactNode;
   toolContent: ReactNode;
+  onGoHome?: () => void;
 };
 
 export default function StudioLayout({
@@ -29,6 +30,7 @@ export default function StudioLayout({
   onSelectTool,
   isCatalogOpen,
   onToggleCatalog,
+  onGoHome,
   onOpenCommandPalette,
   dark,
   onToggleDark,
@@ -69,6 +71,7 @@ export default function StudioLayout({
             if (isCatalogOpen) onToggleCatalog();
           }}
           onToggleCatalog={onToggleCatalog}
+          onGoHome={onGoHome}
           isCatalogOpen={isCatalogOpen}
           onOpenAbout={onOpenAbout}
           dark={dark}
@@ -106,6 +109,10 @@ export default function StudioLayout({
                   onToggleCatalog();
                   setMobileRailOpen(false);
                 }}
+                onGoHome={() => {
+                  if (onGoHome) onGoHome();
+                  setMobileRailOpen(false);
+                }}
                 isCatalogOpen={isCatalogOpen}
                 onOpenAbout={() => {
                   setMobileRailOpen(false);
@@ -132,6 +139,7 @@ export default function StudioLayout({
           }}
           isCatalogOpen={isCatalogOpen}
           onToggleCatalog={onToggleCatalog}
+          onGoHome={onGoHome}
           onOpenCommandPalette={onOpenCommandPalette}
           onOpenAbout={onOpenAbout}
           dark={dark}

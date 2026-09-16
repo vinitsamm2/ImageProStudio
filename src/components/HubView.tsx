@@ -89,7 +89,7 @@ export default function HubView({ onLaunchTool, onOmniRoute, onOpenAbout }: HubV
             transition={{ delay: 0.16 }}
             className="mx-auto max-w-3xl text-sm sm:text-base md:text-lg leading-relaxed text-slate-600 dark:text-slate-300 px-2"
           >
-            {t("heroDesc", "Engineered specifically for Students & Employees filling competitive examinations and recruitment forms (UPSC, SSC, NEET, JEE, GATE, IBPS, State PSC, Universities & Corporate Portals). Resize 35×45mm passport photos, scale 10–20KB signatures, compress PDF marksheets under 200KB, watermark, sign, and convert with 100% acceptance guarantee. Free, unlimited, and private.")}
+            {t("heroDesc", "Convert PDF to JPG/PNG online. Compress certificates under 200KB and resize passport photos to 35x45mm for UPSC, SSC, NEET, and JEE applications. 100% private.")}
           </motion.p>
         </div>
 

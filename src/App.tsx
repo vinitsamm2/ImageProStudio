@@ -46,7 +46,13 @@ export default function App() {
     }
     return "image-to-pdf";
   });
-  const [isCatalogOpen, setIsCatalogOpen] = useState(false);
+  const [isCatalogOpen, setIsCatalogOpen] = useState<boolean>(() => {
+    if (typeof window !== "undefined") {
+      const fromPath = getToolIdFromPath(window.location.pathname);
+      return !fromPath;
+    }
+    return true;
+  });
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
   const [isAboutOpen, setIsAboutOpen] = useState(false);
   const [stagedFiles, setStagedFiles] = useState<File[]>([]);
@@ -77,14 +83,21 @@ export default function App() {
 
   // URL synchronization & Dynamic SEO (title, meta, canonical, JSON-LD)
   useEffect(() => {
-    updatePageSeo(activeTool);
-    if (typeof window !== "undefined") {
-      const targetPath = getPathFromToolId(activeTool);
-      if (window.location.pathname !== targetPath) {
-        window.history.pushState({ toolId: activeTool }, "", targetPath);
+    if (isCatalogOpen) {
+      updatePageSeo(null);
+      if (typeof window !== "undefined" && window.location.pathname !== "/") {
+        window.history.pushState({ toolId: null, catalog: true }, "", "/");
+      }
+    } else {
+      updatePageSeo(activeTool);
+      if (typeof window !== "undefined") {
+        const targetPath = getPathFromToolId(activeTool);
+        if (window.location.pathname !== targetPath) {
+          window.history.pushState({ toolId: activeTool }, "", targetPath);
+        }
       }
     }
-  }, [activeTool]);
+  }, [activeTool, isCatalogOpen]);
 
   // Handle browser Back / Forward history navigation
   useEffect(() => {
@@ -93,6 +106,8 @@ export default function App() {
       if (fromPath) {
         setActiveTool(fromPath);
         setIsCatalogOpen(false);
+      } else {
+        setIsCatalogOpen(true);
       }
     };
     window.addEventListener("popstate", handlePopState);
@@ -173,6 +188,7 @@ export default function App() {
         onGoToStudio={() => {
           window.history.pushState({}, "", "/");
           setDownloadId(null);
+          setIsCatalogOpen(true);
         }}
       />
     );
@@ -188,6 +204,7 @@ export default function App() {
         }}
         isCatalogOpen={isCatalogOpen}
         onToggleCatalog={() => setIsCatalogOpen(!isCatalogOpen)}
+        onGoHome={() => setIsCatalogOpen(true)}
         onOpenCommandPalette={() => setIsCommandPaletteOpen(true)}
         onOpenAbout={() => setIsAboutOpen(true)}
         dark={dark}

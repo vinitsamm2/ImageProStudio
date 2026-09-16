@@ -297,6 +297,7 @@ type ToolActivityRailProps = {
   activeTool: ToolId;
   onSelectTool: (id: ToolId) => void;
   onToggleCatalog: () => void;
+  onGoHome?: () => void;
   isCatalogOpen: boolean;
   onOpenAbout?: () => void;
   dark?: boolean;
@@ -309,6 +310,7 @@ export default function ToolActivityRail({
   activeTool,
   onSelectTool,
   onToggleCatalog,
+  onGoHome,
   isCatalogOpen,
   onOpenAbout,
   dark,
@@ -336,7 +338,7 @@ export default function ToolActivityRail({
           {!collapsed ? (
             <button
               type="button"
-              onClick={onToggleCatalog}
+              onClick={onGoHome || onToggleCatalog}
               className="flex items-center gap-2.5 text-left focus:outline-none group"
               title="ImagePro Studio - Open Catalog"
             >
@@ -345,7 +347,7 @@ export default function ToolActivityRail({
           ) : (
             <button
               type="button"
-              onClick={onToggleCatalog}
+              onClick={onGoHome || onToggleCatalog}
               title="ImagePro Studio - Open Catalog"
               className="mx-auto block p-0.5 rounded-xl transition hover:scale-105"
             >
