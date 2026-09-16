@@ -136,6 +136,90 @@
     }
     </script>
 
+  <!-- Google Translate Fast Preconnect & Cookie Acceleration -->
+  <link rel="preconnect" href="https://translate.google.com" />
+  <link rel="preconnect" href="https://translate.googleapis.com" crossorigin />
+  <link rel="preload" href="https://translate.google.com/translate_a/element.js?cb=googleTranslateElementInit" as="script" />
+  <script>
+    (function() {
+      try {
+        function detectRegionLanguage() {
+          try {
+            // Check browser preferred languages first
+            var navLangs = navigator.languages ? Array.from(navigator.languages) : [navigator.language || ''];
+            for (var i = 0; i < navLangs.length; i++) {
+              var code = (navLangs[i] || '').toLowerCase().split('-')[0];
+              if (['hi', 'es', 'fr', 'de', 'ja', 'ko', 'zh'].indexOf(code) !== -1) {
+                return code;
+              }
+            }
+
+            // Detect region by timezone
+            var tz = (Intl.DateTimeFormat().resolvedOptions().timeZone || '').toLowerCase();
+            if (tz.indexOf('kolkata') !== -1 || tz.indexOf('calcutta') !== -1 || tz.indexOf('india') !== -1) return 'hi';
+            if (tz.indexOf('tokyo') !== -1 || tz.indexOf('japan') !== -1) return 'ja';
+            if (tz.indexOf('seoul') !== -1 || tz.indexOf('pyongyang') !== -1 || tz.indexOf('korea') !== -1) return 'ko';
+            if (tz.indexOf('shanghai') !== -1 || tz.indexOf('beijing') !== -1 || tz.indexOf('chongqing') !== -1 ||
+                tz.indexOf('urumqi') !== -1 || tz.indexOf('harbin') !== -1 || tz.indexOf('hong_kong') !== -1 ||
+                tz.indexOf('taipei') !== -1 || tz.indexOf('macau') !== -1) return 'zh';
+            if (tz.indexOf('paris') !== -1 || tz.indexOf('brussels') !== -1 || tz.indexOf('monaco') !== -1) return 'fr';
+            if (tz.indexOf('berlin') !== -1 || tz.indexOf('vienna') !== -1 || tz.indexOf('zurich') !== -1) return 'de';
+            if (tz.indexOf('madrid') !== -1 || tz.indexOf('canary') !== -1 || tz.indexOf('mexico') !== -1 ||
+                tz.indexOf('cancun') !== -1 || tz.indexOf('bogota') !== -1 || tz.indexOf('buenos_aires') !== -1 ||
+                tz.indexOf('cordoba') !== -1 || tz.indexOf('mendoza') !== -1 || tz.indexOf('lima') !== -1 ||
+                tz.indexOf('santiago') !== -1 || tz.indexOf('caracas') !== -1 || tz.indexOf('guatemala') !== -1 ||
+                tz.indexOf('guayaquil') !== -1 || tz.indexOf('havana') !== -1 || tz.indexOf('la_paz') !== -1 ||
+                tz.indexOf('santo_domingo') !== -1 || tz.indexOf('tegucigalpa') !== -1 || tz.indexOf('asuncion') !== -1 ||
+                tz.indexOf('el_salvador') !== -1 || tz.indexOf('managua') !== -1 || tz.indexOf('costa_rica') !== -1 ||
+                tz.indexOf('panama') !== -1 || tz.indexOf('montevideo') !== -1) return 'es';
+          } catch (e) {}
+          return 'en';
+        }
+
+        var params = new URLSearchParams(window.location.search);
+        var lang = params.get('lang') || localStorage.getItem('imagepro-lang');
+        if (!lang) {
+          lang = detectRegionLanguage();
+        }
+
+        var host = window.location.hostname;
+        var isLocal = !host || host === 'localhost' || /^\d+\.\d+\.\d+\.\d+$/.test(host);
+        var rootDomain = '';
+        if (!isLocal) {
+          var parts = host.split('.');
+          if (parts.length > 1) {
+            rootDomain = '.' + parts.slice(-2).join('.');
+          }
+        }
+
+        function writeGoogTrans(val, maxAgeSec) {
+          var age = typeof maxAgeSec === 'number' ? '; max-age=' + maxAgeSec : '';
+          document.cookie = 'googtrans=' + val + '; path=/' + age + '; SameSite=Lax';
+          if (!isLocal) {
+            document.cookie = 'googtrans=' + val + '; domain=' + host + '; path=/' + age + '; SameSite=Lax';
+            if (rootDomain && rootDomain !== host) {
+              document.cookie = 'googtrans=' + val + '; domain=' + rootDomain + '; path=/' + age + '; SameSite=Lax';
+            }
+          }
+        }
+
+        if (lang && lang !== 'en') {
+          var target = lang === 'zh' ? 'zh-CN' : lang;
+          writeGoogTrans('/en/' + target, 31536000);
+          document.documentElement.lang = lang;
+        } else if (lang === 'en') {
+          var expire = '=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
+          document.cookie = 'googtrans' + expire;
+          if (!isLocal) {
+            document.cookie = 'googtrans' + expire + ' domain=' + host + ';';
+            if (rootDomain) document.cookie = 'googtrans' + expire + ' domain=' + rootDomain + ';';
+          }
+          writeGoogTrans('/en/en', 31536000);
+        }
+      } catch (e) {}
+    })();
+  </script>
+
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link

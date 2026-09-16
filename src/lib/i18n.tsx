@@ -623,6 +623,73 @@ type LanguageContextType = {
   t: (key: string, fallback?: string) => string;
 };
 
+/**
+ * Automatically detects the user's regional language based on browser languages
+ * and Intl timezone region. Defaults to English ('en') if region is not matched.
+ */
+export function detectRegionLanguage(): LanguageCode {
+  if (typeof window === "undefined") return "en";
+  try {
+    // 1. Check user preferred browser languages
+    const navLangs = navigator.languages ? Array.from(navigator.languages) : [navigator.language || ""];
+    for (const l of navLangs) {
+      const code = (l || "").toLowerCase().split("-")[0] as LanguageCode;
+      if (["hi", "es", "fr", "de", "ja", "ko", "zh"].includes(code)) {
+        return code;
+      }
+    }
+
+    // 2. Check region from Intl timezone
+    const tz = (Intl.DateTimeFormat().resolvedOptions().timeZone || "").toLowerCase();
+    if (tz.includes("kolkata") || tz.includes("calcutta") || tz.includes("india")) return "hi";
+    if (tz.includes("tokyo") || tz.includes("japan")) return "ja";
+    if (tz.includes("seoul") || tz.includes("pyongyang") || tz.includes("korea")) return "ko";
+    if (
+      tz.includes("shanghai") ||
+      tz.includes("beijing") ||
+      tz.includes("chongqing") ||
+      tz.includes("urumqi") ||
+      tz.includes("harbin") ||
+      tz.includes("hong_kong") ||
+      tz.includes("taipei") ||
+      tz.includes("macau")
+    ) {
+      return "zh";
+    }
+    if (tz.includes("paris") || tz.includes("brussels") || tz.includes("monaco")) return "fr";
+    if (tz.includes("berlin") || tz.includes("vienna") || tz.includes("zurich")) return "de";
+    if (
+      tz.includes("madrid") ||
+      tz.includes("canary") ||
+      tz.includes("mexico") ||
+      tz.includes("cancun") ||
+      tz.includes("bogota") ||
+      tz.includes("buenos_aires") ||
+      tz.includes("cordoba") ||
+      tz.includes("mendoza") ||
+      tz.includes("lima") ||
+      tz.includes("santiago") ||
+      tz.includes("caracas") ||
+      tz.includes("guatemala") ||
+      tz.includes("guayaquil") ||
+      tz.includes("havana") ||
+      tz.includes("la_paz") ||
+      tz.includes("santo_domingo") ||
+      tz.includes("tegucigalpa") ||
+      tz.includes("asuncion") ||
+      tz.includes("el_salvador") ||
+      tz.includes("managua") ||
+      tz.includes("costa_rica") ||
+      tz.includes("panama") ||
+      tz.includes("montevideo")
+    ) {
+      return "es";
+    }
+  } catch (e) {}
+
+  return "en";
+}
+
 const LanguageContext = createContext<LanguageContextType | null>(null);
 
 export function LanguageProvider({ children }: { children: ReactNode }) {
@@ -635,10 +702,14 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
     const saved = localStorage.getItem("imagepro-lang") as LanguageCode;
     if (saved && TRANSLATIONS[saved]) return saved;
 
-    const browserLang = navigator.language?.slice(0, 2).toLowerCase() as LanguageCode;
-    if (browserLang && TRANSLATIONS[browserLang]) return browserLang;
+    // Check googtrans cookie if already present in browser
+    const match = document.cookie.match(/(?:^|;)\s*googtrans=\/en\/([a-zA-Z\-]+)/);
+    if (match && match[1]) {
+      const cookieLang = (match[1] === "zh-CN" ? "zh" : match[1]) as LanguageCode;
+      if (cookieLang && TRANSLATIONS[cookieLang]) return cookieLang;
+    }
 
-    return "en";
+    return detectRegionLanguage();
   });
 
   const setLanguage = (lang: LanguageCode) => {
@@ -672,29 +743,45 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
 
 /**
  * Translates the entire webpage (all text, tools, FAQs, modals, buttons)
- * using the Google Translate engine and synchronization cookies.
+ * using the Google Translate engine and accelerated synchronization cookies.
  */
 export function applyPageTranslation(lang: LanguageCode) {
   if (typeof window === "undefined") return;
 
   const target = lang === "zh" ? "zh-CN" : lang;
   const hostname = window.location.hostname;
+  const isLocal = !hostname || hostname === "localhost" || /^\d+\.\d+\.\d+\.\d+$/.test(hostname);
   const domainParts = hostname.split(".");
-  const rootDomain = domainParts.length > 1 ? `.${domainParts.slice(-2).join(".")}` : hostname;
+  const rootDomain = !isLocal && domainParts.length > 1 ? `.${domainParts.slice(-2).join(".")}` : "";
 
-  // Sync Google Translate googtrans cookie across root path & domains
+  const writeCookie = (val: string, maxAgeSec?: number) => {
+    const age = typeof maxAgeSec === "number" ? `; max-age=${maxAgeSec}` : "";
+    document.cookie = `googtrans=${val}; path=/${age}; SameSite=Lax`;
+    if (!isLocal) {
+      document.cookie = `googtrans=${val}; domain=${hostname}; path=/${age}; SameSite=Lax`;
+      if (rootDomain && rootDomain !== hostname) {
+        document.cookie = `googtrans=${val}; domain=${rootDomain}; path=/${age}; SameSite=Lax`;
+      }
+    }
+  };
+
+  const clearCookie = () => {
+    const expire = "=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
+    document.cookie = "googtrans" + expire;
+    if (!isLocal) {
+      document.cookie = `googtrans${expire} domain=${hostname};`;
+      if (rootDomain) {
+        document.cookie = `googtrans${expire} domain=${rootDomain};`;
+      }
+    }
+  };
+
+  // Sync Google Translate googtrans cookie across root path & domains with SameSite=Lax
   if (lang === "en") {
-    document.cookie = "googtrans=/en/en; path=/;";
-    document.cookie = `googtrans=/en/en; domain=${hostname}; path=/;`;
-    if (rootDomain !== hostname) {
-      document.cookie = `googtrans=/en/en; domain=${rootDomain}; path=/;`;
-    }
+    clearCookie();
+    writeCookie("/en/en", 31536000);
   } else {
-    document.cookie = `googtrans=/en/${target}; path=/;`;
-    document.cookie = `googtrans=/en/${target}; domain=${hostname}; path=/;`;
-    if (rootDomain !== hostname) {
-      document.cookie = `googtrans=/en/${target}; domain=${rootDomain}; path=/;`;
-    }
+    writeCookie(`/en/${target}`, 31536000);
   }
 
   // Trigger Google Translate combo element dynamically
@@ -718,13 +805,23 @@ export function applyPageTranslation(lang: LanguageCode) {
   };
 
   if (!triggerCombo()) {
+    // 0ms Zero-Latency MutationObserver: Triggers the exact millisecond the combo is rendered
+    const container = document.getElementById("google_translate_element") || document.body;
+    const observer = new MutationObserver(() => {
+      if (triggerCombo()) {
+        observer.disconnect();
+      }
+    });
+    observer.observe(container, { childList: true, subtree: true });
+
     let attempts = 0;
     const interval = setInterval(() => {
       attempts++;
-      if (triggerCombo() || attempts > 25) {
+      if (triggerCombo() || attempts > 30) {
         clearInterval(interval);
+        observer.disconnect();
       }
-    }, 200);
+    }, 60);
   }
 }
 
