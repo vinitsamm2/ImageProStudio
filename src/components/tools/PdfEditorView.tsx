@@ -65,6 +65,7 @@ import {
   renderPdfPageToDataUrl,
   uid
 } from "../../lib/files";
+import { PDF_EDITOR_FONTS, getPdfEditorFontCss } from "../../lib/pdfFonts";
 
 type ToastNotify = (text: string, kind?: "success" | "error" | "info") => void;
 
@@ -179,7 +180,8 @@ export default function PdfEditorView({
   const [activeColor, setActiveColor] = useState<string>("#0f172a");
   const [strokeWidth, setStrokeWidth] = useState<number>(3);
   const [fontSize, setFontSize] = useState<number>(16);
-  const [fontFamily, setFontFamily] = useState<"sans" | "serif" | "mono" | "cursive">("sans");
+  const [fontFamily, setFontFamily] = useState<string>("sans");
+  const [signFontFamily, setSignFontFamily] = useState<string>("cursive");
   const [isBold, setIsBold] = useState<boolean>(false);
   const [isItalic, setIsItalic] = useState<boolean>(false);
   const [textHighlight, setTextHighlight] = useState<string>("transparent");
@@ -2085,12 +2087,12 @@ export default function PdfEditorView({
               </select>
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5 sm:gap-2">
               <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400">Font:</span>
               <select
                 value={selectedAnnotation?.fontFamily || fontFamily}
                 onChange={(e) => {
-                  const f = e.target.value as any;
+                  const f = e.target.value;
                   setFontFamily(f);
                   if (selectedId) {
                     setAnnotations((prev) =>
@@ -2098,12 +2100,17 @@ export default function PdfEditorView({
                     );
                   }
                 }}
-                className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs font-bold text-slate-800 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+                className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs font-bold text-slate-800 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 cursor-pointer max-w-[140px] sm:max-w-[180px]"
               >
-                <option value="sans">Sans (Arial / Inter)</option>
-                <option value="serif">Serif (Times / Georgia)</option>
-                <option value="mono">Monospace (Courier)</option>
-                <option value="cursive">Cursive (Script)</option>
+                {Array.from(new Set(PDF_EDITOR_FONTS.map((f) => f.category))).map((category) => (
+                  <optgroup key={category} label={category}>
+                    {PDF_EDITOR_FONTS.filter((f) => f.category === category).map((font) => (
+                      <option key={font.id} value={font.id}>
+                        {font.name}
+                      </option>
+                    ))}
+                  </optgroup>
+                ))}
               </select>
               {selectedAnnotation?.actualFontName && (
                 <span
@@ -3294,18 +3301,7 @@ export default function PdfEditorView({
                         className="h-full w-full overflow-hidden p-0.5 leading-tight flex items-start"
                         style={{
                           fontSize: `${(ann.fontSize || 16) * zoomScale}px`,
-                          fontFamily: [
-                            ann.actualFontName ? `"${ann.actualFontName}"` : null,
-                            ann.fontFamily === "serif"
-                              ? '"Times New Roman", Times, Georgia, Cambria, serif'
-                              : ann.fontFamily === "mono"
-                              ? '"Courier New", Courier, Consolas, Monaco, monospace'
-                              : ann.fontFamily === "cursive"
-                              ? "'Dancing Script', cursive"
-                              : 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif'
-                          ]
-                            .filter(Boolean)
-                            .join(", "),
+                          fontFamily: getPdfEditorFontCss(ann.fontFamily, ann.actualFontName),
                           fontWeight: ann.fontWeight || "normal",
                           fontStyle: ann.fontStyle || "normal",
                           color: ann.textColor || "#0f172a",
@@ -3728,10 +3724,35 @@ export default function PdfEditorView({
                   placeholder="Type your name..."
                   className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold dark:border-slate-700 dark:bg-slate-800"
                 />
+
+                {/* Signature Style Picker */}
+                <div className="flex items-center gap-1.5 overflow-x-auto pb-1">
+                  {[
+                    { id: "cursive", label: "Dancing Script" },
+                    { id: "great-vibes", label: "Great Vibes" },
+                    { id: "caveat", label: "Caveat" },
+                    { id: "pacifico", label: "Pacifico" },
+                    { id: "brush", label: "Brush Script" }
+                  ].map((f) => (
+                    <button
+                      key={f.id}
+                      type="button"
+                      onClick={() => setSignFontFamily(f.id)}
+                      className={`px-2.5 py-1 text-xs font-bold rounded-lg border transition whitespace-nowrap ${
+                        signFontFamily === f.id
+                          ? "border-blue-600 bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-500"
+                          : "border-slate-200 text-slate-600 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+                      }`}
+                    >
+                      {f.label}
+                    </button>
+                  ))}
+                </div>
+
                 <div className="rounded-2xl border border-slate-200 bg-slate-50 p-6 text-center dark:border-slate-800 dark:bg-slate-950">
                   <span
                     className="text-3xl text-blue-600 dark:text-blue-400"
-                    style={{ fontFamily: "'Dancing Script', 'Brush Script MT', cursive" }}
+                    style={{ fontFamily: getPdfEditorFontCss(signFontFamily) }}
                   >
                     {signTypedName || "Your Signature"}
                   </span>
@@ -3764,7 +3785,7 @@ export default function PdfEditorView({
                     c.height = 180;
                     const ctx = c.getContext("2d");
                     if (ctx) {
-                      ctx.font = "italic 48px 'Dancing Script', 'Brush Script MT', cursive";
+                      ctx.font = `italic 48px ${getPdfEditorFontCss(signFontFamily)}`;
                       ctx.fillStyle = activeColor;
                       ctx.textAlign = "center";
                       ctx.textBaseline = "middle";

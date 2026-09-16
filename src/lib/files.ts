@@ -2,6 +2,7 @@ import JSZip from "jszip";
 import { PDFDocument, rgb, degrees, StandardFonts, PDFName, PDFDict } from "pdf-lib";
 import { getDocument, GlobalWorkerOptions, OPS } from "pdfjs-dist";
 import workerUrl from "pdfjs-dist/build/pdf.worker.mjs?url";
+import { getPdfEditorFontCss } from "./pdfFonts";
 
 // Standard worker initialization in Vite
 if (typeof window !== "undefined") {
@@ -1592,7 +1593,7 @@ export interface PdfAnnotation {
   // Text properties
   text?: string;
   fontSize?: number; // in pt (e.g. 14, 18, 24)
-  fontFamily?: "sans" | "serif" | "mono" | "cursive";
+  fontFamily?: string;
   fontWeight?: "normal" | "bold";
   fontStyle?: "normal" | "italic";
   actualFontName?: string;
@@ -1792,15 +1793,7 @@ export async function compileEditedPdf(
             const weight = ann.fontWeight === "bold" ? "bold " : "";
             const style = ann.fontStyle === "italic" ? "italic " : "";
             const fSize = ann.fontSize || 16;
-            const actualPrefix = ann.actualFontName ? `"${ann.actualFontName}", ` : "";
-            let fontFam = `${actualPrefix}Arial, Helvetica, "Plus Jakarta Sans", Inter, -apple-system, sans-serif`;
-            if (ann.fontFamily === "serif") {
-              fontFam = `${actualPrefix}"Times New Roman", Times, Georgia, Cambria, serif`;
-            } else if (ann.fontFamily === "mono") {
-              fontFam = `${actualPrefix}"Courier New", Courier, Consolas, monospace`;
-            } else if (ann.fontFamily === "cursive") {
-              fontFam = `${actualPrefix}"Brush Script MT", "Dancing Script", cursive`;
-            }
+            const fontFam = getPdfEditorFontCss(ann.fontFamily, ann.actualFontName);
 
             ctx.font = `${weight}${style}${fSize}px ${fontFam}`;
             ctx.fillStyle = ann.textColor || "#0f172a";
