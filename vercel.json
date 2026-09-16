@@ -10,33 +10,21 @@
   },
   "rewrites": [
     {
-      "source": "/api/share/:path*",
+      "source": "/api/share/:path+",
       "destination": "/api/share"
     },
     {
-      "source": "/api/share",
-      "destination": "/api/share"
-    },
-    {
-      "source": "/api/stats/:path*",
+      "source": "/api/stats/:path+",
       "destination": "/api/stats"
     },
     {
-      "source": "/api/stats",
-      "destination": "/api/stats"
-    },
-    {
-      "source": "/api/(.*)",
-      "destination": "/api/$1"
-    },
-    {
-      "source": "/(.*)",
+      "source": "/((?!api/).*)",
       "destination": "/index.html"
     }
   ],
   "headers": [
     {
-      "source": "/assets/(.*)",
+      "source": "/assets/:path*",
       "headers": [
         {
           "key": "Cache-Control",
