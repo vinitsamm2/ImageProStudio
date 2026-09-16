@@ -627,10 +627,10 @@ export default function ImageResizerView({
         )}
       </div>
 
-      {/* 3-Column Left-to-Right Grid on Large Screens */}
-      <div className="flex-1 min-h-0 grid gap-6 lg:grid-cols-[1fr_380px_1fr] lg:items-start">
+      {/* 3-Column Left-to-Right Grid on Extra-Large Screens, Clean Stack on Tablet/Mobile */}
+      <div className="flex-1 min-h-0 grid gap-6 xl:grid-cols-[1fr_380px_1fr] xl:items-start">
         {/* STAGE 1 (LEFT): Original Source Input */}
-        <div className="panel space-y-4 flex flex-col justify-between lg:max-h-[calc(100vh-210px)] lg:overflow-y-auto pr-1">
+        <div className="panel space-y-4 flex flex-col justify-between xl:max-h-[calc(100vh-210px)] xl:overflow-y-auto pr-1">
           <div className="space-y-4">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3 dark:border-slate-800">
               <div className="flex items-center gap-2">
@@ -737,8 +737,8 @@ export default function ImageResizerView({
           </div>
         </div>
 
-        {/* STAGE 2 (CENTER): Resize Controls & Transformation */}
-        <div className="panel space-y-5 lg:sticky lg:top-0 lg:max-h-[calc(100vh-210px)] lg:overflow-y-auto pr-1">
+        {/* STAGE 2 (CENTER): Geometry, DPI, Canvas & Exam Presets */}
+        <div className="panel space-y-5 xl:sticky xl:top-0 xl:max-h-[calc(100vh-210px)] xl:overflow-y-auto pr-1">
           <div className="flex items-center justify-between border-b border-slate-100 pb-3 dark:border-slate-800">
             <div className="flex items-center gap-2">
               <span className="grid h-6 w-6 place-items-center rounded-full bg-cyan-600 text-xs font-extrabold text-white">
@@ -996,8 +996,8 @@ export default function ImageResizerView({
           </div>
         </div>
 
-        {/* STAGE 3 (RIGHT): Target Output & Download */}
-        <div className="panel space-y-5 flex flex-col justify-between lg:sticky lg:top-0 lg:max-h-[calc(100vh-210px)] lg:overflow-y-auto pr-1">
+        {/* STAGE 3 (RIGHT): Live Preview, Processing & Instant Downloads */}
+        <div className="panel space-y-5 flex flex-col justify-between xl:sticky xl:top-0 xl:max-h-[calc(100vh-210px)] xl:overflow-y-auto pr-1">
           <div className="space-y-4">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3 dark:border-slate-800">
               <div className="flex items-center gap-2">

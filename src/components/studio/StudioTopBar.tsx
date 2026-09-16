@@ -56,9 +56,9 @@ export default function StudioTopBar({
   const Icon = currentTool.icon;
 
   return (
-    <header className="relative z-20 flex h-14 items-center justify-between border-b border-slate-200/80 bg-white/80 px-2.5 sm:px-6 backdrop-blur-2xl transition-all dark:border-white/[0.08] dark:bg-slate-950/70">
+    <header className="relative z-20 flex h-14 items-center justify-between border-b border-slate-200/80 bg-white/80 px-2 sm:px-4 lg:px-6 backdrop-blur-2xl transition-all dark:border-white/[0.08] dark:bg-slate-950/70 gap-2 min-w-0">
       {/* Left: Mobile Menu & Breadcrumb with Tool Selector */}
-      <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+      <div className="flex items-center gap-1.5 sm:gap-2.5 min-w-0 flex-shrink">
         <button
           type="button"
           onClick={onToggleMobileRail}
@@ -78,7 +78,7 @@ export default function StudioTopBar({
           <button
             type="button"
             onClick={() => setDropdownOpen(!dropdownOpen)}
-            className="flex items-center gap-1.5 sm:gap-2 rounded-xl border border-slate-200/60 bg-slate-50/80 px-2.5 sm:px-3 py-1.5 text-xs font-bold text-slate-800 transition hover:bg-slate-100 dark:border-white/[0.06] dark:bg-slate-900/80 dark:text-slate-200 dark:hover:bg-slate-800 max-w-[190px] xs:max-w-[240px] sm:max-w-none"
+            className="flex items-center gap-1.5 sm:gap-2 rounded-xl border border-slate-200/60 bg-slate-50/80 px-2 sm:px-3 py-1.5 text-xs font-bold text-slate-800 transition hover:bg-slate-100 dark:border-white/[0.06] dark:bg-slate-900/80 dark:text-slate-200 dark:hover:bg-slate-800 max-w-[125px] xs:max-w-[170px] sm:max-w-[240px] md:max-w-none truncate min-w-0"
           >
             <div className="grid h-5 w-5 shrink-0 place-items-center rounded-md bg-cyan-600 text-white shadow-xs">
               <Icon size={12} />
@@ -131,23 +131,23 @@ export default function StudioTopBar({
           )}
         </div>
 
-        {/* Vice-Versa Quick Action In TopBar - Single Dedicated Place */}
+        {/* Vice-Versa Quick Action In TopBar - Hidden on mobile/compact to prevent header overflow */}
         {currentTool.viceVersaId && (
           <button
             type="button"
             onClick={() => onSelectTool(currentTool.viceVersaId!)}
-            className="inline-flex items-center gap-1.5 rounded-xl border border-indigo-500/30 bg-indigo-500/10 px-2 sm:px-2.5 py-1 text-xs font-bold text-indigo-700 transition hover:bg-indigo-500/20 dark:text-indigo-300 dark:bg-indigo-950/40"
+            className="hidden md:inline-flex items-center gap-1.5 rounded-xl border border-indigo-500/30 bg-indigo-500/10 px-2 sm:px-2.5 py-1 text-xs font-bold text-indigo-700 transition hover:bg-indigo-500/20 dark:text-indigo-300 dark:bg-indigo-950/40 shrink-0"
             title={`Quick switch to reciprocal tool: ${currentTool.viceVersaLabel}`}
           >
             <ArrowLeftRight size={12} className="text-indigo-500 shrink-0" />
-            <span className="hidden sm:inline">{t("switchTo", "Switch to")} </span>
-            <span className="truncate">{currentTool.viceVersaLabel}</span>
+            <span className="hidden lg:inline">{t("switchTo", "Switch to")} </span>
+            <span className="truncate max-w-[130px] lg:max-w-none">{currentTool.viceVersaLabel}</span>
           </button>
         )}
       </div>
 
-      {/* Center: Mode Capsule Toggle (Studio Canvas vs Catalog Overview) */}
-      <div className="hidden md:flex items-center rounded-full border border-slate-200/80 bg-slate-100/80 p-1 dark:border-white/[0.08] dark:bg-slate-900/80">
+      {/* Center: Mode Capsule Toggle (Studio Canvas vs Catalog Overview) - visible on xl+ to leave space on laptop/tablet */}
+      <div className="hidden xl:flex items-center rounded-full border border-slate-200/80 bg-slate-100/80 p-1 dark:border-white/[0.08] dark:bg-slate-900/80 shrink-0">
         <button
           type="button"
           onClick={() => isCatalogOpen && onToggleCatalog()}
@@ -175,33 +175,33 @@ export default function StudioTopBar({
       </div>
 
       {/* Right: Search, Sandbox Badge, Language, Theme Toggle */}
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
         {/* Command Palette Trigger */}
         <button
           type="button"
           onClick={onOpenCommandPalette}
-          className="flex items-center gap-2 rounded-xl border border-slate-200/80 bg-slate-50/90 px-2.5 py-1.5 text-xs font-semibold text-slate-600 transition hover:bg-white hover:text-slate-900 dark:border-white/[0.08] dark:bg-slate-900/80 dark:text-slate-300 dark:hover:bg-slate-800"
+          className="flex items-center gap-1.5 rounded-xl border border-slate-200/80 bg-slate-50/90 p-1.5 sm:px-2.5 sm:py-1.5 text-xs font-semibold text-slate-600 transition hover:bg-white hover:text-slate-900 dark:border-white/[0.08] dark:bg-slate-900/80 dark:text-slate-300 dark:hover:bg-slate-800"
           title="Open Command Palette (⌘K)"
         >
           <Search size={13} className="text-cyan-500" />
           <span className="hidden sm:inline">{t("search", "Search")}</span>
-          <kbd className="rounded bg-white px-1.5 py-0.2 font-mono text-[10px] text-slate-400 dark:bg-slate-800">
+          <kbd className="hidden md:inline-block rounded bg-white px-1.5 py-0.2 font-mono text-[10px] text-slate-400 dark:bg-slate-800">
             ⌘K
           </kbd>
         </button>
 
-        {/* Exam Form Fill & 100% Free Badge */}
-        <div className="hidden lg:flex items-center gap-1.5 rounded-xl border border-emerald-500/25 bg-emerald-500/10 px-2.5 py-1 text-xs font-extrabold text-emerald-600 dark:text-emerald-400 shadow-xs" title="Created for Students & Employees • 100% Accepted for All Examination & Job Forms">
+        {/* Exam Form Fill & 100% Free Badge - visible on wide 2xl screens */}
+        <div className="hidden 2xl:flex items-center gap-1.5 rounded-xl border border-emerald-500/25 bg-emerald-500/10 px-2.5 py-1 text-xs font-extrabold text-emerald-600 dark:text-emerald-400 shadow-xs" title="Created for Students & Employees • 100% Accepted for All Examination & Job Forms">
           <GraduationCap size={13} className="text-emerald-500" />
           <span>{t("examBadge", "Exam Form Fill Ready • 100% Free")}</span>
         </div>
 
-        {/* About Us Trigger */}
+        {/* About Us Trigger - visible on large screens */}
         {onOpenAbout && (
           <button
             type="button"
             onClick={onOpenAbout}
-            className="hidden sm:inline-flex items-center gap-1.5 rounded-xl border border-slate-200/80 bg-slate-50/90 px-2.5 py-1.5 text-xs font-bold text-slate-700 hover:bg-white hover:text-cyan-600 dark:border-white/[0.08] dark:bg-slate-900/80 dark:text-slate-300 dark:hover:bg-slate-800"
+            className="hidden lg:inline-flex items-center gap-1.5 rounded-xl border border-slate-200/80 bg-slate-50/90 px-2.5 py-1.5 text-xs font-bold text-slate-700 hover:bg-white hover:text-cyan-600 dark:border-white/[0.08] dark:bg-slate-900/80 dark:text-slate-300 dark:hover:bg-slate-800"
             title="About ImagePro Studio"
           >
             <Info size={13} className="text-cyan-500" />
@@ -213,13 +213,13 @@ export default function StudioTopBar({
         <LanguageSelector />
 
         {/* Global Accessibility Font Increaser & Decreaser */}
-        <FontSizeScaleControl className="hidden sm:inline-flex" />
+        <FontSizeScaleControl className="hidden md:inline-flex" />
 
         {/* Dark/Light Switcher */}
         <button
           type="button"
           onClick={onToggleDark}
-          className="grid h-8 w-8 place-items-center rounded-xl border border-slate-200/80 bg-slate-50 text-slate-600 hover:bg-white hover:text-slate-900 dark:border-white/[0.08] dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800"
+          className="grid h-8 w-8 place-items-center rounded-xl border border-slate-200/80 bg-slate-50 text-slate-600 hover:bg-white hover:text-slate-900 dark:border-white/[0.08] dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800 shrink-0"
           title={`Toggle ${dark ? "Light" : "Dark"} mode`}
         >
           {dark ? <Sun size={14} className="text-amber-400" /> : <Moon size={14} />}
@@ -230,7 +230,7 @@ export default function StudioTopBar({
           <button
             type="button"
             onClick={onResetTool}
-            className="grid h-8 w-8 place-items-center rounded-xl border border-slate-200/80 bg-slate-50 text-slate-500 hover:bg-rose-50 hover:text-rose-600 dark:border-white/[0.08] dark:bg-slate-900 dark:text-slate-400 dark:hover:bg-rose-950/30"
+            className="grid h-8 w-8 place-items-center rounded-xl border border-slate-200/80 bg-slate-50 text-slate-500 hover:bg-rose-50 hover:text-rose-600 dark:border-white/[0.08] dark:bg-slate-900 dark:text-slate-400 dark:hover:bg-rose-950/30 shrink-0"
             title="Reset current tool"
           >
             <RotateCcw size={13} />

@@ -47,12 +47,12 @@ export default function AssetStagingDrawer({
   return (
     <div className="relative z-20 border-t border-slate-200/80 bg-white/95 backdrop-blur-2xl transition-all dark:border-white/[0.08] dark:bg-slate-950/90 shadow-lg">
       {/* Drawer Toggle Header Bar */}
-      <div className="flex h-9 items-center justify-between px-4 text-xs font-semibold text-slate-600 dark:text-slate-300">
-        <div className="flex items-center gap-2">
+      <div className="flex h-9 items-center justify-between px-2.5 sm:px-4 text-xs font-semibold text-slate-600 dark:text-slate-300 min-w-0">
+        <div className="flex items-center gap-1.5 sm:gap-2 min-w-0 flex-shrink">
           <button
             type="button"
             onClick={() => setIsOpen(!isOpen)}
-            className="flex items-center gap-2 hover:text-slate-900 dark:hover:text-white"
+            className="flex items-center gap-1.5 sm:gap-2 hover:text-slate-900 dark:hover:text-white shrink-0"
           >
             {isOpen ? <ChevronDown size={14} /> : <ChevronUp size={14} />}
             <span className="font-extrabold uppercase tracking-wider text-[10px] text-slate-500 dark:text-slate-400">
@@ -63,12 +63,12 @@ export default function AssetStagingDrawer({
             </span>
           </button>
 
-          <span className="hidden sm:inline text-[11px] text-slate-400">
+          <span className="hidden md:inline text-[11px] text-slate-400 truncate">
             • Files stay in this tray so you can switch tools without re-uploading
           </span>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
           {stagedFiles.length > 0 && (
             <>
               <button
@@ -78,13 +78,14 @@ export default function AssetStagingDrawer({
                 title={`Send all files to ${activeToolDef.name}`}
               >
                 <Send size={10} />
-                <span>Load All into {activeToolDef.shortName}</span>
+                <span className="hidden sm:inline">Load All into {activeToolDef.shortName}</span>
+                <span className="sm:hidden">Load All</span>
               </button>
 
               <button
                 type="button"
                 onClick={onClearFiles}
-                className="text-[11px] text-rose-500 hover:text-rose-600"
+                className="text-[11px] text-rose-500 hover:text-rose-600 px-1"
               >
                 Clear
               </button>
@@ -93,7 +94,7 @@ export default function AssetStagingDrawer({
 
           <label className="cursor-pointer inline-flex items-center gap-1 rounded-lg border border-slate-200/80 bg-slate-100/80 px-2 py-0.5 text-[11px] font-bold text-slate-700 hover:bg-white dark:border-white/[0.08] dark:bg-slate-900 dark:text-slate-300">
             <Plus size={11} />
-            <span>Add File</span>
+            <span className="hidden xs:inline">Add File</span>
             <input
               type="file"
               multiple

@@ -51,7 +51,7 @@ export default function LanguageSelector({ className = "", variant = "default" }
         aria-expanded={isOpen}
       >
         <CountryFlag code={currentMeta.code} size={15} />
-        <span className={variant === "compact" ? "hidden" : "hidden sm:inline-block font-semibold"}>
+        <span className={variant === "compact" ? "hidden" : "hidden lg:inline-block font-semibold"}>
           {currentMeta.nativeName}
         </span>
         <ChevronDown
