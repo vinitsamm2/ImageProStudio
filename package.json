@@ -17,6 +17,8 @@
     "preview": "vite preview --host localhost"
   },
   "dependencies": {
+    "@pdfsmaller/pdf-decrypt": "^1.0.1",
+    "@pdfsmaller/pdf-encrypt": "^1.2.0",
     "@vercel/speed-insights": "^2.0.0",
     "@vitejs/plugin-react": "^5.0.2",
     "express": "^5.2.1",

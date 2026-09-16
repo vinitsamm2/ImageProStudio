@@ -25,6 +25,12 @@ import PdfCompressorView from "./components/tools/PdfCompressorView";
 import PdfEditorView from "./components/tools/PdfEditorView";
 import PdfToWordView from "./components/tools/PdfToWordView";
 import WordToPdfView from "./components/tools/WordToPdfView";
+import PdfProtectView from "./components/tools/PdfProtectView";
+import PdfUnlockView from "./components/tools/PdfUnlockView";
+import PdfPageNumberView from "./components/tools/PdfPageNumberView";
+import PdfTextExtractorView from "./components/tools/PdfTextExtractorView";
+import ImageExifCleanerView from "./components/tools/ImageExifCleanerView";
+import PdfCropView from "./components/tools/PdfCropView";
 import ShareQrModal, { ShareableFile } from "./components/ShareQrModal";
 import MobileDownloadView from "./components/MobileDownloadView";
 import { SpeedInsights } from "@vercel/speed-insights/react";
@@ -304,6 +310,54 @@ export default function App() {
                   notify={notify}
                   initialFiles={toolInitialFiles}
                   onSwitchViceVersa={() => setActiveTool("pdf-to-word")}
+                  onShareFile={(file) => setShareModalFile(file)}
+                />
+              )}
+              {activeTool === "protect-pdf" && (
+                <PdfProtectView
+                  notify={notify}
+                  initialFiles={toolInitialFiles}
+                  onSwitchViceVersa={() => setActiveTool("unlock-pdf")}
+                  onShareFile={(file) => setShareModalFile(file)}
+                />
+              )}
+              {activeTool === "unlock-pdf" && (
+                <PdfUnlockView
+                  notify={notify}
+                  initialFiles={toolInitialFiles}
+                  onSwitchViceVersa={() => setActiveTool("protect-pdf")}
+                  onShareFile={(file) => setShareModalFile(file)}
+                />
+              )}
+              {activeTool === "page-number-pdf" && (
+                <PdfPageNumberView
+                  notify={notify}
+                  initialFiles={toolInitialFiles}
+                  onSwitchViceVersa={() => setActiveTool("watermark-pdf")}
+                  onShareFile={(file) => setShareModalFile(file)}
+                />
+              )}
+              {activeTool === "pdf-text-extractor" && (
+                <PdfTextExtractorView
+                  notify={notify}
+                  initialFiles={toolInitialFiles}
+                  onSwitchViceVersa={() => setActiveTool("pdf-to-word")}
+                  onShareFile={(file) => setShareModalFile(file)}
+                />
+              )}
+              {activeTool === "exif-cleaner" && (
+                <ImageExifCleanerView
+                  notify={notify}
+                  initialFiles={toolInitialFiles}
+                  onSwitchViceVersa={() => setActiveTool("compressor")}
+                  onShareFile={(file) => setShareModalFile(file)}
+                />
+              )}
+              {activeTool === "crop-pdf" && (
+                <PdfCropView
+                  notify={notify}
+                  initialFiles={toolInitialFiles}
+                  onSwitchViceVersa={() => setActiveTool("rotate-pdf")}
                   onShareFile={(file) => setShareModalFile(file)}
                 />
               )}

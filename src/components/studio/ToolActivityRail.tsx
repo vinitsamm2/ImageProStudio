@@ -19,7 +19,12 @@ import {
   Sparkles,
   Stamp,
   Wand2,
-  FileType
+  FileType,
+  Lock,
+  Unlock,
+  FileDigit,
+  ShieldCheck,
+  Crop
 } from "lucide-react";
 import { ToolId } from "../ToolGrid";
 import { useState } from "react";
@@ -219,6 +224,72 @@ export const STUDIO_TOOLS: ToolItemDef[] = [
     badge: "New",
     viceVersaId: "compressor",
     viceVersaLabel: "Image Compressor"
+  },
+  {
+    id: "protect-pdf",
+    name: "Protect PDF",
+    shortName: "Protect",
+    shortcut: "P",
+    category: "pdf",
+    icon: Lock,
+    badge: "AES-256",
+    viceVersaId: "unlock-pdf",
+    viceVersaLabel: "Unlock PDF"
+  },
+  {
+    id: "unlock-pdf",
+    name: "Unlock PDF",
+    shortName: "Unlock",
+    shortcut: "U",
+    category: "pdf",
+    icon: Unlock,
+    badge: "Security",
+    viceVersaId: "protect-pdf",
+    viceVersaLabel: "Protect PDF"
+  },
+  {
+    id: "page-number-pdf",
+    name: "Add Page Numbers",
+    shortName: "Page Nos",
+    shortcut: "N",
+    category: "pdf",
+    icon: FileDigit,
+    badge: "New",
+    viceVersaId: "watermark-pdf",
+    viceVersaLabel: "Watermark PDF"
+  },
+  {
+    id: "pdf-text-extractor",
+    name: "PDF Text Extractor",
+    shortName: "Extract Text",
+    shortcut: "T",
+    category: "pdf",
+    icon: FileText,
+    badge: "New",
+    viceVersaId: "pdf-to-word",
+    viceVersaLabel: "PDF to Word"
+  },
+  {
+    id: "exif-cleaner",
+    name: "Image EXIF Cleaner",
+    shortName: "EXIF Clean",
+    shortcut: "X",
+    category: "image",
+    icon: ShieldCheck,
+    badge: "Privacy",
+    viceVersaId: "compressor",
+    viceVersaLabel: "Image Compressor"
+  },
+  {
+    id: "crop-pdf",
+    name: "Crop PDF",
+    shortName: "Crop",
+    shortcut: "K",
+    category: "pdf",
+    icon: Crop,
+    badge: "Trim",
+    viceVersaId: "rotate-pdf",
+    viceVersaLabel: "Rotate PDF"
   }
 ];
 

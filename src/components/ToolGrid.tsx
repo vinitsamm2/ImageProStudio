@@ -17,7 +17,12 @@ import {
   Scissors,
   Sparkles,
   Stamp,
-  FileType
+  FileType,
+  Lock,
+  Unlock,
+  FileDigit,
+  ShieldCheck,
+  Crop
 } from "lucide-react";
 
 export type ToolId =
@@ -37,7 +42,13 @@ export type ToolId =
   | "sign-pdf"
   | "edit-pdf"
   | "pdf-to-word"
-  | "word-to-pdf";
+  | "word-to-pdf"
+  | "protect-pdf"
+  | "unlock-pdf"
+  | "page-number-pdf"
+  | "pdf-text-extractor"
+  | "exif-cleaner"
+  | "crop-pdf";
 
 export type ToolCategory = "all" | "image" | "pdf";
 
@@ -216,6 +227,66 @@ export const TOOLS: ToolDef[] = [
     icon: Layers,
     badge: "Interactive",
     gradient: "from-purple-600 to-indigo-600"
+  },
+  {
+    id: "protect-pdf",
+    name: "Protect PDF",
+    tagline: "Encrypt with AES-256 password & permissions",
+    description: "Secure sensitive documents with military-grade 256-bit encryption and granular print/copy permissions completely in your browser.",
+    category: "pdf",
+    icon: Lock,
+    badge: "AES-256",
+    gradient: "from-blue-600 via-indigo-600 to-cyan-500"
+  },
+  {
+    id: "unlock-pdf",
+    name: "Unlock PDF",
+    tagline: "Remove password & restrictions from PDF",
+    description: "Permanently decrypt password-protected PDFs to open, edit, and print without entering a password every time.",
+    category: "pdf",
+    icon: Unlock,
+    badge: "Security",
+    gradient: "from-indigo-600 via-blue-600 to-sky-500"
+  },
+  {
+    id: "page-number-pdf",
+    name: "Add Page Numbers",
+    tagline: "Bates numbering, headers & footers",
+    description: "Number PDF pages in 6 positions with custom formats (Page X of Y, 1, 2...), fonts, colors, and cover page exclusion.",
+    category: "pdf",
+    icon: FileDigit,
+    badge: "Bates",
+    gradient: "from-sky-500 to-blue-600"
+  },
+  {
+    id: "pdf-text-extractor",
+    name: "PDF Text Extractor",
+    tagline: "Extract text to TXT/MD with word count",
+    description: "Extract clean text and structured Markdown from any PDF with reading metrics, search, and one-click clipboard copy.",
+    category: "pdf",
+    icon: FileText,
+    badge: "Analytics",
+    gradient: "from-blue-500 via-teal-500 to-emerald-500"
+  },
+  {
+    id: "exif-cleaner",
+    name: "Image EXIF Cleaner",
+    tagline: "Strip GPS location & camera metadata",
+    description: "Audit photos for sensitive location data and camera info. Clean and sanitize JPG, PNG, and WebP images with 0 privacy leakage.",
+    category: "image",
+    icon: ShieldCheck,
+    badge: "Privacy",
+    gradient: "from-emerald-500 via-teal-500 to-cyan-500"
+  },
+  {
+    id: "crop-pdf",
+    name: "Crop PDF",
+    tagline: "Trim margins & shipping labels (4×6)",
+    description: "Visually trim white margins, isolate shipping labels, or crop custom rectangular areas with real-time visual handles.",
+    category: "pdf",
+    icon: Crop,
+    badge: "Smart Trim",
+    gradient: "from-cyan-500 to-blue-600"
   }
 ];
 
