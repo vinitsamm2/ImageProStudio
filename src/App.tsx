@@ -33,11 +33,19 @@ import ImageExifCleanerView from "./components/tools/ImageExifCleanerView";
 import PdfCropView from "./components/tools/PdfCropView";
 import ShareQrModal, { ShareableFile } from "./components/ShareQrModal";
 import MobileDownloadView from "./components/MobileDownloadView";
+import ToolSeoSection from "./components/seo/ToolSeoSection";
 import { SpeedInsights } from "@vercel/speed-insights/react";
 import { uid } from "./lib/files";
+import { getToolIdFromPath, getPathFromToolId, updatePageSeo } from "./lib/toolRoutes";
 
 export default function App() {
-  const [activeTool, setActiveTool] = useState<ToolId>("image-to-pdf");
+  const [activeTool, setActiveTool] = useState<ToolId>(() => {
+    if (typeof window !== "undefined") {
+      const fromPath = getToolIdFromPath(window.location.pathname);
+      if (fromPath) return fromPath;
+    }
+    return "image-to-pdf";
+  });
   const [isCatalogOpen, setIsCatalogOpen] = useState(false);
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
   const [isAboutOpen, setIsAboutOpen] = useState(false);
@@ -66,6 +74,30 @@ export default function App() {
     document.documentElement.classList.toggle("dark", dark);
     localStorage.setItem("imagepro-theme", dark ? "dark" : "light");
   }, [dark]);
+
+  // URL synchronization & Dynamic SEO (title, meta, canonical, JSON-LD)
+  useEffect(() => {
+    updatePageSeo(activeTool);
+    if (typeof window !== "undefined") {
+      const targetPath = getPathFromToolId(activeTool);
+      if (window.location.pathname !== targetPath) {
+        window.history.pushState({ toolId: activeTool }, "", targetPath);
+      }
+    }
+  }, [activeTool]);
+
+  // Handle browser Back / Forward history navigation
+  useEffect(() => {
+    const handlePopState = () => {
+      const fromPath = getToolIdFromPath(window.location.pathname);
+      if (fromPath) {
+        setActiveTool(fromPath);
+        setIsCatalogOpen(false);
+      }
+    };
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, []);
 
   // Global Hotkeys: Cmd+K for Command Palette, Numbers 1-9 for instant tool switching
   useEffect(() => {
@@ -362,6 +394,12 @@ export default function App() {
                 />
               )}
             </div>
+
+            {/* Below-tool SEO & Guide section */}
+            <ToolSeoSection
+              toolId={activeTool}
+              onSelectTool={handleLaunchTool}
+            />
           </div>
         }
       />
