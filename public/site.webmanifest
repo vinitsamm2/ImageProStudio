@@ -1,0 +1,23 @@
+{
+  "name": "ImagePro Studio",
+  "short_name": "ImagePro",
+  "description": "Convert PDF to JPG/PNG online. Compress certificates under 200KB and resize passport photos to 35x45mm for UPSC, SSC, NEET, and JEE applications.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#08101e",
+  "theme_color": "#08101e",
+  "icons": [
+    {
+      "src": "/favicon-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/logo.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
