@@ -711,13 +711,6 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
       return "en";
     }
 
-    // Check googtrans cookie if already present in browser
-    const match = document.cookie.match(/(?:^|;)\s*googtrans=\/en\/([a-zA-Z\-]+)/);
-    if (match && match[1]) {
-      const cookieLang = (match[1] === "zh-CN" ? "zh" : match[1]) as LanguageCode;
-      if (cookieLang && TRANSLATIONS[cookieLang]) return cookieLang;
-    }
-
     return detected;
   });
 
@@ -732,9 +725,7 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     document.documentElement.lang = language;
-    if (language !== "en") {
-      applyPageTranslation(language);
-    }
+    applyPageTranslation(language);
   }, [language]);
 
   const currentMeta = LANGUAGES.find((l) => l.code === language) || LANGUAGES[0];
@@ -750,88 +741,35 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
   );
 }
 
+let studioTranslatorPromise: Promise<typeof import("./studioTranslator")> | null = null;
+function getStudioTranslator() {
+  if (!studioTranslatorPromise) {
+    studioTranslatorPromise = import("./studioTranslator");
+  }
+  return studioTranslatorPromise;
+}
+
 /**
  * Translates the entire webpage (all text, tools, FAQs, modals, buttons)
- * using the Google Translate engine and accelerated synchronization cookies.
+ * using the instant in-memory dictionary engine.
+ * Works 100% locally and offline without external services or Google Translate.
  */
 export function applyPageTranslation(lang: LanguageCode) {
   if (typeof window === "undefined") return;
 
-  const target = lang === "zh" ? "zh-CN" : lang;
-  const hostname = window.location.hostname;
-  const isLocal = !hostname || hostname === "localhost" || /^\d+\.\d+\.\d+\.\d+$/.test(hostname);
-  const domainParts = hostname.split(".");
-  const rootDomain = !isLocal && domainParts.length > 1 ? `.${domainParts.slice(-2).join(".")}` : "";
+  // Instant in-memory translation loaded on-demand
+  getStudioTranslator().then((mod) => {
+    mod.applyStudioNativeTranslation(lang, TRANSLATIONS);
+  });
 
-  const writeCookie = (val: string, maxAgeSec?: number) => {
-    const age = typeof maxAgeSec === "number" ? `; max-age=${maxAgeSec}` : "";
-    document.cookie = `googtrans=${val}; path=/${age}; SameSite=Lax`;
-    if (!isLocal) {
-      document.cookie = `googtrans=${val}; domain=${hostname}; path=/${age}; SameSite=Lax`;
-      if (rootDomain && rootDomain !== hostname) {
-        document.cookie = `googtrans=${val}; domain=${rootDomain}; path=/${age}; SameSite=Lax`;
-      }
+  // 2. Clear any residual Google Translate cookies
+  try {
+    document.cookie = "googtrans=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; SameSite=Lax";
+    const hostname = window.location.hostname;
+    if (hostname && hostname !== "localhost") {
+      document.cookie = `googtrans=; expires=Thu, 01 Jan 1970 00:00:00 UTC; domain=${hostname}; path=/; SameSite=Lax`;
     }
-  };
-
-  const clearCookie = () => {
-    const expire = "=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
-    document.cookie = "googtrans" + expire;
-    if (!isLocal) {
-      document.cookie = `googtrans${expire} domain=${hostname};`;
-      if (rootDomain) {
-        document.cookie = `googtrans${expire} domain=${rootDomain};`;
-      }
-    }
-  };
-
-  // Sync Google Translate googtrans cookie across root path & domains with SameSite=Lax
-  if (lang === "en") {
-    clearCookie();
-    writeCookie("/en/en", 31536000);
-  } else {
-    writeCookie(`/en/${target}`, 31536000);
-  }
-
-  // Trigger Google Translate combo element dynamically
-  const triggerCombo = () => {
-    const select = document.querySelector(".goog-te-combo") as HTMLSelectElement | null;
-    if (select) {
-      const targetVal =
-        lang === "en"
-          ? Array.from(select.options).some((o) => o.value === "en")
-            ? "en"
-            : ""
-          : target;
-
-      if (select.value !== targetVal) {
-        select.value = targetVal;
-        select.dispatchEvent(new Event("change"));
-      }
-      return true;
-    }
-    return false;
-  };
-
-  if (!triggerCombo()) {
-    // 0ms Zero-Latency MutationObserver: Triggers the exact millisecond the combo is rendered
-    const container = document.getElementById("google_translate_element") || document.body;
-    const observer = new MutationObserver(() => {
-      if (triggerCombo()) {
-        observer.disconnect();
-      }
-    });
-    observer.observe(container, { childList: true, subtree: true });
-
-    let attempts = 0;
-    const interval = setInterval(() => {
-      attempts++;
-      if (triggerCombo() || attempts > 30) {
-        clearInterval(interval);
-        observer.disconnect();
-      }
-    }, 60);
-  }
+  } catch (e) {}
 }
 
 export function useLanguage() {

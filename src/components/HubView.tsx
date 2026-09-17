@@ -23,7 +23,7 @@ import { useEffect, useState } from "react";
 import OmniDropzone from "./OmniDropzone";
 import { TOOLS, ToolCategory, ToolId } from "./ToolGrid";
 import BrandLogo from "./ui/BrandLogo";
-import { useLanguage, applyPageTranslation } from "../lib/i18n";
+import { useLanguage } from "../lib/i18n";
 
 type HubViewProps = {
   onLaunchTool: (id: ToolId) => void;
@@ -32,14 +32,10 @@ type HubViewProps = {
 };
 
 export default function HubView({ onLaunchTool, onOmniRoute, onOpenAbout }: HubViewProps) {
-  const { language, t } = useLanguage();
+  const { t } = useLanguage();
   const [selectedCategory, setSelectedCategory] = useState<ToolCategory>("all");
   const [hoveredCardId, setHoveredCardId] = useState<string | null>(null);
   const [openFaqIndex, setOpenFaqIndex] = useState<number | null>(0);
-
-  useEffect(() => {
-    applyPageTranslation(language);
-  }, [language]);
 
   const filteredTools = TOOLS.filter((t) => {
     if (selectedCategory === "all") return true;

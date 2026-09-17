@@ -4,7 +4,6 @@ import { ToolId } from "../ToolGrid";
 import ToolActivityRail, { STUDIO_TOOLS } from "./ToolActivityRail";
 import StudioTopBar from "./StudioTopBar";
 import AssetStagingDrawer from "./AssetStagingDrawer";
-import { useLanguage, applyPageTranslation } from "../../lib/i18n";
 
 type StudioLayoutProps = {
   activeTool: ToolId;
@@ -43,18 +42,8 @@ export default function StudioLayout({
   catalogContent,
   toolContent
 }: StudioLayoutProps) {
-  const { language } = useLanguage();
   const [collapsed, setCollapsed] = useState(false);
   const [mobileRailOpen, setMobileRailOpen] = useState(false);
-
-  useEffect(() => {
-    if (language !== "en") {
-      const timer = setTimeout(() => {
-        applyPageTranslation(language);
-      }, 70);
-      return () => clearTimeout(timer);
-    }
-  }, [isCatalogOpen, language]);
 
   return (
     <div className="flex h-[100dvh] w-full min-w-0 overflow-hidden bg-slate-100 text-slate-900 transition-colors dark:bg-[#070a10] dark:text-slate-100 font-sans">

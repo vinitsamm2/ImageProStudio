@@ -131,40 +131,16 @@ body {
   }
 }
 
-/* Full Webpage Translation Styles: Hide intrusive Google Translate banners & toolbars */
-.goog-te-banner-frame.skiptranslate,
-.goog-te-banner-frame,
-iframe.goog-te-banner-frame,
-.goog-te-balloon-frame {
-  display: none !important;
-  visibility: hidden !important;
-}
-
+/* Translation Defenses: Ensure body position remains static and prevent external extension banners from shifting layout */
 body {
   top: 0px !important;
   position: static !important;
 }
 
+.skiptranslate,
 #goog-gt-tt,
-.goog-tooltip,
-.goog-tooltip:hover {
+.goog-te-banner-frame,
+.goog-te-spinner-pos {
   display: none !important;
 }
 
-.goog-text-highlight {
-  background-color: transparent !important;
-  box-shadow: none !important;
-}
-
-#google_translate_element {
-  display: none !important;
-  position: absolute !important;
-  visibility: hidden !important;
-  width: 0 !important;
-  height: 0 !important;
-  overflow: hidden !important;
-}
-
-body > .skiptranslate {
-  display: none !important;
-}

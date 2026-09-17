@@ -208,10 +208,12 @@ function mobileSharePlugin(): Plugin {
 export default defineConfig({
   plugins: [react(), mobileSharePlugin()],
   server: {
-    host: "localhost"
+    host: "0.0.0.0",
+    port: 5173
   },
   preview: {
-    host: "localhost"
+    host: "0.0.0.0",
+    port: 5173
   },
   resolve: {
     alias: {
@@ -219,6 +221,7 @@ export default defineConfig({
     }
   },
   optimizeDeps: {
+    include: ["react", "react-dom", "lucide-react", "framer-motion", "pdf-lib", "jszip", "qrcode"],
     exclude: ["pdfjs-dist"]
   },
   build: {

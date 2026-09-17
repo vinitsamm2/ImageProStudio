@@ -135,8 +135,8 @@ export default function StudioTopBar({
           )}
         </div>
 
-        {/* Vice-Versa Quick Action In TopBar - Hidden on mobile/compact to prevent header overflow */}
-        {currentTool.viceVersaId && (
+        {/* Vice-Versa Quick Action In TopBar - Hidden in Catalog View & mobile */}
+        {!isCatalogOpen && currentTool.viceVersaId && (
           <button
             type="button"
             onClick={() => onSelectTool(currentTool.viceVersaId!)}
