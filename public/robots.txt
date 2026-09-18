@@ -1,4 +1,10 @@
 User-agent: *
 Allow: /
 
+User-agent: bingbot
+Allow: /
+
+User-agent: msnbot
+Allow: /
+
 Sitemap: https://www.imageprostudio.in/sitemap.xml
