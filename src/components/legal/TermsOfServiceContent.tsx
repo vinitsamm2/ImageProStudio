@@ -107,7 +107,7 @@ export default function TermsOfServiceContent() {
         </p>
         <div className="text-xs space-y-1 pt-1 font-medium">
           <div><strong>Publisher:</strong> Vinit Sammir (Software Engineer — Cognizant)</div>
-          <div><strong>Email:</strong> <a href="mailto:support@imageprostudio.in" className="text-cyan-600 dark:text-cyan-400 underline font-bold">support@imageprostudio.in</a></div>
+          <div><strong>Email:</strong> <a href="mailto:vinitsammir2@gmail.com" className="text-cyan-600 dark:text-cyan-400 underline font-bold">vinitsammir2@gmail.com</a></div>
           <div><strong>Official Website:</strong> <a href="https://www.imageprostudio.in" className="text-cyan-600 dark:text-cyan-400 underline">https://www.imageprostudio.in</a></div>
         </div>
       </section>

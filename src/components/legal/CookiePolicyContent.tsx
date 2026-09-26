@@ -125,7 +125,7 @@ export default function CookiePolicyContent() {
       {/* 4. Contact */}
       <section className="space-y-2 text-xs text-slate-500 dark:text-slate-400 pt-2">
         <p>
-          For additional questions regarding our cookie practices, reach out to <a href="mailto:support@imageprostudio.in" className="text-cyan-600 dark:text-cyan-400 underline font-medium">support@imageprostudio.in</a>.
+          For additional questions regarding our cookie practices, reach out to <a href="mailto:vinitsammir2@gmail.com" className="text-cyan-600 dark:text-cyan-400 underline font-medium">vinitsammir2@gmail.com</a>.
         </p>
       </section>
     </div>

@@ -203,7 +203,7 @@ export default function PrivacyPolicyContent() {
         <div className="text-xs space-y-1 pt-1 font-medium">
           <div><strong>Publisher / Site Owner:</strong> Vinit Sammir</div>
           <div><strong>Role:</strong> Software Engineer (Cognizant) & Founder of ImagePro Studio</div>
-          <div><strong>Email:</strong> <a href="mailto:support@imageprostudio.in" className="text-cyan-600 dark:text-cyan-400 underline font-bold">support@imageprostudio.in</a></div>
+          <div><strong>Email:</strong> <a href="mailto:vinitsammir2@gmail.com" className="text-cyan-600 dark:text-cyan-400 underline font-bold">vinitsammir2@gmail.com</a></div>
           <div><strong>Website:</strong> <a href="https://www.imageprostudio.in" className="text-cyan-600 dark:text-cyan-400 underline">https://www.imageprostudio.in</a></div>
           <div><strong>LinkedIn:</strong> <a href="https://www.linkedin.com/in/vinit-sammir" target="_blank" rel="noopener noreferrer" className="text-cyan-600 dark:text-cyan-400 underline">linkedin.com/in/vinit-sammir</a></div>
         </div>

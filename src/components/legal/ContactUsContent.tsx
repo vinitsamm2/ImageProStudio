@@ -15,7 +15,7 @@ export default function ContactUsContent() {
     // Create mailto link fallback so user's client opens with their exact message
     const subject = encodeURIComponent(`[ImagePro Studio Support] ${topic} from ${name || "User"}`);
     const body = encodeURIComponent(`Name: ${name}\nEmail: ${email}\nTopic: ${topic}\n\nMessage:\n${message}`);
-    const mailtoUrl = `mailto:support@imageprostudio.in?subject=${subject}&body=${body}`;
+    const mailtoUrl = `mailto:vinitsammir2@gmail.com?subject=${subject}&body=${body}`;
     
     // Simulate instantaneous confirmation & open email client
     setSubmitted(true);
@@ -53,10 +53,10 @@ export default function ContactUsContent() {
                 <div>
                   <div className="font-bold text-slate-900 dark:text-white">Official Support Email</div>
                   <a
-                    href="mailto:support@imageprostudio.in"
+                    href="mailto:vinitsammir2@gmail.com"
                     className="text-cyan-600 dark:text-cyan-400 underline font-medium"
                   >
-                    support@imageprostudio.in
+                    vinitsammir2@gmail.com
                   </a>
                 </div>
               </div>
@@ -111,8 +111,8 @@ export default function ContactUsContent() {
                 </h3>
                 <p className="text-xs text-slate-600 dark:text-slate-300 max-w-sm mx-auto">
                   Your message has been initiated. If your email client didn't open automatically, you can always write to us directly at{" "}
-                  <a href="mailto:support@imageprostudio.in" className="text-cyan-600 dark:text-cyan-400 font-bold underline">
-                    support@imageprostudio.in
+                  <a href="mailto:vinitsammir2@gmail.com" className="text-cyan-600 dark:text-cyan-400 font-bold underline">
+                    vinitsammir2@gmail.com
                   </a>.
                 </p>
                 <button
