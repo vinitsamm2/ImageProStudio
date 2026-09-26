@@ -34,9 +34,19 @@ import PdfCropView from "./components/tools/PdfCropView";
 import ShareQrModal, { ShareableFile } from "./components/ShareQrModal";
 import MobileDownloadView from "./components/MobileDownloadView";
 import ToolSeoSection from "./components/seo/ToolSeoSection";
+import LegalModal, { LegalTabId } from "./components/legal/LegalModal";
+import CookieConsentBanner from "./components/ui/CookieConsentBanner";
+import SiteFooter from "./components/ui/SiteFooter";
 import { SpeedInsights } from "@vercel/speed-insights/react";
 import { uid } from "./lib/files";
-import { getToolIdFromPath, getPathFromToolId, updatePageSeo } from "./lib/toolRoutes";
+import {
+  getToolIdFromPath,
+  getPathFromToolId,
+  updatePageSeo,
+  getLegalRouteFromPath,
+  getPathFromLegalRoute,
+  updateLegalPageSeo
+} from "./lib/toolRoutes";
 
 export default function App() {
   const [activeTool, setActiveTool] = useState<ToolId>(() => {
@@ -54,7 +64,22 @@ export default function App() {
     return true;
   });
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
-  const [isAboutOpen, setIsAboutOpen] = useState(false);
+  const [legalTab, setLegalTab] = useState<LegalTabId | null>(() => {
+    if (typeof window !== "undefined") {
+      const legalRoute = getLegalRouteFromPath(window.location.pathname);
+      if (legalRoute && legalRoute !== "about") {
+        return legalRoute as LegalTabId;
+      }
+    }
+    return null;
+  });
+  const [isAboutOpen, setIsAboutOpen] = useState<boolean>(() => {
+    if (typeof window !== "undefined") {
+      const legalRoute = getLegalRouteFromPath(window.location.pathname);
+      return legalRoute === "about";
+    }
+    return false;
+  });
   const [stagedFiles, setStagedFiles] = useState<File[]>([]);
   const [toolInitialFiles, setToolInitialFiles] = useState<File[]>([]);
 
@@ -83,7 +108,23 @@ export default function App() {
 
   // URL synchronization & Dynamic SEO (title, meta, canonical, JSON-LD)
   useEffect(() => {
-    if (isCatalogOpen) {
+    if (legalTab) {
+      updateLegalPageSeo(legalTab);
+      if (typeof window !== "undefined") {
+        const targetPath = getPathFromLegalRoute(legalTab);
+        if (window.location.pathname !== targetPath) {
+          window.history.pushState({ legalTab }, "", targetPath);
+        }
+      }
+    } else if (isAboutOpen) {
+      updateLegalPageSeo("about");
+      if (typeof window !== "undefined") {
+        const targetPath = getPathFromLegalRoute("about");
+        if (window.location.pathname !== targetPath) {
+          window.history.pushState({ about: true }, "", targetPath);
+        }
+      }
+    } else if (isCatalogOpen) {
       updatePageSeo(null);
       if (typeof window !== "undefined" && window.location.pathname !== "/") {
         window.history.pushState({ toolId: null, catalog: true }, "", "/");
@@ -97,11 +138,25 @@ export default function App() {
         }
       }
     }
-  }, [activeTool, isCatalogOpen]);
+  }, [activeTool, isCatalogOpen, legalTab, isAboutOpen]);
 
   // Handle browser Back / Forward history navigation
   useEffect(() => {
     const handlePopState = () => {
+      const legalRoute = getLegalRouteFromPath(window.location.pathname);
+      if (legalRoute) {
+        if (legalRoute === "about") {
+          setIsAboutOpen(true);
+          setLegalTab(null);
+        } else {
+          setLegalTab(legalRoute as LegalTabId);
+          setIsAboutOpen(false);
+        }
+        return;
+      }
+      setLegalTab(null);
+      setIsAboutOpen(false);
+
       const fromPath = getToolIdFromPath(window.location.pathname);
       if (fromPath) {
         setActiveTool(fromPath);
@@ -113,6 +168,38 @@ export default function App() {
     window.addEventListener("popstate", handlePopState);
     return () => window.removeEventListener("popstate", handlePopState);
   }, []);
+
+  const handleOpenLegal = (tab: LegalTabId) => {
+    setLegalTab(tab);
+    setIsAboutOpen(false);
+  };
+
+  const handleCloseLegal = () => {
+    setLegalTab(null);
+    if (isCatalogOpen) {
+      window.history.pushState({ catalog: true }, "", "/");
+      updatePageSeo(null);
+    } else {
+      window.history.pushState({ toolId: activeTool }, "", getPathFromToolId(activeTool));
+      updatePageSeo(activeTool);
+    }
+  };
+
+  const handleOpenAbout = () => {
+    setIsAboutOpen(true);
+    setLegalTab(null);
+  };
+
+  const handleCloseAbout = () => {
+    setIsAboutOpen(false);
+    if (isCatalogOpen) {
+      window.history.pushState({ catalog: true }, "", "/");
+      updatePageSeo(null);
+    } else {
+      window.history.pushState({ toolId: activeTool }, "", getPathFromToolId(activeTool));
+      updatePageSeo(activeTool);
+    }
+  };
 
   // Global Hotkeys: Cmd+K for Command Palette, Numbers 1-9 for instant tool switching
   useEffect(() => {
@@ -206,7 +293,7 @@ export default function App() {
         onToggleCatalog={() => setIsCatalogOpen(!isCatalogOpen)}
         onGoHome={() => setIsCatalogOpen(true)}
         onOpenCommandPalette={() => setIsCommandPaletteOpen(true)}
-        onOpenAbout={() => setIsAboutOpen(true)}
+        onOpenAbout={handleOpenAbout}
         dark={dark}
         onToggleDark={() => setDark(!dark)}
         stagedFiles={stagedFiles}
@@ -226,7 +313,8 @@ export default function App() {
           <HubView
             onLaunchTool={handleLaunchTool}
             onOmniRoute={handleOmniRoute}
-            onOpenAbout={() => setIsAboutOpen(true)}
+            onOpenAbout={handleOpenAbout}
+            onOpenLegal={handleOpenLegal}
           />
         }
         toolContent={
@@ -417,6 +505,13 @@ export default function App() {
               toolId={activeTool}
               onSelectTool={handleLaunchTool}
             />
+
+            {/* Universal Site-Wide Footer for all tool pages */}
+            <SiteFooter
+              onSelectTool={handleLaunchTool}
+              onOpenLegal={handleOpenLegal}
+              onOpenAbout={handleOpenAbout}
+            />
           </div>
         }
       />
@@ -426,7 +521,7 @@ export default function App() {
         isOpen={isCommandPaletteOpen}
         onClose={() => setIsCommandPaletteOpen(false)}
         onSelectTool={handleLaunchTool}
-        onOpenAbout={() => setIsAboutOpen(true)}
+        onOpenAbout={handleOpenAbout}
         dark={dark}
         onToggleDark={() => setDark(!dark)}
       />
@@ -434,8 +529,21 @@ export default function App() {
       {/* About ImagePro Modal Sheet */}
       <AboutModal
         isOpen={isAboutOpen}
-        onClose={() => setIsAboutOpen(false)}
+        onClose={handleCloseAbout}
         onOpenTool={handleLaunchTool}
+      />
+
+      {/* Legal, Trust & AdSense Compliance Modal */}
+      <LegalModal
+        isOpen={!!legalTab}
+        initialTab={legalTab || "privacy"}
+        onClose={handleCloseLegal}
+        onSelectTab={handleOpenLegal}
+      />
+
+      {/* Cookie Consent & Privacy Transparency Banner */}
+      <CookieConsentBanner
+        onOpenCookiePolicy={() => handleOpenLegal("cookies")}
       />
 
       {/* Toast Notification Container */}

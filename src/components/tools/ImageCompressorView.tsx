@@ -11,7 +11,9 @@ import {
   Image as ImageIcon,
   QrCode,
   ShieldCheck,
+  Sliders,
   Sparkles,
+  Target,
   TrendingDown,
   TrendingUp,
   Zap
@@ -19,6 +21,7 @@ import {
 import UploadZone from "../UploadZone";
 import { Select } from "../ui/Controls";
 import {
+  compressImageToTargetKb,
   compressOrConvertImage,
   compressPdf,
   downloadBlob,
@@ -60,11 +63,13 @@ export default function ImageCompressorView({
   onShareFile?: (file: { name: string; blob: Blob; size?: number; url?: string }) => void;
 }) {
   const [files, setFiles] = useState<File[]>([]);
+  const [compressMode, setCompressMode] = useState<"targetKb" | "quality">("targetKb");
+  const [targetKb, setTargetKb] = useState<number>(50);
   const [quality, setQuality] = useState(72);
   const [format, setFormat] = useState("jpg");
   const [busy, setBusy] = useState(false);
   const [results, setResults] = useState<
-    Array<{ name: string; original: number; blob: Blob; url: string; isPdf?: boolean }>
+    Array<{ name: string; original: number; blob: Blob; url: string; isPdf?: boolean; targetKb?: number }>
   >([]);
 
   // Load initial files if provided from shelf or omni dropzone
@@ -74,7 +79,7 @@ export default function ImageCompressorView({
     }
   }, [initialFiles]);
 
-  // Live dynamic file size estimation that updates instantaneously when quality or format changes
+  // Live dynamic file size estimation that updates instantaneously when quality, format, or targetKb changes
   const liveTotals = useMemo(() => {
     let original = 0;
     let estimated = 0;
@@ -87,7 +92,8 @@ export default function ImageCompressorView({
         originalSize: f.size,
         quality: quality / 100,
         format: isPdf ? "application/pdf" : activeDef.mime,
-        isPdf
+        isPdf,
+        targetKb: compressMode === "targetKb" ? targetKb : undefined
       });
       estimated += est.bytes;
     }
@@ -95,7 +101,7 @@ export default function ImageCompressorView({
     const changePercent = original > 0 ? Math.round(((estimated - original) / original) * 100) : 0;
     const isReduction = estimated <= original;
     return { original, estimated, changePercent, isReduction };
-  }, [files, quality, format]);
+  }, [files, quality, format, compressMode, targetKb]);
 
   // Accurate Live Measured Output Size (probes canvas / compression in background)
   const [measuredTotal, setMeasuredTotal] = useState<number | null>(null);
@@ -114,15 +120,17 @@ export default function ImageCompressorView({
         for (const file of sample) {
           const isPdf = file.type.includes("pdf") || file.name.endsWith(".pdf");
           if (isPdf) {
-            const est = estimateFileSize({
-              originalSize: file.size,
+            const blob = await compressPdf(file, {
               quality: quality / 100,
-              format: "application/pdf",
-              isPdf: true
+              targetKb: compressMode === "targetKb" ? targetKb : undefined
             });
-            totalProbed += est.bytes;
+            if (!active) return;
+            totalProbed += blob.size;
           } else {
-            const blob = await compressOrConvertImage(file, activeDef.mime, quality / 100);
+            const blob =
+              compressMode === "targetKb"
+                ? await compressImageToTargetKb(file, targetKb, activeDef.mime)
+                : await compressOrConvertImage(file, activeDef.mime, quality / 100);
             if (!active) return;
             totalProbed += blob.size;
           }
@@ -143,7 +151,7 @@ export default function ImageCompressorView({
       active = false;
       clearTimeout(timer);
     };
-  }, [files, quality, format]);
+  }, [files, quality, format, compressMode, targetKb]);
 
   // Exact total bytes from completed compression runs
   const actualCompressedTotal = useMemo(() => {
@@ -184,6 +192,9 @@ export default function ImageCompressorView({
 
   const run = async () => {
     if (!files.length) return notify("Upload or paste one or more files first.", "error");
+    if (compressMode === "targetKb" && (!targetKb || targetKb <= 0)) {
+      return notify("Please specify a valid required file size in KB.", "error");
+    }
     setBusy(true);
     const activeDef = COMPRESS_FORMAT_MAP[format] || COMPRESS_FORMAT_MAP.jpg;
     try {
@@ -191,22 +202,30 @@ export default function ImageCompressorView({
         files.map(async (file) => {
           const isPdf = file.type.includes("pdf") || file.name.endsWith(".pdf");
           if (isPdf) {
-            const blob = await compressPdf(file, quality / 100);
+            const blob = await compressPdf(file, {
+              quality: quality / 100,
+              targetKb: compressMode === "targetKb" ? targetKb : undefined
+            });
             return {
               name: outputName(file.name, "pdf"),
               original: file.size,
               blob,
               url: URL.createObjectURL(blob),
-              isPdf: true
+              isPdf: true,
+              targetKb: compressMode === "targetKb" ? targetKb : undefined
             };
           } else {
-            const blob = await compressOrConvertImage(file, activeDef.mime, quality / 100);
+            const blob =
+              compressMode === "targetKb"
+                ? await compressImageToTargetKb(file, targetKb, activeDef.mime)
+                : await compressOrConvertImage(file, activeDef.mime, quality / 100);
             return {
               name: outputName(file.name, activeDef.ext),
               original: file.size,
               blob,
               url: URL.createObjectURL(blob),
-              isPdf: false
+              isPdf: false,
+              targetKb: compressMode === "targetKb" ? targetKb : undefined
             };
           }
         })
@@ -312,7 +331,7 @@ export default function ImageCompressorView({
                 Staged Files & Real-Time Size Estimates ({files.length})
               </span>
               <span className="text-xs font-mono font-bold text-cyan-600 dark:text-cyan-400">
-                Quality: {quality}%
+                {compressMode === "targetKb" ? `Target: ≤ ${targetKb} KB` : `Quality: ${quality}%`}
               </span>
             </div>
 
@@ -323,7 +342,8 @@ export default function ImageCompressorView({
                   originalSize: file.size,
                   quality: quality / 100,
                   format,
-                  isPdf
+                  isPdf,
+                  targetKb: compressMode === "targetKb" ? targetKb : undefined
                 });
                 return (
                   <div
@@ -340,6 +360,7 @@ export default function ImageCompressorView({
                         </p>
                         <p className="text-[10px] text-slate-400 font-mono">
                           Original: {formatBytes(file.size)}
+                          {compressMode === "targetKb" && ` • Max: ${targetKb} KB`}
                         </p>
                       </div>
                     </div>
@@ -410,10 +431,11 @@ export default function ImageCompressorView({
                       </span>
                     </div>
 
-                    <div className="p-3.5 space-y-2">
+                    <div className="p-3.5 space-y-2.5">
                       <p className="truncate text-xs font-bold text-slate-800 dark:text-slate-200" title={result.name}>
                         {result.name}
                       </p>
+
                       <div className="flex items-center justify-between text-xs font-mono text-slate-500">
                         <span className="line-through">{formatBytes(result.original)}</span>
                         <ArrowRight size={13} className="text-emerald-500" />
@@ -421,6 +443,19 @@ export default function ImageCompressorView({
                           {formatBytes(result.blob.size)}
                         </span>
                       </div>
+
+                      {result.targetKb && (
+                        <div className="flex items-center justify-between text-[11px] rounded-xl bg-emerald-500/10 px-2.5 py-1 text-emerald-700 dark:text-emerald-300 font-medium border border-emerald-500/20">
+                          <span className="flex items-center gap-1 font-mono text-[10px]">
+                            <Target size={12} className="text-emerald-500" />
+                            <span>Target: ≤ {result.targetKb} KB</span>
+                          </span>
+                          <span className="font-bold text-[10px]">
+                            {result.blob.size <= result.targetKb * 1024 ? "✓ Under Quota" : "Optimized"}
+                          </span>
+                        </div>
+                      )}
+
                       <div className="flex items-center gap-1.5">
                         <button
                           onClick={() =>
@@ -469,107 +504,208 @@ export default function ImageCompressorView({
       {/* Right Area: Controls, Quality Slider & Dynamic Size Indicator */}
       <div className="space-y-5 xl:sticky xl:top-0 xl:max-h-[calc(100vh-210px)] xl:overflow-y-auto pr-1">
         <div className="panel space-y-5">
-          {/* Quality Level Slider with Dynamic New Size Feedback */}
-          <div className="space-y-2.5">
-            <div className="flex items-center justify-between">
-              <label className="label">Quality Level (Size vs Clarity)</label>
-              <span className="font-mono text-xs font-bold text-cyan-600 dark:text-cyan-400">
-                {quality}%
-              </span>
-            </div>
-
-            <input
-              className="w-full accent-cyan-600 cursor-pointer h-2 bg-slate-200 rounded-lg dark:bg-slate-800"
-              type="range"
-              min={10}
-              max={100}
-              value={quality}
-              onChange={(e) => setQuality(Number(e.target.value))}
-            />
-
-            {/* Live Quality Description Tag */}
-            <div className={`rounded-xl border px-3 py-1.5 text-xs font-semibold flex items-center justify-between ${qualityTier.bg} ${qualityTier.border}`}>
-              <span className={qualityTier.color}>{qualityTier.label}</span>
-              {files.length > 0 && (
-                <span className="font-mono text-[11px] font-bold text-slate-700 dark:text-slate-200">
-                  Est: ~{formatBytes(liveTotals.estimated)}
-                </span>
-              )}
-            </div>
-          </div>
-
-          {/* Student & Employee Examination Form Target Presets */}
-          <div className="space-y-2 rounded-2xl border border-indigo-500/25 bg-indigo-500/5 p-3.5 dark:bg-indigo-950/25">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-extrabold text-indigo-950 dark:text-indigo-200 flex items-center gap-1.5">
-                <GraduationCap size={15} className="text-indigo-600 dark:text-indigo-400" />
-                <span>Exam Form Size Targets (100% Accepted)</span>
-              </span>
-              <span className="rounded bg-indigo-500/20 px-1.5 py-0.2 text-[9px] font-bold text-indigo-700 dark:text-indigo-300">
-                UPSC / SSC / NTA
-              </span>
-            </div>
-            <p className="text-[10px] text-slate-500 dark:text-slate-400">
-              1-click calibration to guarantee compliance with strict portal upload quotas
-            </p>
-
-            <div className="grid grid-cols-2 gap-2 pt-1">
-              {[
-                { label: "Exam Photo", target: "20–50 KB", q: 48, sub: "UPSC / SSC / Colleges" },
-                { label: "Signature", target: "10–20 KB", q: 32, sub: "Exam Signature Box" },
-                { label: "ID / Proof", target: "50–100 KB", q: 68, sub: "Aadhar / Voter Card" },
-                { label: "Marksheet", target: "100–300 KB", q: 80, sub: "Academic Scan" }
-              ].map((item) => (
-                <button
-                  key={item.label}
-                  type="button"
-                  onClick={() => {
-                    setQuality(item.q);
-                    setFormat("jpg");
-                    notify(`Calibrated quality for ${item.label} (${item.target}) in JPG format!`, "info");
-                  }}
-                  className="rounded-xl border border-indigo-500/20 bg-white/90 p-2 text-left transition hover:border-indigo-500 hover:bg-indigo-50/50 dark:border-white/[0.08] dark:bg-slate-900"
-                >
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold text-slate-800 dark:text-slate-200">
-                      {item.label}
-                    </span>
-                    <span className="text-[10px] font-mono font-bold text-indigo-600 dark:text-indigo-400">
-                      {item.target}
-                    </span>
-                  </div>
-                  <p className="text-[10px] text-slate-400 truncate mt-0.5">{item.sub}</p>
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Quick Quality Presets */}
+          {/* Method Selector Capsule: Target File Size (KB) vs Quality Slider */}
           <div className="space-y-1.5">
-            <span className="label block">Standard Quality Presets</span>
-            <div className="grid grid-cols-4 gap-1.5">
-              {[
-                { label: "Economy", val: 40, sub: "Smallest" },
-                { label: "Balanced", val: 70, sub: "Standard" },
-                { label: "High", val: 85, sub: "Crisp" },
-                { label: "Max", val: 95, sub: "Lossless" }
-              ].map((preset) => (
-                <button
-                  key={preset.label}
-                  type="button"
-                  onClick={() => setQuality(preset.val)}
-                  className={`rounded-xl border py-2 px-1 text-center transition ${
-                    quality === preset.val
-                      ? "border-cyan-500 bg-cyan-500/15 text-cyan-700 dark:text-cyan-300 font-bold"
-                      : "border-slate-200 bg-slate-50/80 hover:bg-slate-100 text-slate-700 dark:border-white/[0.08] dark:bg-slate-900 dark:text-slate-300"
-                  }`}
-                >
-                  <p className="text-xs font-bold">{preset.label}</p>
-                  <p className="text-[10px] opacity-70 font-mono">{preset.val}%</p>
-                </button>
-              ))}
+            <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
+              Compression Mode
+            </label>
+            <div className="grid grid-cols-2 gap-1.5 rounded-xl bg-slate-100 p-1 dark:bg-slate-800">
+              <button
+                type="button"
+                onClick={() => setCompressMode("targetKb")}
+                className={`flex items-center justify-center gap-1.5 rounded-lg py-2 text-xs font-bold transition ${
+                  compressMode === "targetKb"
+                    ? "bg-white text-cyan-700 shadow-sm dark:bg-slate-900 dark:text-cyan-300"
+                    : "text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
+                }`}
+              >
+                <Target size={14} className={compressMode === "targetKb" ? "text-cyan-500" : ""} />
+                <span>Target Size (KB)</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setCompressMode("quality")}
+                className={`flex items-center justify-center gap-1.5 rounded-lg py-2 text-xs font-bold transition ${
+                  compressMode === "quality"
+                    ? "bg-white text-cyan-700 shadow-sm dark:bg-slate-900 dark:text-cyan-300"
+                    : "text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
+                }`}
+              >
+                <Sliders size={14} className={compressMode === "quality" ? "text-cyan-500" : ""} />
+                <span>Quality Slider</span>
+              </button>
             </div>
           </div>
+
+          {/* Mode 1: Target File Size (KB) Controls */}
+          {compressMode === "targetKb" ? (
+            <div className="space-y-3.5 rounded-2xl border border-cyan-500/25 bg-cyan-500/5 p-4 dark:bg-cyan-950/20">
+              <div className="flex items-center justify-between">
+                <label htmlFor="target-kb-input" className="text-xs font-extrabold text-cyan-950 dark:text-cyan-200 flex items-center gap-1.5">
+                  <Target size={15} className="text-cyan-600 dark:text-cyan-400" />
+                  <span>Required File Size (in KB)</span>
+                </label>
+                <span className="rounded bg-cyan-500/20 px-2 py-0.5 text-[10px] font-mono font-bold text-cyan-700 dark:text-cyan-300">
+                  Exact Max Limit
+                </span>
+              </div>
+              <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                Enter your required file size limit in KB. The optimizer will automatically calibrate quality and dimensions so every image fits strictly under this size.
+              </p>
+
+              {/* Number Input with KB Suffix */}
+              <div className="relative">
+                <input
+                  id="target-kb-input"
+                  type="number"
+                  min={5}
+                  max={50000}
+                  value={targetKb}
+                  onChange={(e) => setTargetKb(Math.max(1, Number(e.target.value) || 0))}
+                  className="w-full rounded-xl border border-slate-300 bg-white py-2.5 pl-3.5 pr-14 text-sm font-bold text-slate-900 shadow-xs focus:border-cyan-500 focus:outline-none focus:ring-2 focus:ring-cyan-500/20 dark:border-white/[0.12] dark:bg-slate-900 dark:text-white"
+                  placeholder="e.g. 50"
+                />
+                <div className="absolute inset-y-0 right-0 flex items-center pr-3.5 pointer-events-none">
+                  <span className="font-mono text-xs font-bold text-cyan-600 dark:text-cyan-400">KB</span>
+                </div>
+              </div>
+
+              {/* Quick Target Presets */}
+              <div className="space-y-1.5 pt-1">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                  Popular Exam & Portal Targets
+                </span>
+                <div className="grid grid-cols-3 gap-1.5">
+                  {[
+                    { label: "20 KB", kb: 20, desc: "Signature / UPSC" },
+                    { label: "50 KB", kb: 50, desc: "Exam Photo" },
+                    { label: "100 KB", kb: 100, desc: "ID / Aadhar" },
+                    { label: "200 KB", kb: 200, desc: "Certificate" },
+                    { label: "500 KB", kb: 500, desc: "Portal Upload" },
+                    { label: "1024 KB", kb: 1024, desc: "1 MB Web Cap" }
+                  ].map((item) => (
+                    <button
+                      key={item.label}
+                      type="button"
+                      onClick={() => setTargetKb(item.kb)}
+                      className={`rounded-xl border p-2 text-left transition ${
+                        targetKb === item.kb
+                          ? "border-cyan-500 bg-cyan-500/15 text-cyan-700 dark:text-cyan-300 font-bold shadow-xs ring-1 ring-cyan-500/40"
+                          : "border-slate-200/80 bg-white hover:bg-slate-50 text-slate-700 dark:border-white/[0.08] dark:bg-slate-900 dark:text-slate-300"
+                      }`}
+                    >
+                      <p className="text-xs font-bold font-mono">{item.label}</p>
+                      <p className="text-[9px] text-slate-400 truncate">{item.desc}</p>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          ) : (
+            /* Mode 2: Standard Quality Slider Controls */
+            <>
+              <div className="space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <label className="label">Quality Level (Size vs Clarity)</label>
+                  <span className="font-mono text-xs font-bold text-cyan-600 dark:text-cyan-400">
+                    {quality}%
+                  </span>
+                </div>
+
+                <input
+                  className="w-full accent-cyan-600 cursor-pointer h-2 bg-slate-200 rounded-lg dark:bg-slate-800"
+                  type="range"
+                  min={10}
+                  max={100}
+                  value={quality}
+                  onChange={(e) => setQuality(Number(e.target.value))}
+                />
+
+                {/* Live Quality Description Tag */}
+                <div className={`rounded-xl border px-3 py-1.5 text-xs font-semibold flex items-center justify-between ${qualityTier.bg} ${qualityTier.border}`}>
+                  <span className={qualityTier.color}>{qualityTier.label}</span>
+                  {files.length > 0 && (
+                    <span className="font-mono text-[11px] font-bold text-slate-700 dark:text-slate-200">
+                      Est: ~{formatBytes(liveTotals.estimated)}
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              {/* Student & Employee Examination Form Target Presets */}
+              <div className="space-y-2 rounded-2xl border border-indigo-500/25 bg-indigo-500/5 p-3.5 dark:bg-indigo-950/25">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-extrabold text-indigo-950 dark:text-indigo-200 flex items-center gap-1.5">
+                    <GraduationCap size={15} className="text-indigo-600 dark:text-indigo-400" />
+                    <span>Exam Form Size Targets (100% Accepted)</span>
+                  </span>
+                  <span className="rounded bg-indigo-500/20 px-1.5 py-0.2 text-[9px] font-bold text-indigo-700 dark:text-indigo-300">
+                    UPSC / SSC / NTA
+                  </span>
+                </div>
+                <p className="text-[10px] text-slate-500 dark:text-slate-400">
+                  1-click calibration to guarantee compliance with strict portal upload quotas
+                </p>
+
+                <div className="grid grid-cols-2 gap-2 pt-1">
+                  {[
+                    { label: "Exam Photo", target: "20–50 KB", q: 48, sub: "UPSC / SSC / Colleges" },
+                    { label: "Signature", target: "10–20 KB", q: 32, sub: "Exam Signature Box" },
+                    { label: "ID / Proof", target: "50–100 KB", q: 68, sub: "Aadhar / Voter Card" },
+                    { label: "Marksheet", target: "100–300 KB", q: 80, sub: "Academic Scan" }
+                  ].map((item) => (
+                    <button
+                      key={item.label}
+                      type="button"
+                      onClick={() => {
+                        setQuality(item.q);
+                        setFormat("jpg");
+                        notify(`Calibrated quality for ${item.label} (${item.target}) in JPG format!`, "info");
+                      }}
+                      className="rounded-xl border border-indigo-500/20 bg-white/90 p-2 text-left transition hover:border-indigo-500 hover:bg-indigo-50/50 dark:border-white/[0.08] dark:bg-slate-900"
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold text-slate-800 dark:text-slate-200">
+                          {item.label}
+                        </span>
+                        <span className="text-[10px] font-mono font-bold text-indigo-600 dark:text-indigo-400">
+                          {item.target}
+                        </span>
+                      </div>
+                      <p className="text-[10px] text-slate-400 truncate mt-0.5">{item.sub}</p>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Quick Quality Presets */}
+              <div className="space-y-1.5">
+                <span className="label block">Standard Quality Presets</span>
+                <div className="grid grid-cols-4 gap-1.5">
+                  {[
+                    { label: "Economy", val: 40, sub: "Smallest" },
+                    { label: "Balanced", val: 70, sub: "Standard" },
+                    { label: "High", val: 85, sub: "Crisp" },
+                    { label: "Max", val: 95, sub: "Lossless" }
+                  ].map((preset) => (
+                    <button
+                      key={preset.label}
+                      type="button"
+                      onClick={() => setQuality(preset.val)}
+                      className={`rounded-xl border py-2 px-1 text-center transition ${
+                        quality === preset.val
+                          ? "border-cyan-500 bg-cyan-500/15 text-cyan-700 dark:text-cyan-300 font-bold"
+                          : "border-slate-200 bg-slate-50/80 hover:bg-slate-100 text-slate-700 dark:border-white/[0.08] dark:bg-slate-900 dark:text-slate-300"
+                      }`}
+                    >
+                      <p className="text-xs font-bold">{preset.label}</p>
+                      <p className="text-[10px] opacity-70 font-mono">{preset.val}%</p>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </>
+          )}
 
           <Select
             label="Image Output Format"
@@ -616,6 +752,19 @@ export default function ImageCompressorView({
                     {formatBytes(liveTotals.original)}
                   </span>
                 </div>
+
+                {compressMode === "targetKb" && (
+                  <div className="flex items-center justify-between text-slate-500 dark:text-slate-400">
+                    <span className="flex items-center gap-1">
+                      <Target size={12} className="text-cyan-500" />
+                      <span>Required Target Limit:</span>
+                    </span>
+                    <span className="font-bold text-cyan-600 dark:text-cyan-400">
+                      ≤ {targetKb} KB ({formatBytes(targetKb * 1024)})
+                    </span>
+                  </div>
+                )}
+
                 <div className="flex items-center justify-between text-slate-800 dark:text-slate-100">
                   <span className="font-sans font-bold">
                     {actualCompressedTotal !== null
@@ -667,7 +816,9 @@ export default function ImageCompressorView({
                 </p>
               ) : (
                 <p className="text-[10px] text-slate-500 dark:text-slate-400 pt-1 border-t border-cyan-500/15">
-                  {measuredTotal !== null
+                  {compressMode === "targetKb"
+                    ? `🎯 Target Size Mode: Optimizer will keep every output ≤ ${targetKb} KB while maximizing clarity.`
+                    : measuredTotal !== null
                     ? "⚡ Live offscreen probe: Exact canvas re-encoding bytes for your settings."
                     : "Formula projection: Updates dynamically as quality slider moves."}
                 </p>
@@ -685,6 +836,8 @@ export default function ImageCompressorView({
               <Zap size={16} />
               {busy
                 ? "Compressing Files..."
+                : compressMode === "targetKb"
+                ? `Apply & Compress to ≤ ${targetKb} KB (${files.length ? `${files.length} file${files.length > 1 ? "s" : ""}` : "0"})`
                 : `Apply Changes & Compress (${files.length ? `${files.length} file${files.length > 1 ? "s" : ""}` : "0"})`}
             </button>
 

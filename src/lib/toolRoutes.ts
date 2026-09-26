@@ -543,6 +543,104 @@ export const TOOL_ROUTES: Record<ToolId, ToolSeoDefinition> = {
 };
 
 /**
+ * Legal & Compliance Routes
+ */
+export type LegalRouteId = "privacy" | "terms" | "contact" | "cookies" | "about";
+
+export type LegalSeoDefinition = {
+  id: LegalRouteId;
+  slug: string;
+  aliases: string[];
+  title: string;
+  metaDescription: string;
+};
+
+export const LEGAL_ROUTES: Record<LegalRouteId, LegalSeoDefinition> = {
+  privacy: {
+    id: "privacy",
+    slug: "/privacy-policy",
+    aliases: ["/privacy", "/privacy-policy.html"],
+    title: "Privacy Policy - 100% In-Browser Privacy & AdSense Disclosures | ImagePro Studio",
+    metaDescription: "Read the ImagePro Studio Privacy Policy. Learn about our 100% client-side zero server upload guarantee, GDPR & CCPA rights, and Google AdSense cookie disclosures."
+  },
+  terms: {
+    id: "terms",
+    slug: "/terms-of-service",
+    aliases: ["/terms", "/terms-and-conditions", "/tos"],
+    title: "Terms of Service - Usage Agreement & Legal Terms | ImagePro Studio",
+    metaDescription: "Terms of Service for ImagePro Studio. Free, unlimited, in-browser media processing with 100% user copyright retention."
+  },
+  contact: {
+    id: "contact",
+    slug: "/contact-us",
+    aliases: ["/contact", "/support", "/feedback"],
+    title: "Contact Us & Support - Developer & Exam Preset Requests | ImagePro Studio",
+    metaDescription: "Contact the ImagePro Studio support team and creator Vinit Sammir (Software Engineer, Cognizant). Submit exam portal preset requests, bug reports, and feedback."
+  },
+  cookies: {
+    id: "cookies",
+    slug: "/cookie-policy",
+    aliases: ["/cookies", "/cookie-notice"],
+    title: "Cookie Policy & AdChoices Transparency | ImagePro Studio",
+    metaDescription: "Understand how ImagePro Studio uses local storage and Google AdSense third-party cookies to provide free in-browser utilities."
+  },
+  about: {
+    id: "about",
+    slug: "/about-us",
+    aliases: ["/about"],
+    title: "About Us - Mission, Architecture & Creator Profile | ImagePro Studio",
+    metaDescription: "Discover ImagePro Studio's mission: solving exam form upload rejections for UPSC, SSC, NEET, and JEE with 100% private, in-browser technology."
+  }
+};
+
+/**
+ * Resolves a given URL pathname to its corresponding LegalRouteId, checking slugs and aliases.
+ */
+export function getLegalRouteFromPath(pathname: string): LegalRouteId | null {
+  const clean = pathname.toLowerCase().replace(/\/$/, "");
+  if (!clean || clean === "") return null;
+
+  for (const def of Object.values(LEGAL_ROUTES)) {
+    if (def.slug.toLowerCase() === clean) return def.id;
+    if (def.aliases.some((a) => a.toLowerCase() === clean)) return def.id;
+  }
+  return null;
+}
+
+/**
+ * Returns the primary canonical slug for a given LegalRouteId.
+ */
+export function getPathFromLegalRoute(id: LegalRouteId): string {
+  return LEGAL_ROUTES[id]?.slug || "/";
+}
+
+/**
+ * Dynamically updates document.title, meta tags, and canonical link for legal & trust pages.
+ */
+export function updateLegalPageSeo(id: LegalRouteId): void {
+  if (typeof document === "undefined") return;
+  const def = LEGAL_ROUTES[id];
+  if (!def) return;
+  const origin = "https://www.imageprostudio.in";
+
+  document.title = def.title;
+  updateMetaTag("name", "description", def.metaDescription);
+  updateMetaTag("property", "og:title", def.title);
+  updateMetaTag("property", "og:description", def.metaDescription);
+  updateMetaTag("property", "og:url", `${origin}${def.slug}`);
+  updateMetaTag("name", "twitter:title", def.title);
+  updateMetaTag("name", "twitter:description", def.metaDescription);
+  updateMetaTag("name", "twitter:url", `${origin}${def.slug}`);
+  updateCanonicalLink(`${origin}${def.slug}`);
+
+  // Remove any dynamic tool structured data script tag
+  const dynamicScript = document.getElementById("dynamic-tool-ldjson");
+  if (dynamicScript) {
+    dynamicScript.remove();
+  }
+}
+
+/**
  * Resolves a given URL pathname to its corresponding ToolId, checking slugs and aliases.
  */
 export function getToolIdFromPath(pathname: string): ToolId | null {

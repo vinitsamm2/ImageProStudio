@@ -393,12 +393,95 @@ export async function compressOrConvertImage(
   return await canvasToBlob(canvas, type, quality);
 }
 
+// Compresses image strictly to or under a target file size in KB using adaptive binary quality search & dimension scaling
+export async function compressImageToTargetKb(
+  file: File,
+  targetKb: number,
+  type = "image/jpeg",
+  onProgress?: (progress: number) => void
+): Promise<Blob> {
+  const targetBytes = Math.max(1024, Math.round(targetKb * 1024));
+  const image = await loadBitmap(file);
+
+  const origW = image.naturalWidth;
+  const origH = image.naturalHeight;
+  const isJpeg = type === "image/jpeg" || type.includes("jpeg") || type.includes("jpg");
+  const isPng = type === "image/png" || type.includes("png");
+
+  let scale = 1.0;
+  let bestBlob: Blob | null = null;
+
+  // Multi-pass scaling attempt if image resolution is too high for target quota
+  for (let round = 0; round < 4; round++) {
+    const curW = Math.max(16, Math.round(origW * scale));
+    const curH = Math.max(16, Math.round(origH * scale));
+    const canvas = buildCanvas(curW, curH);
+    const ctx = canvas.getContext("2d");
+    if (!ctx) throw new Error("2D Canvas context is not supported in this browser.");
+
+    if (isJpeg) {
+      ctx.fillStyle = "#ffffff";
+      ctx.fillRect(0, 0, curW, curH);
+    }
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = "high";
+    ctx.drawImage(image, 0, 0, curW, curH);
+
+    if (isPng) {
+      // PNG does not support variable quality in standard canvas.toBlob.
+      // Scaling dimensions is the reliable way to hit target size.
+      const blob = await canvasToBlob(canvas, "image/png");
+      if (blob.size <= targetBytes) {
+        return blob;
+      }
+      bestBlob = blob;
+      const ratio = Math.sqrt(targetBytes / blob.size) * 0.92;
+      scale = Math.min(scale * 0.82, Math.max(0.05, scale * ratio));
+      continue;
+    }
+
+    // For JPEG / WebP:
+    // Binary search quality parameter between 0.10 and 0.96
+    let qLow = 0.10;
+    let qHigh = 0.96;
+    let localBest: Blob | null = null;
+
+    for (let iter = 0; iter < 5; iter++) {
+      const qMid = (qLow + qHigh) / 2;
+      const testBlob = await canvasToBlob(canvas, type, qMid);
+
+      if (testBlob.size <= targetBytes) {
+        // Fits under target quota! Save and try higher quality
+        localBest = testBlob;
+        qLow = qMid;
+      } else {
+        // Exceeds target! Lower quality
+        qHigh = qMid;
+      }
+    }
+
+    if (localBest) {
+      return localBest;
+    }
+
+    // If even lowest quality exceeds target at this resolution, scale canvas down
+    const minBlob = await canvasToBlob(canvas, type, 0.20);
+    bestBlob = minBlob;
+    const ratio = Math.sqrt(targetBytes / minBlob.size) * 0.90;
+    scale = Math.min(scale * 0.75, Math.max(0.05, scale * ratio));
+  }
+
+  // Fallback to closest achievable compression
+  return bestBlob || await compressOrConvertImage(file, type, 0.35);
+}
+
 export type PdfCompressionPreset = "extreme" | "recommended" | "low" | "custom";
 
 export interface CompressPdfOptions {
   quality?: number; // 0.1 to 1.0 (default 0.72)
   preset?: PdfCompressionPreset;
   targetDpi?: number;
+  targetKb?: number; // Target max document size in KB
   onProgress?: (current: number, total: number) => void;
 }
 
@@ -415,7 +498,31 @@ export async function compressPdf(
   let quality = options.quality ?? 0.72;
   let renderScale = 1.0 + quality * 1.3;
 
-  if (options.preset === "extreme") {
+  const buffer = await file.arrayBuffer();
+  const doc = await getDocument({ data: new Uint8Array(buffer) }).promise;
+  const numPages = doc.numPages;
+
+  if (options.targetKb && options.targetKb > 0) {
+    const targetBytes = Math.max(10240, Math.round(options.targetKb * 1024));
+    // Estimate overhead: ~2.5KB base + ~1.2KB per page
+    const overhead = 2500 + numPages * 1200;
+    const availableForImages = Math.max(5000 * numPages, targetBytes - overhead);
+    const bytesPerPage = availableForImages / numPages;
+
+    if (bytesPerPage <= 35000) {
+      renderScale = Math.max(0.65, Math.min(0.95, Math.sqrt(bytesPerPage / 45000)));
+      quality = Math.max(0.25, Math.min(0.55, bytesPerPage / 60000));
+    } else if (bytesPerPage <= 80000) {
+      renderScale = Math.max(0.85, Math.min(1.25, Math.sqrt(bytesPerPage / 65000)));
+      quality = Math.max(0.45, Math.min(0.70, bytesPerPage / 100000));
+    } else if (bytesPerPage <= 250000) {
+      renderScale = Math.max(1.0, Math.min(1.7, Math.sqrt(bytesPerPage / 95000)));
+      quality = Math.max(0.65, Math.min(0.82, bytesPerPage / 250000));
+    } else {
+      renderScale = Math.max(1.2, Math.min(2.2, Math.sqrt(bytesPerPage / 130000)));
+      quality = Math.max(0.75, 0.88);
+    }
+  } else if (options.preset === "extreme") {
     quality = 0.45;
     renderScale = 1.0; // ~96-100 DPI
   } else if (options.preset === "recommended") {
@@ -427,10 +534,6 @@ export async function compressPdf(
   } else if (options.targetDpi) {
     renderScale = Math.max(0.75, options.targetDpi / 72);
   }
-
-  const buffer = await file.arrayBuffer();
-  const doc = await getDocument({ data: new Uint8Array(buffer) }).promise;
-  const numPages = doc.numPages;
 
   const newPdf = await PDFDocument.create();
 
@@ -469,7 +572,7 @@ export async function compressPdf(
   return bytesToBlob(outputBytes, "application/pdf");
 }
 
-// Estimates output size based on dimension changes, quality curve, and format
+// Estimates output size based on dimension changes, quality curve, format, or target KB
 export function estimateFileSize({
   originalSize,
   originalWidth,
@@ -478,7 +581,8 @@ export function estimateFileSize({
   targetHeight,
   quality = 0.8,
   format = "image/jpeg",
-  isPdf = false
+  isPdf = false,
+  targetKb
 }: {
   originalSize: number;
   originalWidth?: number;
@@ -488,8 +592,18 @@ export function estimateFileSize({
   quality?: number;
   format?: string;
   isPdf?: boolean;
+  targetKb?: number;
 }): { bytes: number; changePercent: number; isReduction: boolean } {
   if (originalSize <= 0) return { bytes: 0, changePercent: 0, isReduction: true };
+
+  // If a target KB is specified, estimate directly towards target quota
+  if (targetKb && targetKb > 0) {
+    const targetBytes = targetKb * 1024;
+    // Estimate output size to land cleanly within ~92-96% of target quota
+    const bytes = Math.min(originalSize, Math.round(targetBytes * 0.94));
+    const changePercent = Math.round(((bytes - originalSize) / originalSize) * 100);
+    return { bytes, changePercent, isReduction: bytes <= originalSize };
+  }
 
   if (isPdf) {
     const factor = 0.2 + Math.pow(quality, 1.4) * 0.7;

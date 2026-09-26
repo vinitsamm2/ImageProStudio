@@ -116,6 +116,117 @@ export default function ToolSeoSection({ toolId, onSelectTool }: ToolSeoSectionP
         </div>
       </div>
 
+      {/* Ongoing Curation & Structural Maintenance Banner */}
+      <div className="rounded-2xl border border-blue-500/20 bg-blue-50/40 p-4 dark:border-white/[0.08] dark:bg-slate-900/40 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+        <div className="flex items-center gap-2.5">
+          <div className="grid h-8 w-8 place-items-center rounded-xl bg-blue-500/10 text-blue-600 dark:text-blue-400 shrink-0">
+            <Sparkles size={16} />
+          </div>
+          <div>
+            <div className="font-extrabold text-slate-900 dark:text-white flex items-center gap-1.5">
+              <span>Ongoing Curation &amp; Structural Maintenance</span>
+              <span className="rounded-full bg-emerald-500/10 px-2 py-0.2 text-[10px] font-bold text-emerald-600 dark:text-emerald-400">
+                Active 2026 Standards
+              </span>
+            </div>
+            <p className="text-[11px] text-slate-500 dark:text-slate-400">
+              Verified against current UPSC, SSC, NTA (NEET/JEE), and IBPS portal technical bulletins. Maintained by Vinit Sammir (Software Engineer, Cognizant).
+            </p>
+          </div>
+        </div>
+        <div className="text-[11px] font-mono text-slate-400 shrink-0 sm:text-right">
+          Build v1.2.4 • Client Engine
+        </div>
+      </div>
+
+      {/* Official Exam Portal Upload Specification Matrix */}
+      <div className="rounded-3xl border border-slate-200/80 bg-white/80 p-5 sm:p-6 shadow-xs backdrop-blur-md dark:border-white/[0.08] dark:bg-slate-900/60 space-y-4">
+        <div className="flex items-center justify-between border-b border-slate-100 pb-3 dark:border-white/[0.06]">
+          <div>
+            <h3 className="text-sm font-extrabold text-slate-900 dark:text-white flex items-center gap-2">
+              <CheckCircle2 size={16} className="text-emerald-500" />
+              <span>Official Exam Portal Specification Standards Reference</span>
+            </h3>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+              Reference dimensions, file size limits, and formats mandated by major recruitment &amp; entrance exam boards:
+            </p>
+          </div>
+        </div>
+
+        <div className="overflow-x-auto no-scrollbar">
+          <table className="w-full text-left text-xs border-collapse">
+            <thead>
+              <tr className="border-b border-slate-200/80 dark:border-slate-800 text-[11px] font-bold uppercase tracking-wider text-slate-400">
+                <th className="py-2.5 pr-4">Authority / Examination</th>
+                <th className="py-2.5 px-4">Photo Dimensions</th>
+                <th className="py-2.5 px-4">Signature Specifications</th>
+                <th className="py-2.5 px-4">Document / PDF Cap</th>
+                <th className="py-2.5 pl-4">Background &amp; Format</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100 dark:divide-white/[0.04] text-slate-600 dark:text-slate-300">
+              <tr>
+                <td className="py-2.5 pr-4 font-bold text-slate-900 dark:text-white">UPSC Civil Services</td>
+                <td className="py-2.5 px-4">350×350 to 1000×1000 px (35×45mm, 20–50 KB)</td>
+                <td className="py-2.5 px-4">350×350 to 1000×1000 px (10–20 KB)</td>
+                <td className="py-2.5 px-4">&lt; 300 KB PDF</td>
+                <td className="py-2.5 pl-4">JPG, Plain white background</td>
+              </tr>
+              <tr>
+                <td className="py-2.5 pr-4 font-bold text-slate-900 dark:text-white">SSC (CGL, CHSL, MTS)</td>
+                <td className="py-2.5 px-4">3.5 cm × 4.5 cm (20–50 KB)</td>
+                <td className="py-2.5 px-4">4.0 cm × 2.0 cm (10–20 KB)</td>
+                <td className="py-2.5 px-4">&lt; 200 KB PDF</td>
+                <td className="py-2.5 pl-4">JPG/JPEG, Light background</td>
+              </tr>
+              <tr>
+                <td className="py-2.5 pr-4 font-bold text-slate-900 dark:text-white">NTA NEET UG &amp; JEE Main</td>
+                <td className="py-2.5 px-4">10–200 KB (80% face coverage, ears visible)</td>
+                <td className="py-2.5 px-4">4–30 KB (Running handwriting)</td>
+                <td className="py-2.5 px-4">50–300 KB PDF</td>
+                <td className="py-2.5 pl-4">JPG/PDF, White background</td>
+              </tr>
+              <tr>
+                <td className="py-2.5 pr-4 font-bold text-slate-900 dark:text-white">IBPS (PO, Clerk, SO)</td>
+                <td className="py-2.5 px-4">200×230 px (20–50 KB)</td>
+                <td className="py-2.5 px-4">140×60 px (10–20 KB, Black ink)</td>
+                <td className="py-2.5 px-4">&lt; 500 KB PDF</td>
+                <td className="py-2.5 pl-4">JPG/JPEG format</td>
+              </tr>
+              <tr>
+                <td className="py-2.5 pr-4 font-bold text-slate-900 dark:text-white">State PSCs &amp; Universities</td>
+                <td className="py-2.5 px-4">Exact 35×45mm / &le; 50 KB</td>
+                <td className="py-2.5 px-4">Exact 35×15mm / &le; 20 KB</td>
+                <td className="py-2.5 px-4">&lt; 100 KB or 200 KB PDF</td>
+                <td className="py-2.5 pl-4">Standard JPG or PDF</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* In-Browser Technical Deep Dive: Why Client-Side Processing is Superior */}
+      <div className="rounded-3xl border border-slate-200/80 bg-white/70 p-5 sm:p-6 shadow-xs backdrop-blur-md dark:border-white/[0.08] dark:bg-slate-900/50 space-y-3">
+        <h3 className="text-sm font-extrabold text-slate-900 dark:text-white flex items-center gap-2">
+          <Zap size={16} className="text-amber-500" />
+          <span>How In-Browser Image &amp; Document Processing Works</span>
+        </h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
+          <div>
+            <h4 className="font-bold text-slate-900 dark:text-white mb-1">Iterative Binary Compression Engine</h4>
+            <p>
+              When you specify a target file size in KB (e.g. exactly 50 KB for an exam photo or &lt; 200 KB for a PDF marksheet), ImagePro Studio uses an iterative binary search algorithm over quantization tables. It calculates the mathematically optimal JPEG quality parameter down to 0.01 precision, and intelligently downscales pixel dimensions only when necessary, avoiding compression artifacts and preserving fine facial and text features.
+            </p>
+          </div>
+          <div>
+            <h4 className="font-bold text-slate-900 dark:text-white mb-1">True Zero-Network Confidentiality</h4>
+            <p>
+              Traditional cloud utilities upload your private identity files to remote third-party servers, creating data privacy and interception risks. ImagePro Studio executes 100% of image rendering, bicubic resampling, and vector PDF compilation inside your browser’s isolated JavaScript sandbox. Zero bytes leave your device, ensuring total compliance with privacy laws and zero breach risks.
+            </p>
+          </div>
+        </div>
+      </div>
+
       {/* Tool-Specific FAQ Accordion */}
       {seo.faqs.length > 0 && (
         <div className="rounded-3xl border border-slate-200/80 bg-white/80 p-6 shadow-sm backdrop-blur-md dark:border-white/[0.08] dark:bg-slate-900/60 space-y-4">

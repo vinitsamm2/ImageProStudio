@@ -23,15 +23,17 @@ import { useEffect, useState } from "react";
 import OmniDropzone from "./OmniDropzone";
 import { TOOLS, ToolCategory, ToolId } from "./ToolGrid";
 import BrandLogo from "./ui/BrandLogo";
+import SiteFooter from "./ui/SiteFooter";
 import { useLanguage } from "../lib/i18n";
 
 type HubViewProps = {
   onLaunchTool: (id: ToolId) => void;
   onOmniRoute: (id: ToolId, files: File[]) => void;
   onOpenAbout?: () => void;
+  onOpenLegal?: (tab: "privacy" | "terms" | "contact" | "cookies") => void;
 };
 
-export default function HubView({ onLaunchTool, onOmniRoute, onOpenAbout }: HubViewProps) {
+export default function HubView({ onLaunchTool, onOmniRoute, onOpenAbout, onOpenLegal }: HubViewProps) {
   const { t } = useLanguage();
   const [selectedCategory, setSelectedCategory] = useState<ToolCategory>("all");
   const [hoveredCardId, setHoveredCardId] = useState<string | null>(null);
@@ -444,6 +446,13 @@ export default function HubView({ onLaunchTool, onOmniRoute, onOpenAbout }: HubV
           </p>
         </div>
       </section>
+
+      {/* Universal Site-Wide Footer with Mandatory Legal, Privacy, and Trust Links */}
+      <SiteFooter
+        onSelectTool={onLaunchTool}
+        onOpenLegal={onOpenLegal}
+        onOpenAbout={onOpenAbout}
+      />
     </div>
   );
 }

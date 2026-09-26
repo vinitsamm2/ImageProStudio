@@ -17,7 +17,9 @@ import {
   RefreshCw,
   Share2,
   ShieldCheck,
+  Sliders,
   Sparkles,
+  Target,
   TrendingDown,
   TrendingUp,
   Zap
@@ -44,6 +46,7 @@ interface CompressedPdfResult {
   compressedSize: number;
   blob: Blob;
   thumbnailUrl?: string;
+  targetKb?: number;
 }
 
 interface PdfCompressorViewProps {
@@ -61,6 +64,8 @@ export default function PdfCompressorView({
 }: PdfCompressorViewProps) {
   const [files, setFiles] = useState<File[]>([]);
   const [pdfMeta, setPdfMeta] = useState<Record<string, PdfFileInfo>>({});
+  const [compressMode, setCompressMode] = useState<"targetKb" | "preset">("targetKb");
+  const [targetKb, setTargetKb] = useState<number>(200);
   const [preset, setPreset] = useState<PdfCompressionPreset>("recommended");
   const [customQuality, setCustomQuality] = useState(72);
   const [customDpi, setCustomDpi] = useState(150);
@@ -119,7 +124,8 @@ export default function PdfCompressorView({
         originalSize: f.size,
         quality: effectiveQuality,
         format: "application/pdf",
-        isPdf: true
+        isPdf: true,
+        targetKb: compressMode === "targetKb" ? targetKb : undefined
       });
       estimated += est.bytes;
     }
@@ -129,12 +135,15 @@ export default function PdfCompressorView({
     const savedBytes = Math.max(0, original - estimated);
 
     return { original, estimated, changePercent, isReduction, savedBytes };
-  }, [files, effectiveQuality]);
+  }, [files, effectiveQuality, compressMode, targetKb]);
 
   // Run Compression
   const handleCompress = async () => {
     if (files.length === 0) {
       return notify("Upload at least one PDF file to compress.", "error");
+    }
+    if (compressMode === "targetKb" && (!targetKb || targetKb <= 0)) {
+      return notify("Please specify a valid required PDF size in KB.", "error");
     }
 
     setBusy(true);
@@ -152,9 +161,10 @@ export default function PdfCompressorView({
         );
 
         const compressedBlob = await compressPdf(file, {
-          preset,
-          quality: preset === "custom" ? customQuality / 100 : undefined,
-          targetDpi: preset === "custom" ? customDpi : undefined,
+          preset: compressMode === "preset" ? preset : undefined,
+          quality: compressMode === "preset" && preset === "custom" ? customQuality / 100 : undefined,
+          targetDpi: compressMode === "preset" && preset === "custom" ? customDpi : undefined,
+          targetKb: compressMode === "targetKb" ? targetKb : undefined,
           onProgress: (current, total) => {
             setProgressText(
               `Processing ${file.name} (Page ${current} of ${total})...`
@@ -171,7 +181,8 @@ export default function PdfCompressorView({
           originalSize: file.size,
           compressedSize: compressedBlob.size,
           blob: compressedBlob,
-          thumbnailUrl: meta?.thumbnails?.[0]
+          thumbnailUrl: meta?.thumbnails?.[0],
+          targetKb: compressMode === "targetKb" ? targetKb : undefined
         });
       }
 
@@ -358,7 +369,7 @@ export default function PdfCompressorView({
                   Staged Documents & Real-Time Size Estimates ({files.length})
                 </span>
                 <span className="text-xs font-mono font-bold text-emerald-600 dark:text-emerald-400">
-                  Preset: {preset.toUpperCase()}
+                  {compressMode === "targetKb" ? `Target: ≤ ${targetKb} KB` : `Preset: ${preset.toUpperCase()}`}
                 </span>
               </div>
 
@@ -369,7 +380,8 @@ export default function PdfCompressorView({
                     originalSize: file.size,
                     quality: effectiveQuality,
                     format: "application/pdf",
-                    isPdf: true
+                    isPdf: true,
+                    targetKb: compressMode === "targetKb" ? targetKb : undefined
                   });
 
                   return (
@@ -399,6 +411,7 @@ export default function PdfCompressorView({
                           <p className="text-[10px] text-slate-400 font-mono">
                             {meta?.pages ? `${meta.pages} pages • ` : ""}
                             Original: {formatBytes(file.size)}
+                            {compressMode === "targetKb" && ` • Max: ${targetKb} KB`}
                           </p>
                         </div>
                       </div>
@@ -479,7 +492,7 @@ export default function PdfCompressorView({
                         </span>
                       </div>
 
-                      <div className="p-3.5 space-y-3">
+                      <div className="p-3.5 space-y-2.5">
                         <div className="space-y-0.5">
                           <p
                             className="truncate text-xs font-bold text-slate-800 dark:text-slate-200"
@@ -499,6 +512,18 @@ export default function PdfCompressorView({
                             {formatBytes(res.compressedSize)}
                           </span>
                         </div>
+
+                        {res.targetKb && (
+                          <div className="flex items-center justify-between text-[11px] rounded-xl bg-emerald-500/10 px-2.5 py-1 text-emerald-700 dark:text-emerald-300 font-medium border border-emerald-500/20">
+                            <span className="flex items-center gap-1 font-mono text-[10px]">
+                              <Target size={12} className="text-emerald-500" />
+                              <span>Target: ≤ {res.targetKb} KB</span>
+                            </span>
+                            <span className="font-bold text-[10px]">
+                              {res.compressedSize <= res.targetKb * 1024 ? "✓ Under Quota" : "Optimized"}
+                            </span>
+                          </div>
+                        )}
 
                         <div className="flex items-center gap-1.5">
                           <button
@@ -547,137 +572,239 @@ export default function PdfCompressorView({
         {/* Right Area: Compression Level Presets & Live Size Savings Meter */}
         <div className="space-y-5 xl:sticky xl:top-0 xl:max-h-[calc(100vh-210px)] xl:overflow-y-auto pr-1">
           <div className="panel space-y-5">
-            <div>
-              <h3 className="text-sm font-extrabold text-slate-900 dark:text-white flex items-center gap-2">
-                <Gauge size={16} className="text-emerald-500" />
-                <span>Compression Level</span>
-              </h3>
-              <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                Choose a preset or fine-tune quality vs file size
-              </p>
-            </div>
-
-            {/* Student & Employee Examination Document Presets */}
-            <div className="space-y-2 rounded-2xl border border-indigo-500/25 bg-indigo-500/5 p-3.5 dark:bg-indigo-950/25">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-extrabold text-indigo-950 dark:text-indigo-200 flex items-center gap-1.5">
-                  <GraduationCap size={15} className="text-indigo-600 dark:text-indigo-400" />
-                  <span>Exam Document Targets (100% Accepted)</span>
-                </span>
-                <span className="rounded bg-indigo-500/20 px-1.5 py-0.2 text-[9px] font-bold text-indigo-700 dark:text-indigo-300">
-                  UPSC / Colleges
-                </span>
-              </div>
-              <p className="text-[10px] text-slate-500 dark:text-slate-400">
-                1-click presets guaranteeing PDF size stays strictly under exam portal caps
-              </p>
-
-              <div className="grid grid-cols-2 gap-2 pt-1">
-                {[
-                  { label: "Marksheet / Cert", target: "< 200 KB", p: "extreme" as const, sub: "Exam Document Cap" },
-                  { label: "Aadhar / ID Proof", target: "< 300 KB", p: "extreme" as const, sub: "Govt Identity Slip" },
-                  { label: "College Admission", target: "< 500 KB", p: "recommended" as const, sub: "University Portal" },
-                  { label: "Full Dossier", target: "< 1 MB", p: "recommended" as const, sub: "Job Onboarding" }
-                ].map((item) => (
-                  <button
-                    key={item.label}
-                    type="button"
-                    onClick={() => {
-                      setPreset(item.p);
-                      notify(`Calibrated PDF compressor for ${item.label} (${item.target})!`, "info");
-                    }}
-                    className="rounded-xl border border-indigo-500/20 bg-white/90 p-2 text-left transition hover:border-indigo-500 hover:bg-indigo-50/50 dark:border-white/[0.08] dark:bg-slate-900"
-                  >
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-bold text-slate-800 dark:text-slate-200 truncate">
-                        {item.label}
-                      </span>
-                      <span className="text-[10px] font-mono font-bold text-indigo-600 dark:text-indigo-400 shrink-0">
-                        {item.target}
-                      </span>
-                    </div>
-                    <p className="text-[10px] text-slate-400 truncate mt-0.5">{item.sub}</p>
-                  </button>
-                ))}
+            {/* Method Selector Capsule: Target File Size (KB) vs Preset Levels */}
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                Compression Mode
+              </label>
+              <div className="grid grid-cols-2 gap-1.5 rounded-xl bg-slate-100 p-1 dark:bg-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setCompressMode("targetKb")}
+                  className={`flex items-center justify-center gap-1.5 rounded-lg py-2 text-xs font-bold transition ${
+                    compressMode === "targetKb"
+                      ? "bg-white text-emerald-700 shadow-sm dark:bg-slate-900 dark:text-emerald-300"
+                      : "text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
+                  }`}
+                >
+                  <Target size={14} className={compressMode === "targetKb" ? "text-emerald-500" : ""} />
+                  <span>Target Size (KB)</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCompressMode("preset")}
+                  className={`flex items-center justify-center gap-1.5 rounded-lg py-2 text-xs font-bold transition ${
+                    compressMode === "preset"
+                      ? "bg-white text-emerald-700 shadow-sm dark:bg-slate-900 dark:text-emerald-300"
+                      : "text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
+                  }`}
+                >
+                  <Gauge size={14} className={compressMode === "preset" ? "text-emerald-500" : ""} />
+                  <span>Preset Levels</span>
+                </button>
               </div>
             </div>
 
-            {/* Presets Cards */}
-            <div className="space-y-2.5">
-              {PRESETS.map((p) => {
-                const isSelected = preset === p.key;
-                return (
-                  <button
-                    key={p.key}
-                    type="button"
-                    onClick={() => setPreset(p.key)}
-                    className={`w-full text-left rounded-2xl border p-3.5 transition-all ${
-                      isSelected
-                        ? `${p.borderColor} ${p.bgColor} shadow-sm ring-1 ring-emerald-500/40`
-                        : "border-slate-200/80 bg-white hover:bg-slate-50 dark:border-white/[0.08] dark:bg-slate-900/60 dark:hover:bg-white/[0.04]"
-                    }`}
-                  >
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="text-xs font-bold text-slate-900 dark:text-white">
-                        {p.title}
-                      </span>
-                      <span
-                        className={`rounded-md px-2 py-0.5 text-[10px] font-bold ${
-                          isSelected ? p.color : "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400"
-                        }`}
-                      >
-                        {p.reduction}
-                      </span>
-                    </div>
-                    <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1.5 leading-snug">
-                      {p.description}
-                    </p>
-                  </button>
-                );
-              })}
-            </div>
-
-            {/* Custom Mode Sliders */}
-            {preset === "custom" && (
-              <div className="space-y-4 rounded-2xl border border-cyan-500/20 bg-cyan-500/5 p-4 animate-in fade-in">
-                <div className="space-y-1.5">
-                  <div className="flex justify-between text-xs font-semibold">
-                    <span className="text-slate-700 dark:text-slate-300">JPEG Quality Level</span>
-                    <span className="font-mono font-bold text-cyan-600 dark:text-cyan-400">
-                      {customQuality}%
-                    </span>
-                  </div>
-                  <input
-                    type="range"
-                    min={10}
-                    max={100}
-                    value={customQuality}
-                    onChange={(e) => setCustomQuality(Number(e.target.value))}
-                    className="w-full accent-cyan-600 cursor-pointer h-2 bg-slate-200 rounded-lg dark:bg-slate-800"
-                  />
-                </div>
-
-                <div className="space-y-1.5">
-                  <div className="flex justify-between text-xs font-semibold">
-                    <span className="text-slate-700 dark:text-slate-300">Target Canvas DPI</span>
-                    <span className="font-mono font-bold text-cyan-600 dark:text-cyan-400">
-                      {customDpi} DPI
-                    </span>
-                  </div>
-                  <input
-                    type="range"
-                    min={72}
-                    max={300}
-                    step={10}
-                    value={customDpi}
-                    onChange={(e) => setCustomDpi(Number(e.target.value))}
-                    className="w-full accent-cyan-600 cursor-pointer h-2 bg-slate-200 rounded-lg dark:bg-slate-800"
-                  />
-                  <span className="text-[10px] text-slate-400">
-                    72 DPI (Web/Email) • 150 DPI (Balanced) • 300 DPI (Archival)
+            {/* Mode 1: Target File Size (KB) Controls */}
+            {compressMode === "targetKb" ? (
+              <div className="space-y-3.5 rounded-2xl border border-emerald-500/25 bg-emerald-500/5 p-4 dark:bg-emerald-950/20">
+                <div className="flex items-center justify-between">
+                  <label htmlFor="pdf-target-kb-input" className="text-xs font-extrabold text-emerald-950 dark:text-emerald-200 flex items-center gap-1.5">
+                    <Target size={15} className="text-emerald-600 dark:text-emerald-400" />
+                    <span>Required PDF Size (in KB)</span>
+                  </label>
+                  <span className="rounded bg-emerald-500/20 px-2 py-0.5 text-[10px] font-mono font-bold text-emerald-700 dark:text-emerald-300">
+                    Exact Max Limit
                   </span>
                 </div>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                  Specify your required PDF limit in KB. The optimizer will automatically downsample raster DPI and optimize page streams so the PDF stays strictly under your quota.
+                </p>
+
+                {/* Number Input with KB Suffix */}
+                <div className="relative">
+                  <input
+                    id="pdf-target-kb-input"
+                    type="number"
+                    min={10}
+                    max={100000}
+                    value={targetKb}
+                    onChange={(e) => setTargetKb(Math.max(1, Number(e.target.value) || 0))}
+                    className="w-full rounded-xl border border-slate-300 bg-white py-2.5 pl-3.5 pr-14 text-sm font-bold text-slate-900 shadow-xs focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 dark:border-white/[0.12] dark:bg-slate-900 dark:text-white"
+                    placeholder="e.g. 200"
+                  />
+                  <div className="absolute inset-y-0 right-0 flex items-center pr-3.5 pointer-events-none">
+                    <span className="font-mono text-xs font-bold text-emerald-600 dark:text-emerald-400">KB</span>
+                  </div>
+                </div>
+
+                {/* Quick PDF Presets */}
+                <div className="space-y-1.5 pt-1">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                    Popular Exam & Portal Targets
+                  </span>
+                  <div className="grid grid-cols-3 gap-1.5">
+                    {[
+                      { label: "100 KB", kb: 100, desc: "Strict Form" },
+                      { label: "200 KB", kb: 200, desc: "UPSC / Marksheet" },
+                      { label: "300 KB", kb: 300, desc: "Govt ID Proof" },
+                      { label: "500 KB", kb: 500, desc: "College Portal" },
+                      { label: "1000 KB", kb: 1000, desc: "1 MB Job Cap" },
+                      { label: "2000 KB", kb: 2000, desc: "2 MB Dossier" }
+                    ].map((item) => (
+                      <button
+                        key={item.label}
+                        type="button"
+                        onClick={() => setTargetKb(item.kb)}
+                        className={`rounded-xl border p-2 text-left transition ${
+                          targetKb === item.kb
+                            ? "border-emerald-500 bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 font-bold shadow-xs ring-1 ring-emerald-500/40"
+                            : "border-slate-200/80 bg-white hover:bg-slate-50 text-slate-700 dark:border-white/[0.08] dark:bg-slate-900 dark:text-slate-300"
+                        }`}
+                      >
+                        <p className="text-xs font-bold font-mono">{item.label}</p>
+                        <p className="text-[9px] text-slate-400 truncate">{item.desc}</p>
+                      </button>
+                    ))}
+                  </div>
+                </div>
               </div>
+            ) : (
+              /* Mode 2: Standard Preset Cards & Granular Controls */
+              <>
+                <div>
+                  <h3 className="text-sm font-extrabold text-slate-900 dark:text-white flex items-center gap-2">
+                    <Gauge size={16} className="text-emerald-500" />
+                    <span>Compression Level</span>
+                  </h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                    Choose a preset or fine-tune quality vs file size
+                  </p>
+                </div>
+
+                {/* Student & Employee Examination Document Presets */}
+                <div className="space-y-2 rounded-2xl border border-indigo-500/25 bg-indigo-500/5 p-3.5 dark:bg-indigo-950/25">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-extrabold text-indigo-950 dark:text-indigo-200 flex items-center gap-1.5">
+                      <GraduationCap size={15} className="text-indigo-600 dark:text-indigo-400" />
+                      <span>Exam Document Targets (100% Accepted)</span>
+                    </span>
+                    <span className="rounded bg-indigo-500/20 px-1.5 py-0.2 text-[9px] font-bold text-indigo-700 dark:text-indigo-300">
+                      UPSC / Colleges
+                    </span>
+                  </div>
+                  <p className="text-[10px] text-slate-500 dark:text-slate-400">
+                    1-click presets guaranteeing PDF size stays strictly under exam portal caps
+                  </p>
+
+                  <div className="grid grid-cols-2 gap-2 pt-1">
+                    {[
+                      { label: "Marksheet / Cert", target: "< 200 KB", p: "extreme" as const, sub: "Exam Document Cap" },
+                      { label: "Aadhar / ID Proof", target: "< 300 KB", p: "extreme" as const, sub: "Govt Identity Slip" },
+                      { label: "College Admission", target: "< 500 KB", p: "recommended" as const, sub: "University Portal" },
+                      { label: "Full Dossier", target: "< 1 MB", p: "recommended" as const, sub: "Job Onboarding" }
+                    ].map((item) => (
+                      <button
+                        key={item.label}
+                        type="button"
+                        onClick={() => {
+                          setPreset(item.p);
+                          notify(`Calibrated PDF compressor for ${item.label} (${item.target})!`, "info");
+                        }}
+                        className="rounded-xl border border-indigo-500/20 bg-white/90 p-2 text-left transition hover:border-indigo-500 hover:bg-indigo-50/50 dark:border-white/[0.08] dark:bg-slate-900"
+                      >
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-bold text-slate-800 dark:text-slate-200 truncate">
+                            {item.label}
+                          </span>
+                          <span className="text-[10px] font-mono font-bold text-indigo-600 dark:text-indigo-400 shrink-0">
+                            {item.target}
+                          </span>
+                        </div>
+                        <p className="text-[10px] text-slate-400 truncate mt-0.5">{item.sub}</p>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Presets Cards */}
+                <div className="space-y-2.5">
+                  {PRESETS.map((p) => {
+                    const isSelected = preset === p.key;
+                    return (
+                      <button
+                        key={p.key}
+                        type="button"
+                        onClick={() => setPreset(p.key)}
+                        className={`w-full text-left rounded-2xl border p-3.5 transition-all ${
+                          isSelected
+                            ? `${p.borderColor} ${p.bgColor} shadow-sm ring-1 ring-emerald-500/40`
+                            : "border-slate-200/80 bg-white hover:bg-slate-50 dark:border-white/[0.08] dark:bg-slate-900/60 dark:hover:bg-white/[0.04]"
+                        }`}
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-xs font-bold text-slate-900 dark:text-white">
+                            {p.title}
+                          </span>
+                          <span
+                            className={`rounded-md px-2 py-0.5 text-[10px] font-bold ${
+                              isSelected ? p.color : "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400"
+                            }`}
+                          >
+                            {p.reduction}
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1.5 leading-snug">
+                          {p.description}
+                        </p>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* Custom Mode Sliders */}
+                {preset === "custom" && (
+                  <div className="space-y-4 rounded-2xl border border-cyan-500/20 bg-cyan-500/5 p-4 animate-in fade-in">
+                    <div className="space-y-1.5">
+                      <div className="flex justify-between text-xs font-semibold">
+                        <span className="text-slate-700 dark:text-slate-300">JPEG Quality Level</span>
+                        <span className="font-mono font-bold text-cyan-600 dark:text-cyan-400">
+                          {customQuality}%
+                        </span>
+                      </div>
+                      <input
+                        type="range"
+                        min={10}
+                        max={100}
+                        value={customQuality}
+                        onChange={(e) => setCustomQuality(Number(e.target.value))}
+                        className="w-full accent-cyan-600 cursor-pointer h-2 bg-slate-200 rounded-lg dark:bg-slate-800"
+                      />
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <div className="flex justify-between text-xs font-semibold">
+                        <span className="text-slate-700 dark:text-slate-300">Target Canvas DPI</span>
+                        <span className="font-mono font-bold text-cyan-600 dark:text-cyan-400">
+                          {customDpi} DPI
+                        </span>
+                      </div>
+                      <input
+                        type="range"
+                        min={72}
+                        max={300}
+                        step={10}
+                        value={customDpi}
+                        onChange={(e) => setCustomDpi(Number(e.target.value))}
+                        className="w-full accent-cyan-600 cursor-pointer h-2 bg-slate-200 rounded-lg dark:bg-slate-800"
+                      />
+                      <span className="text-[10px] text-slate-400">
+                        72 DPI (Web/Email) • 150 DPI (Balanced) • 300 DPI (Archival)
+                      </span>
+                    </div>
+                  </div>
+                )}
+              </>
             )}
 
             {/* Real-Time Live File Size Savings Indicator */}
@@ -698,6 +825,19 @@ export default function PdfCompressorView({
                     {formatBytes(liveTotals.original)}
                   </span>
                 </div>
+
+                {compressMode === "targetKb" && (
+                  <div className="flex justify-between text-slate-500 dark:text-slate-400">
+                    <span className="flex items-center gap-1">
+                      <Target size={12} className="text-emerald-500" />
+                      <span>Required Target Limit:</span>
+                    </span>
+                    <span className="font-bold text-emerald-600 dark:text-emerald-400">
+                      ≤ {targetKb} KB ({formatBytes(targetKb * 1024)})
+                    </span>
+                  </div>
+                )}
+
                 <div className="flex justify-between text-slate-500 dark:text-slate-400">
                   <span>Estimated Size:</span>
                   <span className="font-bold text-emerald-600 dark:text-emerald-400">
@@ -730,7 +870,9 @@ export default function PdfCompressorView({
                   <div className="flex items-center gap-2">
                     <Archive size={16} />
                     <span>
-                      Apply Changes & Compress {files.length > 0 ? `(${files.length} Document${files.length > 1 ? "s" : ""})` : "PDF"}
+                      {compressMode === "targetKb"
+                        ? `Apply & Compress to ≤ ${targetKb} KB ${files.length > 0 ? `(${files.length} Document${files.length > 1 ? "s" : ""})` : "PDF"}`
+                        : `Apply Changes & Compress ${files.length > 0 ? `(${files.length} Document${files.length > 1 ? "s" : ""})` : "PDF"}`}
                     </span>
                   </div>
                 )}
@@ -755,3 +897,4 @@ export default function PdfCompressorView({
     </div>
   );
 }
+
