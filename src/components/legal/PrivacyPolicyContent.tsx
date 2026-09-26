@@ -16,7 +16,7 @@ export default function PrivacyPolicyContent() {
               ImagePro Studio operates on a <strong>zero-upload architecture</strong>. Your sensitive documents, government certificates, identity cards, passport photos, and handwritten signatures are processed entirely in your device’s local memory (RAM) using HTML5 Canvas, WebAssembly, and JavaScript. <strong>Zero bytes of your files are ever transmitted to or stored on our servers.</strong>
             </p>
             <div className="mt-2 text-[11px] font-semibold text-emerald-700 dark:text-emerald-300">
-              Last Updated & Curated: September 26, 2026 • Effective Date: January 1, 2025
+              Last Updated & Curated: September 26, 2026 • Effective Date: September 15, 2026
             </div>
           </div>
         </div>

@@ -16,7 +16,7 @@ export default function TermsOfServiceContent() {
               By accessing and using ImagePro Studio (<strong>imageprostudio.in</strong>), you agree to be bound by these Terms of Service. If you do not agree with any part of these terms, please do not use our services.
             </p>
             <div className="mt-2 text-[11px] font-semibold text-cyan-700 dark:text-cyan-300">
-              Effective Date: January 1, 2025 • Last Updated: September 26, 2026
+              Effective Date: September 15, 2026 • Last Updated: September 26, 2026
             </div>
           </div>
         </div>
