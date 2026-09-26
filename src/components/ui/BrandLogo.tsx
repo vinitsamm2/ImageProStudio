@@ -1,4 +1,5 @@
 import React from "react";
+import { Wand2 } from "lucide-react";
 
 type BrandLogoProps = {
   size?: "sm" | "md" | "lg" | "xl" | number;
@@ -26,24 +27,23 @@ export default function BrandLogo({
       ? 42
       : 56;
 
+  const iconSize = Math.max(14, Math.round(pixelSize * 0.5));
+
   return (
     <div
       onClick={onClick}
       className={`inline-flex items-center gap-2.5 ${onClick ? "cursor-pointer group select-none" : ""} ${className}`}
     >
+      {/* The Very First Iconic Gradient Emblem with Wand2 */}
       <div
         style={{ width: pixelSize, height: pixelSize }}
-        className="relative shrink-0 transition-transform duration-300 group-hover:scale-105"
+        className="relative shrink-0 grid place-items-center rounded-2xl bg-gradient-to-tr from-cyan-500 via-teal-500 to-indigo-500 text-white shadow-md shadow-cyan-500/25 transition-transform duration-300 group-hover:scale-105"
       >
-        <img
-          src="/logo.svg"
-          alt="ImagePro Studio Logo"
-          width={pixelSize}
-          height={pixelSize}
-          className="h-full w-full object-contain drop-shadow-md"
-          loading="eager"
-          decoding="async"
-        />
+        <Wand2 size={iconSize} className="transition-transform duration-300 group-hover:rotate-12" />
+        <span className="absolute -top-0.5 -right-0.5 flex h-2.5 w-2.5">
+          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-cyan-400 opacity-75" />
+          <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-cyan-400" />
+        </span>
       </div>
 
       {showText && (
