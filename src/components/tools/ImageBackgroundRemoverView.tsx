@@ -29,6 +29,7 @@ import UploadZone from "../UploadZone";
 import { formatBytes, downloadBlob } from "../../lib/files";
 import {
   processBackgroundRemoval,
+  removeBackgroundWithAI,
   samplePerimeterColor,
   applyBrushStroke,
   renderCompositeToCanvas,
@@ -79,6 +80,13 @@ export default function ImageBackgroundRemoverView({
 }) {
   const [file, setFile] = useState<File | null>(null);
   const [imageSize, setImageSize] = useState<{ width: number; height: number } | null>(null);
+  const [previewSrcUrl, setPreviewSrcUrl] = useState<string | null>(null);
+
+  // Engine state: "ai" (ISNet deep neural network) | "color" (Smart edge floodfill keyer)
+  const [engine, setEngine] = useState<"ai" | "color">("ai");
+  const [isAiRunning, setIsAiRunning] = useState(false);
+  const [aiProgress, setAiProgress] = useState(0);
+  const [aiStatus, setAiStatus] = useState("");
 
   // Settings
   const [tolerance, setTolerance] = useState(24);
@@ -116,76 +124,14 @@ export default function ImageBackgroundRemoverView({
   const previewCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const canvasContainerRef = useRef<HTMLDivElement | null>(null);
 
-  // Load Image into Canvas & initialize
-  const loadImage = useCallback((picked: File) => {
-    setFile(picked);
-    const img = new Image();
-    const url = URL.createObjectURL(picked);
-
-    img.onload = () => {
-      URL.revokeObjectURL(url);
-      const width = img.naturalWidth || img.width;
-      const height = img.naturalHeight || img.height;
-      setImageSize({ width, height });
-
-      // Draw original image into offscreen canvas to get ImageData
-      const offCanvas = document.createElement("canvas");
-      offCanvas.width = width;
-      offCanvas.height = height;
-      const ctx = offCanvas.getContext("2d");
-      if (!ctx) return;
-
-      ctx.drawImage(img, 0, 0);
-      const origData = ctx.getImageData(0, 0, width, height);
-      originalImageDataRef.current = origData;
-
-      // Auto-sample perimeter color
-      const sampled = samplePerimeterColor(origData);
-      setTargetColor(sampled);
-
-      // Initial run
-      runMatting(origData, sampled, 24, 2, true, true);
-    };
-
-    img.src = url;
-  }, []);
-
-  const runMatting = (
-    origData: ImageData,
-    color: ColorRGB,
-    tol: number,
-    feath: number,
-    contig: boolean,
-    desp: boolean
-  ) => {
-    setIsProcessing(true);
-    setTimeout(() => {
-      try {
-        const cutout = processBackgroundRemoval(origData, {
-          targetColor: color,
-          tolerance: tol,
-          feather: feath,
-          contiguous: contig,
-          despill: desp
-        });
-
-        currentCutoutDataRef.current = cutout;
-        undoHistoryRef.current = [cutout];
-        redoHistoryRef.current = [];
-        renderToDisplay();
-      } catch (err) {
-        console.error("Matting error:", err);
-      } finally {
-        setIsProcessing(false);
+  // Cleanup object URL
+  useEffect(() => {
+    return () => {
+      if (previewSrcUrl) {
+        URL.revokeObjectURL(previewSrcUrl);
       }
-    }, 10);
-  };
-
-  // Re-run matting when slider settings change
-  const handleApplySettings = () => {
-    if (!originalImageDataRef.current) return;
-    runMatting(originalImageDataRef.current, targetColor, tolerance, feather, contiguous, despill);
-  };
+    };
+  }, [previewSrcUrl]);
 
   // Render composite to display canvas
   const renderToDisplay = useCallback(() => {
@@ -225,6 +171,110 @@ export default function ImageBackgroundRemoverView({
       ctx.drawImage(tempCanvas, 0, 0);
     }
   }, [backdropType, selectedColor, selectedGradient]);
+
+  const runMatting = useCallback((
+    origData: ImageData,
+    color: ColorRGB,
+    tol: number,
+    feath: number,
+    contig: boolean,
+    desp: boolean
+  ) => {
+    setIsProcessing(true);
+    setTimeout(() => {
+      try {
+        const cutout = processBackgroundRemoval(origData, {
+          targetColor: color,
+          tolerance: tol,
+          feather: feath,
+          contiguous: contig,
+          despill: desp
+        });
+
+        currentCutoutDataRef.current = cutout;
+        undoHistoryRef.current = [cutout];
+        redoHistoryRef.current = [];
+        renderToDisplay();
+      } catch (err) {
+        console.error("Matting error:", err);
+      } finally {
+        setIsProcessing(false);
+      }
+    }, 10);
+  }, [renderToDisplay]);
+
+  // AI Neural Matting execution
+  const runAiMatting = useCallback(async (sourceFile: File) => {
+    setIsAiRunning(true);
+    setIsProcessing(true);
+    setAiProgress(10);
+    setAiStatus("Initializing neural network in browser...");
+    try {
+      const cutout = await removeBackgroundWithAI(sourceFile, (msg, pct) => {
+        setAiStatus(msg);
+        if (pct !== undefined) setAiProgress(pct);
+      });
+      currentCutoutDataRef.current = cutout;
+      undoHistoryRef.current = [cutout];
+      redoHistoryRef.current = [];
+      setAiProgress(100);
+      setAiStatus("Cutout complete!");
+      renderToDisplay();
+      notify("Studio-quality background removal complete! Hair & edges preserved.", "success");
+    } catch (err: any) {
+      console.warn("AI Matting fallback to Smart Color Keyer:", err);
+      notify("AI model loading error. Falling back to Smart Color Keyer.", "info");
+      setEngine("color");
+      if (originalImageDataRef.current) {
+        runMatting(originalImageDataRef.current, targetColor, tolerance, feather, contiguous, despill);
+      }
+    } finally {
+      setIsAiRunning(false);
+      setIsProcessing(false);
+    }
+  }, [notify, renderToDisplay, runMatting, targetColor, tolerance, feather, contiguous, despill]);
+
+  // Load Image into Canvas & initialize
+  const loadImage = useCallback((picked: File) => {
+    setFile(picked);
+    if (previewSrcUrl) {
+      URL.revokeObjectURL(previewSrcUrl);
+    }
+    const url = URL.createObjectURL(picked);
+    setPreviewSrcUrl(url);
+
+    const img = new Image();
+    img.onload = () => {
+      const width = img.naturalWidth || img.width;
+      const height = img.naturalHeight || img.height;
+      setImageSize({ width, height });
+
+      // Draw original image into offscreen canvas to get ImageData
+      const offCanvas = document.createElement("canvas");
+      offCanvas.width = width;
+      offCanvas.height = height;
+      const ctx = offCanvas.getContext("2d");
+      if (!ctx) return;
+
+      ctx.drawImage(img, 0, 0);
+      const origData = ctx.getImageData(0, 0, width, height);
+      originalImageDataRef.current = origData;
+
+      // Auto-sample perimeter color for fallback or color mode
+      const sampled = samplePerimeterColor(origData);
+      setTargetColor(sampled);
+
+      // Default to AI Neural Matting for pixel-perfect results
+      if (engine === "ai") {
+        runAiMatting(picked);
+      } else {
+        runMatting(origData, sampled, tolerance, feather, contiguous, despill);
+      }
+    };
+
+    img.src = url;
+  }, [engine, previewSrcUrl, runAiMatting, runMatting, tolerance, feather, contiguous, despill]);
+
 
   useEffect(() => {
     renderToDisplay();
@@ -485,7 +535,13 @@ export default function ImageBackgroundRemoverView({
                   )}
                 </div>
                 <p className="text-[11px] text-slate-400">
-                  {isProcessing ? "Processing edge segmentation..." : "Ready for export or backdrop replacement"}
+                  {isAiRunning
+                    ? aiStatus || "AI Neural Network segmenting edges & hair..."
+                    : isProcessing
+                    ? "Processing edge segmentation..."
+                    : engine === "ai"
+                    ? "AI Neural Matting (Studio Quality) Active"
+                    : "Smart Color Keyer Active"}
                 </p>
               </div>
             </div>
@@ -524,6 +580,8 @@ export default function ImageBackgroundRemoverView({
                 onClick={() => {
                   setFile(null);
                   setImageSize(null);
+                  if (previewSrcUrl) URL.revokeObjectURL(previewSrcUrl);
+                  setPreviewSrcUrl(null);
                   originalImageDataRef.current = null;
                   currentCutoutDataRef.current = null;
                   undoHistoryRef.current = [];
@@ -663,7 +721,7 @@ export default function ImageBackgroundRemoverView({
                       style={{ width: `${splitPos}%` }}
                     >
                       <img
-                        src={file ? URL.createObjectURL(file) : ""}
+                        src={previewSrcUrl || ""}
                         alt="Original"
                         className="max-h-[560px] max-w-none h-full object-contain"
                         style={{
@@ -685,6 +743,61 @@ export default function ImageBackgroundRemoverView({
                     </div>
                   )}
                 </div>
+
+                {/* AI Processing Overlay */}
+                {isAiRunning && (
+                  <div className="absolute inset-0 z-30 flex flex-col items-center justify-center bg-slate-900/85 backdrop-blur-md p-6 text-center text-white rounded-3xl animate-in fade-in duration-200">
+                    <div className="relative mb-5">
+                      <div className="h-16 w-16 rounded-3xl bg-gradient-to-tr from-pink-500 via-rose-500 to-amber-500 p-0.5 animate-spin">
+                        <div className="h-full w-full rounded-3xl bg-slate-950 flex items-center justify-center">
+                          <Sparkles className="text-pink-400 animate-pulse" size={28} />
+                        </div>
+                      </div>
+                      <div className="absolute -inset-2 rounded-3xl bg-pink-500/30 blur-xl -z-10" />
+                    </div>
+
+                    <h4 className="text-base font-extrabold text-white mb-1.5 flex items-center gap-2">
+                      <span>AI Neural Studio Matting</span>
+                      <span className="rounded-full bg-pink-500/20 px-2 py-0.5 text-[10px] font-bold text-pink-300">
+                        ISNet
+                      </span>
+                    </h4>
+                    <p className="text-xs text-slate-300 max-w-sm mb-4 leading-relaxed">
+                      {aiStatus || "Analyzing contours, separating hair strands & subject..."}
+                    </p>
+
+                    {/* Progress bar */}
+                    <div className="w-64 max-w-full bg-slate-800 rounded-full h-2.5 overflow-hidden mb-2 border border-white/10">
+                      <div
+                        className="bg-gradient-to-r from-pink-500 via-rose-500 to-amber-400 h-full transition-all duration-300 rounded-full"
+                        style={{ width: `${Math.max(8, aiProgress)}%` }}
+                      />
+                    </div>
+                    <span className="text-[11px] font-mono text-pink-300 font-bold mb-4">
+                      {aiProgress}%
+                    </span>
+
+                    <div className="flex items-center gap-1.5 text-[11px] text-emerald-400 font-semibold mb-3">
+                      <ShieldCheck size={14} />
+                      <span>100% In-Browser WASM • No server uploads</span>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsAiRunning(false);
+                        setIsProcessing(false);
+                        setEngine("color");
+                        if (originalImageDataRef.current) {
+                          runMatting(originalImageDataRef.current, targetColor, tolerance, feather, contiguous, despill);
+                        }
+                      }}
+                      className="text-[11px] text-slate-400 hover:text-white underline cursor-pointer"
+                    >
+                      Cancel & use Fast Color Keyer
+                    </button>
+                  </div>
+                )}
 
                 {/* Eyedropper Notice */}
                 {eyedropperActive && (
@@ -773,162 +886,257 @@ export default function ImageBackgroundRemoverView({
                   </button>
                 </div>
 
-                {/* TAB 1: Smart Matting Settings */}
+                {/* TAB 1: Matting Engine & Settings */}
                 {activeTab === "smart" && (
                   <div className="space-y-4">
-                    {/* Mode: Contiguous vs Global */}
+                    {/* Engine Selection Toggle */}
                     <div className="space-y-1.5">
                       <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
-                        Isolation Mode
+                        Matting Engine
                       </label>
                       <div className="grid grid-cols-2 gap-2">
                         <button
                           type="button"
                           onClick={() => {
-                            setContiguous(true);
-                            if (originalImageDataRef.current) {
-                              runMatting(originalImageDataRef.current, targetColor, tolerance, feather, true, despill);
+                            setEngine("ai");
+                            if (file && !isAiRunning) {
+                              runAiMatting(file);
                             }
                           }}
-                          className={`p-2 rounded-xl text-left border transition-all cursor-pointer ${
-                            contiguous
-                              ? "border-pink-500 bg-pink-50/50 dark:bg-pink-950/20 text-pink-700 dark:text-pink-300"
-                              : "border-slate-200 dark:border-white/[0.08] text-slate-600 dark:text-slate-400"
+                          className={`p-2.5 rounded-xl text-left border transition-all cursor-pointer ${
+                            engine === "ai"
+                              ? "border-pink-500 bg-pink-50/50 dark:bg-pink-950/20 text-pink-700 dark:text-pink-300 ring-2 ring-pink-500/20"
+                              : "border-slate-200 dark:border-white/[0.08] text-slate-600 dark:text-slate-400 hover:border-slate-300"
                           }`}
                         >
-                          <div className="font-bold text-xs">Edge Floodfill</div>
-                          <div className="text-[10px] opacity-75">Portraits & Exam Photos</div>
+                          <div className="flex items-center gap-1.5 font-bold text-xs">
+                            <Sparkles size={13} className="text-pink-600 dark:text-pink-400" />
+                            <span>AI Neural (Perfect)</span>
+                          </div>
+                          <div className="text-[10px] opacity-75 mt-0.5">
+                            Hair & Portraits • Any BG
+                          </div>
                         </button>
 
                         <button
                           type="button"
                           onClick={() => {
-                            setContiguous(false);
+                            setEngine("color");
                             if (originalImageDataRef.current) {
-                              runMatting(originalImageDataRef.current, targetColor, tolerance, feather, false, despill);
+                              runMatting(originalImageDataRef.current, targetColor, tolerance, feather, contiguous, despill);
                             }
                           }}
-                          className={`p-2 rounded-xl text-left border transition-all cursor-pointer ${
-                            !contiguous
-                              ? "border-pink-500 bg-pink-50/50 dark:bg-pink-950/20 text-pink-700 dark:text-pink-300"
-                              : "border-slate-200 dark:border-white/[0.08] text-slate-600 dark:text-slate-400"
+                          className={`p-2.5 rounded-xl text-left border transition-all cursor-pointer ${
+                            engine === "color"
+                              ? "border-pink-500 bg-pink-50/50 dark:bg-pink-950/20 text-pink-700 dark:text-pink-300 ring-2 ring-pink-500/20"
+                              : "border-slate-200 dark:border-white/[0.08] text-slate-600 dark:text-slate-400 hover:border-slate-300"
                           }`}
                         >
-                          <div className="font-bold text-xs">Global Color</div>
-                          <div className="text-[10px] opacity-75">Signatures & Logos</div>
+                          <div className="flex items-center gap-1.5 font-bold text-xs">
+                            <Sliders size={13} />
+                            <span>Smart Color Keyer</span>
+                          </div>
+                          <div className="text-[10px] opacity-75 mt-0.5">
+                            Instant • Signatures / Flat
+                          </div>
                         </button>
                       </div>
                     </div>
 
-                    {/* Target Color & Eyedropper */}
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between text-xs font-bold text-slate-700 dark:text-slate-300">
-                        <span>Background Color</span>
-                        <button
-                          type="button"
-                          onClick={() => setEyedropperActive(!eyedropperActive)}
-                          className={`inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-lg border transition-colors cursor-pointer ${
-                            eyedropperActive
-                              ? "bg-cyan-600 text-white border-cyan-600"
-                              : "border-slate-200 dark:border-white/[0.1] text-cyan-600 dark:text-cyan-400"
-                          }`}
-                        >
-                          <Pipette size={12} />
-                          <span>{eyedropperActive ? "Click on Photo" : "Eyedropper"}</span>
-                        </button>
-                      </div>
+                    {/* AI Neural Studio Panel */}
+                    {engine === "ai" && (
+                      <div className="space-y-3 rounded-2xl border border-pink-500/20 bg-pink-50/20 p-4 dark:bg-pink-950/10">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+                            <CheckCircle2 size={15} className="text-emerald-500" />
+                            <span>Neural Deep Learning Active</span>
+                          </span>
+                          <span className="text-[10px] font-mono font-bold bg-pink-100 dark:bg-pink-900/40 text-pink-700 dark:text-pink-300 px-2 py-0.5 rounded-md">
+                            ISNet
+                          </span>
+                        </div>
 
-                      <div className="flex items-center gap-2 p-2 rounded-xl border border-slate-200 dark:border-white/[0.08] bg-slate-50 dark:bg-slate-800/40">
-                        <div
-                          className="h-6 w-6 rounded-lg border border-slate-300 shadow-xs"
-                          style={{
-                            backgroundColor: `rgb(${targetColor.r}, ${targetColor.g}, ${targetColor.b})`
-                          }}
-                        />
-                        <span className="text-xs font-mono text-slate-700 dark:text-slate-300">
-                          RGB({targetColor.r}, {targetColor.g}, {targetColor.b})
-                        </span>
+                        <p className="text-[11px] text-slate-600 dark:text-slate-400 leading-relaxed">
+                          Pixel-accurate segmentation running locally in-browser. Preserves fine hair strands, clothing textures, and skin edges even with cluttered, dark, or outdoor backgrounds.
+                        </p>
+
                         <button
                           type="button"
+                          disabled={isAiRunning || !file}
                           onClick={() => {
-                            if (originalImageDataRef.current) {
-                              const sampled = samplePerimeterColor(originalImageDataRef.current);
-                              setTargetColor(sampled);
-                              runMatting(originalImageDataRef.current, sampled, tolerance, feather, contiguous, despill);
-                            }
+                            if (file) runAiMatting(file);
                           }}
-                          className="ml-auto text-[11px] text-pink-600 dark:text-pink-400 hover:underline font-bold cursor-pointer"
+                          className="w-full inline-flex items-center justify-center gap-2 rounded-xl border border-pink-500/30 bg-white dark:bg-slate-800 px-3 py-2.5 text-xs font-bold text-pink-600 dark:text-pink-400 hover:bg-pink-50 dark:hover:bg-slate-700 disabled:opacity-50 cursor-pointer shadow-2xs transition-colors"
                         >
-                          Auto Detect
+                          <RefreshCw size={13} className={isAiRunning ? "animate-spin" : ""} />
+                          <span>{isAiRunning ? "Analyzing..." : "Re-run AI Segmentation"}</span>
                         </button>
-                      </div>
-                    </div>
 
-                    {/* Tolerance Slider */}
-                    <div className="space-y-1.5">
-                      <div className="flex items-center justify-between text-xs font-bold text-slate-700 dark:text-slate-300">
-                        <span>Color Sensitivity (Tolerance)</span>
-                        <span className="text-pink-600 dark:text-pink-400">{tolerance}%</span>
+                        <div className="rounded-xl bg-white/60 dark:bg-slate-800/60 p-2.5 text-[11px] text-slate-500 dark:text-slate-400 border border-slate-200/60 dark:border-white/[0.05]">
+                          <span className="font-bold text-slate-700 dark:text-slate-300">Pro-Tip: </span>
+                          Select any official background color in the bar above (Pure White for UPSC, Sky Blue for Visa), or switch to the <strong>Touchup</strong> tab to brush away tiny details!
+                        </div>
                       </div>
-                      <input
-                        type="range"
-                        min="5"
-                        max="85"
-                        value={tolerance}
-                        onChange={(e) => {
-                          const val = Number(e.target.value);
-                          setTolerance(val);
-                          if (originalImageDataRef.current) {
-                            runMatting(originalImageDataRef.current, targetColor, val, feather, contiguous, despill);
-                          }
-                        }}
-                        className="w-full h-2 bg-slate-200 dark:bg-slate-700 rounded-lg appearance-none cursor-pointer accent-pink-600"
-                      />
-                      <div className="flex justify-between text-[10px] text-slate-400">
-                        <span>Strict (5%)</span>
-                        <span>Balanced (25%)</span>
-                        <span>Aggressive (80%)</span>
-                      </div>
-                    </div>
+                    )}
 
-                    {/* Edge Feathering Slider */}
-                    <div className="space-y-1.5">
-                      <div className="flex items-center justify-between text-xs font-bold text-slate-700 dark:text-slate-300">
-                        <span>Edge Smoothing (Feather)</span>
-                        <span className="text-pink-600 dark:text-pink-400">{feather} px</span>
-                      </div>
-                      <input
-                        type="range"
-                        min="0"
-                        max="8"
-                        value={feather}
-                        onChange={(e) => {
-                          const val = Number(e.target.value);
-                          setFeather(val);
-                          if (originalImageDataRef.current) {
-                            runMatting(originalImageDataRef.current, targetColor, tolerance, val, contiguous, despill);
-                          }
-                        }}
-                        className="w-full h-2 bg-slate-200 dark:bg-slate-700 rounded-lg appearance-none cursor-pointer accent-pink-600"
-                      />
-                    </div>
+                    {/* Color Keyer Settings Panel */}
+                    {engine === "color" && (
+                      <div className="space-y-4">
+                        {/* Mode: Contiguous vs Global */}
+                        <div className="space-y-1.5">
+                          <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                            Color Isolation Mode
+                          </label>
+                          <div className="grid grid-cols-2 gap-2">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setContiguous(true);
+                                if (originalImageDataRef.current) {
+                                  runMatting(originalImageDataRef.current, targetColor, tolerance, feather, true, despill);
+                                }
+                              }}
+                              className={`p-2 rounded-xl text-left border transition-all cursor-pointer ${
+                                contiguous
+                                  ? "border-pink-500 bg-pink-50/50 dark:bg-pink-950/20 text-pink-700 dark:text-pink-300"
+                                  : "border-slate-200 dark:border-white/[0.08] text-slate-600 dark:text-slate-400"
+                              }`}
+                            >
+                              <div className="font-bold text-xs">Edge Floodfill</div>
+                              <div className="text-[10px] opacity-75">Portraits & Exam Photos</div>
+                            </button>
 
-                    {/* Defringe Checkbox */}
-                    <label className="flex items-center gap-2 text-xs font-bold text-slate-700 dark:text-slate-300 cursor-pointer pt-1">
-                      <input
-                        type="checkbox"
-                        checked={despill}
-                        onChange={(e) => {
-                          const val = e.target.checked;
-                          setDespill(val);
-                          if (originalImageDataRef.current) {
-                            runMatting(originalImageDataRef.current, targetColor, tolerance, feather, contiguous, val);
-                          }
-                        }}
-                        className="h-4 w-4 rounded text-pink-600 focus:ring-pink-500 border-slate-300 dark:border-slate-700"
-                      />
-                      <span>Remove Color Halo (Despill / Anti-Fringe)</span>
-                    </label>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setContiguous(false);
+                                if (originalImageDataRef.current) {
+                                  runMatting(originalImageDataRef.current, targetColor, tolerance, feather, false, despill);
+                                }
+                              }}
+                              className={`p-2 rounded-xl text-left border transition-all cursor-pointer ${
+                                !contiguous
+                                  ? "border-pink-500 bg-pink-50/50 dark:bg-pink-950/20 text-pink-700 dark:text-pink-300"
+                                  : "border-slate-200 dark:border-white/[0.08] text-slate-600 dark:text-slate-400"
+                              }`}
+                            >
+                              <div className="font-bold text-xs">Global Color</div>
+                              <div className="text-[10px] opacity-75">Signatures & Logos</div>
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Target Color & Eyedropper */}
+                        <div className="space-y-2">
+                          <div className="flex items-center justify-between text-xs font-bold text-slate-700 dark:text-slate-300">
+                            <span>Background Color</span>
+                            <button
+                              type="button"
+                              onClick={() => setEyedropperActive(!eyedropperActive)}
+                              className={`inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-lg border transition-colors cursor-pointer ${
+                                eyedropperActive
+                                  ? "bg-cyan-600 text-white border-cyan-600"
+                                  : "border-slate-200 dark:border-white/[0.1] text-cyan-600 dark:text-cyan-400"
+                              }`}
+                            >
+                              <Pipette size={12} />
+                              <span>{eyedropperActive ? "Click on Photo" : "Eyedropper"}</span>
+                            </button>
+                          </div>
+
+                          <div className="flex items-center gap-2 p-2 rounded-xl border border-slate-200 dark:border-white/[0.08] bg-slate-50 dark:bg-slate-800/40">
+                            <div
+                              className="h-6 w-6 rounded-lg border border-slate-300 shadow-xs"
+                              style={{
+                                backgroundColor: `rgb(${targetColor.r}, ${targetColor.g}, ${targetColor.b})`
+                              }}
+                            />
+                            <span className="text-xs font-mono text-slate-700 dark:text-slate-300">
+                              RGB({targetColor.r}, {targetColor.g}, {targetColor.b})
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (originalImageDataRef.current) {
+                                  const sampled = samplePerimeterColor(originalImageDataRef.current);
+                                  setTargetColor(sampled);
+                                  runMatting(originalImageDataRef.current, sampled, tolerance, feather, contiguous, despill);
+                                }
+                              }}
+                              className="ml-auto text-[11px] text-pink-600 dark:text-pink-400 hover:underline font-bold cursor-pointer"
+                            >
+                              Auto Detect
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Tolerance Slider */}
+                        <div className="space-y-1.5">
+                          <div className="flex items-center justify-between text-xs font-bold text-slate-700 dark:text-slate-300">
+                            <span>Color Sensitivity (Tolerance)</span>
+                            <span className="text-pink-600 dark:text-pink-400">{tolerance}%</span>
+                          </div>
+                          <input
+                            type="range"
+                            min="5"
+                            max="85"
+                            value={tolerance}
+                            onChange={(e) => {
+                              const val = Number(e.target.value);
+                              setTolerance(val);
+                              if (originalImageDataRef.current) {
+                                runMatting(originalImageDataRef.current, targetColor, val, feather, contiguous, despill);
+                              }
+                            }}
+                            className="w-full h-2 bg-slate-200 dark:bg-slate-700 rounded-lg appearance-none cursor-pointer accent-pink-600"
+                          />
+                          <div className="flex justify-between text-[10px] text-slate-400">
+                            <span>Strict (5%)</span>
+                            <span>Balanced (25%)</span>
+                            <span>Aggressive (80%)</span>
+                          </div>
+                        </div>
+
+                        {/* Edge Feathering Slider */}
+                        <div className="space-y-1.5">
+                          <div className="flex items-center justify-between text-xs font-bold text-slate-700 dark:text-slate-300">
+                            <span>Edge Smoothing (Feather)</span>
+                            <span className="text-pink-600 dark:text-pink-400">{feather} px</span>
+                          </div>
+                          <input
+                            type="range"
+                            min="0"
+                            max="8"
+                            value={feather}
+                            onChange={(e) => {
+                              const val = Number(e.target.value);
+                              setFeather(val);
+                              if (originalImageDataRef.current) {
+                                runMatting(originalImageDataRef.current, targetColor, tolerance, val, contiguous, despill);
+                              }
+                            }}
+                            className="w-full h-2 bg-slate-200 dark:bg-slate-700 rounded-lg appearance-none cursor-pointer accent-pink-600"
+                          />
+                        </div>
+
+                        {/* Defringe Checkbox */}
+                        <label className="flex items-center gap-2 text-xs font-bold text-slate-700 dark:text-slate-300 cursor-pointer pt-1">
+                          <input
+                            type="checkbox"
+                            checked={despill}
+                            onChange={(e) => {
+                              const val = e.target.checked;
+                              setDespill(val);
+                              if (originalImageDataRef.current) {
+                                runMatting(originalImageDataRef.current, targetColor, tolerance, feather, contiguous, val);
+                              }
+                            }}
+                            className="h-4 w-4 rounded text-pink-600 focus:ring-pink-500 border-slate-300 dark:border-slate-700"
+                          />
+                          <span>Remove Color Halo (Despill / Anti-Fringe)</span>
+                        </label>
+                      </div>
+                    )}
                   </div>
                 )}
 

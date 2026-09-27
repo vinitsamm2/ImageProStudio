@@ -18,6 +18,7 @@
     "submit:indexnow": "node scripts/submit-indexnow.mjs"
   },
   "dependencies": {
+    "@imgly/background-removal": "^1.7.0",
     "@pdfsmaller/pdf-decrypt": "^1.0.1",
     "@pdfsmaller/pdf-encrypt": "^1.2.0",
     "@vercel/speed-insights": "^2.0.0",
