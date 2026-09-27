@@ -209,11 +209,19 @@ export default defineConfig({
   plugins: [react(), mobileSharePlugin()],
   server: {
     host: "0.0.0.0",
-    port: 5173
+    port: 5173,
+    headers: {
+      "Cross-Origin-Opener-Policy": "same-origin",
+      "Cross-Origin-Embedder-Policy": "credentialless"
+    }
   },
   preview: {
     host: "0.0.0.0",
-    port: 5173
+    port: 5173,
+    headers: {
+      "Cross-Origin-Opener-Policy": "same-origin",
+      "Cross-Origin-Embedder-Policy": "credentialless"
+    }
   },
   resolve: {
     alias: {

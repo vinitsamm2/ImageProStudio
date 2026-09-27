@@ -6,6 +6,7 @@ import {
   Columns,
   Download,
   Eye,
+  Focus,
   Layers,
   Maximize2,
   Paintbrush,
@@ -33,6 +34,7 @@ import {
   samplePerimeterColor,
   applyBrushStroke,
   renderCompositeToCanvas,
+  refineCutoutEdges,
   ColorRGB,
   RemoveBackgroundOptions,
   BackdropConfig
@@ -97,10 +99,11 @@ export default function ImageBackgroundRemoverView({
   const [eyedropperActive, setEyedropperActive] = useState(false);
 
   // Backdrop options
-  const [backdropType, setBackdropType] = useState<"transparent" | "color" | "gradient">("transparent");
+  const [backdropType, setBackdropType] = useState<"transparent" | "color" | "gradient" | "blur">("transparent");
   const [selectedColor, setSelectedColor] = useState("#ffffff");
   const [selectedGradient, setSelectedGradient] = useState(GRADIENT_PRESETS[0]);
   const [customHex, setCustomHex] = useState("#ffffff");
+  const [blurRadius, setBlurRadius] = useState(16);
 
   // Touchup Brush
   const [activeTab, setActiveTab] = useState<"smart" | "brush" | "backdrop">("smart");
@@ -115,6 +118,7 @@ export default function ImageBackgroundRemoverView({
   const [isProcessing, setIsProcessing] = useState(false);
 
   // Image buffers stored in memory
+  const originalImageElementRef = useRef<HTMLImageElement | null>(null);
   const originalImageDataRef = useRef<ImageData | null>(null);
   const currentCutoutDataRef = useRef<ImageData | null>(null);
   const undoHistoryRef = useRef<ImageData[]>([]);
@@ -156,6 +160,14 @@ export default function ImageBackgroundRemoverView({
       grad.addColorStop(1, selectedGradient.to);
       ctx.fillStyle = grad;
       ctx.fillRect(0, 0, width, height);
+    } else if (backdropType === "blur" && originalImageElementRef.current) {
+      // Bokeh Portrait Blur effect
+      ctx.save();
+      const blurPx = Math.max(4, Math.min(40, blurRadius));
+      ctx.filter = `blur(${blurPx}px)`;
+      const pad = blurPx * 1.5;
+      ctx.drawImage(originalImageElementRef.current, -pad, -pad, width + pad * 2, height + pad * 2);
+      ctx.restore();
     } else {
       // Clear for transparent
       ctx.clearRect(0, 0, width, height);
@@ -170,7 +182,7 @@ export default function ImageBackgroundRemoverView({
       tempCtx.putImageData(cutout, 0, 0);
       ctx.drawImage(tempCanvas, 0, 0);
     }
-  }, [backdropType, selectedColor, selectedGradient]);
+  }, [backdropType, selectedColor, selectedGradient, blurRadius]);
 
   const runMatting = useCallback((
     origData: ImageData,
@@ -204,16 +216,21 @@ export default function ImageBackgroundRemoverView({
   }, [renderToDisplay]);
 
   // AI Neural Matting execution
-  const runAiMatting = useCallback(async (sourceFile: File) => {
+  const runAiMatting = useCallback(async (sourceFile: File, origData?: ImageData | null, sampleBg?: ColorRGB) => {
     setIsAiRunning(true);
     setIsProcessing(true);
     setAiProgress(10);
-    setAiStatus("Initializing neural network in browser...");
+    setAiStatus("Initializing neural network in browser (WebGPU / WASM)...");
     try {
-      const cutout = await removeBackgroundWithAI(sourceFile, (msg, pct) => {
-        setAiStatus(msg);
-        if (pct !== undefined) setAiProgress(pct);
-      });
+      const cutout = await removeBackgroundWithAI(
+        sourceFile,
+        (msg, pct) => {
+          setAiStatus(msg);
+          if (pct !== undefined) setAiProgress(pct);
+        },
+        origData || originalImageDataRef.current,
+        sampleBg || targetColor
+      );
       currentCutoutDataRef.current = cutout;
       undoHistoryRef.current = [cutout];
       redoHistoryRef.current = [];
@@ -245,6 +262,7 @@ export default function ImageBackgroundRemoverView({
 
     const img = new Image();
     img.onload = () => {
+      originalImageElementRef.current = img;
       const width = img.naturalWidth || img.width;
       const height = img.naturalHeight || img.height;
       setImageSize({ width, height });
@@ -266,7 +284,7 @@ export default function ImageBackgroundRemoverView({
 
       // Default to AI Neural Matting for pixel-perfect results
       if (engine === "ai") {
-        runAiMatting(picked);
+        runAiMatting(picked, origData, sampled);
       } else {
         runMatting(origData, sampled, tolerance, feather, contiguous, despill);
       }
@@ -410,7 +428,9 @@ export default function ImageBackgroundRemoverView({
     const canvas = renderCompositeToCanvas(currentCutoutDataRef.current, {
       type: backdropType === "transparent" ? "color" : backdropType,
       color: backdropType === "transparent" ? "#ffffff" : selectedColor,
-      gradient: selectedGradient
+      gradient: selectedGradient,
+      blurRadius,
+      originalImage: originalImageElementRef.current
     });
 
     canvas.toBlob((blob) => {
@@ -427,7 +447,9 @@ export default function ImageBackgroundRemoverView({
     const canvas = renderCompositeToCanvas(currentCutoutDataRef.current, {
       type: backdropType,
       color: selectedColor,
-      gradient: selectedGradient
+      gradient: selectedGradient,
+      blurRadius,
+      originalImage: originalImageElementRef.current
     });
     canvas.toBlob((blob) => {
       if (blob) {
@@ -444,7 +466,9 @@ export default function ImageBackgroundRemoverView({
     const canvas = renderCompositeToCanvas(currentCutoutDataRef.current, {
       type: backdropType,
       color: selectedColor,
-      gradient: selectedGradient
+      gradient: selectedGradient,
+      blurRadius,
+      originalImage: originalImageElementRef.current
     });
     canvas.toBlob((blob) => {
       if (blob) {
@@ -628,6 +652,24 @@ export default function ImageBackgroundRemoverView({
                     }}
                   />
                   <span>Transparent</span>
+                </button>
+
+                {/* Blur Background Option (remove.bg Bokeh Portrait Mode) */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setBackdropType("blur");
+                    setViewMode("result");
+                  }}
+                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-bold transition-all cursor-pointer ${
+                    backdropType === "blur"
+                      ? "border-pink-500 ring-2 ring-pink-500/20 bg-pink-50 dark:bg-pink-950/30 text-pink-700 dark:text-pink-300"
+                      : "border-slate-200 dark:border-white/[0.08] text-slate-600 dark:text-slate-400 hover:border-slate-300"
+                  }`}
+                  title="Blur original background like DSLR / iPhone Portrait Mode"
+                >
+                  <Focus size={14} className="text-amber-500" />
+                  <span>Blur Bokeh</span>
                 </button>
 
                 {/* Preset Solid Colors */}
@@ -972,9 +1014,57 @@ export default function ImageBackgroundRemoverView({
                           <span>{isAiRunning ? "Analyzing..." : "Re-run AI Segmentation"}</span>
                         </button>
 
+                        {/* Edge Polish & Halo Removal Actions */}
+                        <div className="space-y-2 pt-2 border-t border-pink-500/15">
+                          <label className="text-[11px] font-bold text-slate-700 dark:text-slate-300 flex items-center justify-between">
+                            <span>Pro Edge Polish & Halo Removal</span>
+                            <span className="text-[10px] text-pink-600 dark:text-pink-400 font-semibold">Instant</span>
+                          </label>
+                          <div className="grid grid-cols-2 gap-2">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (currentCutoutDataRef.current) {
+                                  const refined = refineCutoutEdges(
+                                    currentCutoutDataRef.current,
+                                    originalImageDataRef.current,
+                                    { despill: true, contrastBoost: true, noiseGate: true, sampleColor: targetColor }
+                                  );
+                                  currentCutoutDataRef.current = refined;
+                                  undoHistoryRef.current.push(refined);
+                                  renderToDisplay();
+                                  notify("Cleaned halo & fringe around hair edges!", "success");
+                                }
+                              }}
+                              className="px-2.5 py-1.5 rounded-xl border border-pink-200 dark:border-pink-900/50 bg-white dark:bg-slate-800 text-[11px] font-bold text-slate-700 dark:text-slate-200 hover:border-pink-400 hover:text-pink-600 transition-colors shadow-2xs cursor-pointer text-center"
+                            >
+                              ✨ Despill Halo
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (currentCutoutDataRef.current) {
+                                  const refined = refineCutoutEdges(
+                                    currentCutoutDataRef.current,
+                                    originalImageDataRef.current,
+                                    { despill: false, contrastBoost: true, noiseGate: true }
+                                  );
+                                  currentCutoutDataRef.current = refined;
+                                  undoHistoryRef.current.push(refined);
+                                  renderToDisplay();
+                                  notify("Cleaned background noise haze!", "success");
+                                }
+                              }}
+                              className="px-2.5 py-1.5 rounded-xl border border-pink-200 dark:border-pink-900/50 bg-white dark:bg-slate-800 text-[11px] font-bold text-slate-700 dark:text-slate-200 hover:border-pink-400 hover:text-pink-600 transition-colors shadow-2xs cursor-pointer text-center"
+                            >
+                              🧹 Clean Noise
+                            </button>
+                          </div>
+                        </div>
+
                         <div className="rounded-xl bg-white/60 dark:bg-slate-800/60 p-2.5 text-[11px] text-slate-500 dark:text-slate-400 border border-slate-200/60 dark:border-white/[0.05]">
                           <span className="font-bold text-slate-700 dark:text-slate-300">Pro-Tip: </span>
-                          Select any official background color in the bar above (Pure White for UPSC, Sky Blue for Visa), or switch to the <strong>Touchup</strong> tab to brush away tiny details!
+                          Select any official background color in the bar above (Pure White for UPSC, Sky Blue for Visa), Blur Bokeh for portrait mode, or switch to <strong>Touchup</strong> to brush!
                         </div>
                       </div>
                     )}

@@ -13,7 +13,7 @@ export interface RemoveBackgroundOptions {
   invert?: boolean;
 }
 
-export type BackdropType = "transparent" | "color" | "gradient";
+export type BackdropType = "transparent" | "color" | "gradient" | "blur";
 
 export interface BackdropConfig {
   type: BackdropType;
@@ -23,6 +23,8 @@ export interface BackdropConfig {
     to: string;
     direction?: "to-bottom" | "to-bottom-right" | "radial";
   };
+  blurRadius?: number; // e.g. 14 for Bokeh portrait blur
+  originalImage?: CanvasImageSource | null;
 }
 
 /**
@@ -350,6 +352,14 @@ export function renderCompositeToCanvas(
     grad.addColorStop(1, backdrop.gradient.to);
     ctx.fillStyle = grad;
     ctx.fillRect(0, 0, width, height);
+  } else if (backdrop.type === "blur" && backdrop.originalImage) {
+    // Bokeh Portrait Blur effect (like remove.bg blur backdrop)
+    ctx.save();
+    const blurAmount = Math.max(4, Math.min(40, backdrop.blurRadius || 16));
+    ctx.filter = `blur(${blurAmount}px)`;
+    const pad = blurAmount * 1.5;
+    ctx.drawImage(backdrop.originalImage, -pad, -pad, width + pad * 2, height + pad * 2);
+    ctx.restore();
   }
   // If transparent, we don't draw any backdrop
 
@@ -367,38 +377,135 @@ export function renderCompositeToCanvas(
 }
 
 /**
+ * Refines raw neural network predictions to remove background haze, solidify
+ * subject interiors, and despill background color halos around hair and silhouettes.
+ */
+export function refineCutoutEdges(
+  cutoutData: ImageData,
+  originalData?: ImageData | null,
+  options?: {
+    despill?: boolean;
+    contrastBoost?: boolean;
+    noiseGate?: boolean;
+    sampleColor?: ColorRGB;
+  }
+): ImageData {
+  const { width, height } = cutoutData;
+  const total = width * height;
+  const out = new ImageData(new Uint8ClampedArray(cutoutData.data), width, height);
+  const data = out.data;
+  const orig = originalData ? originalData.data : null;
+
+  const despill = options?.despill ?? true;
+  const contrastBoost = options?.contrastBoost ?? true;
+  const noiseGate = options?.noiseGate ?? true;
+  const bg = options?.sampleColor || { r: 255, g: 255, b: 255 };
+
+  for (let i = 0; i < total; i++) {
+    const idx = i * 4;
+    let a = data[idx + 3];
+
+    // 1. Noise gate: eliminate faint probabilistic neural haze in the background
+    if (noiseGate && a < 16) {
+      data[idx + 3] = 0;
+      continue;
+    }
+
+    // 2. Solid core boost: subject interior (> 228) is made 100% opaque to prevent see-through clothes
+    if (contrastBoost) {
+      if (a > 228) {
+        data[idx + 3] = 255;
+      } else if (a >= 16) {
+        // Smooth S-curve (Hermite interpolation) for soft hair antialiasing
+        const t = (a - 16) / (228 - 16);
+        const smooth = t * t * (3 - 2 * t);
+        data[idx + 3] = Math.round(smooth * 255);
+      }
+    }
+
+    // 3. Despill / Defringe along hair and edge boundary (where 0 < a < 255)
+    if (despill && orig && data[idx + 3] > 0 && data[idx + 3] < 255) {
+      const factor = data[idx + 3] / 255;
+      // Recover true foreground color by removing background color contamination
+      const r = Math.round((orig[idx] - bg.r * (1 - factor)) / Math.max(0.01, factor));
+      const g = Math.round((orig[idx + 1] - bg.g * (1 - factor)) / Math.max(0.01, factor));
+      const b = Math.round((orig[idx + 2] - bg.b * (1 - factor)) / Math.max(0.01, factor));
+
+      data[idx] = Math.min(255, Math.max(0, r));
+      data[idx + 1] = Math.min(255, Math.max(0, g));
+      data[idx + 2] = Math.min(255, Math.max(0, b));
+    }
+  }
+
+  return out;
+}
+
+/**
  * Uses state-of-the-art in-browser neural network (ISNet) via @imgly/background-removal
- * to achieve 100% perfect, pixel-accurate segmentation on real-world photos, portraits, and hair.
+ * with automatic WebGPU acceleration, hardware concurrency protection, and fallback.
  */
 export async function removeBackgroundWithAI(
   source: File | Blob | ImageData | HTMLImageElement,
-  onProgress?: (message: string, percent?: number) => void
+  onProgress?: (message: string, percent?: number) => void,
+  originalImageData?: ImageData | null,
+  sampleColor?: ColorRGB
 ): Promise<ImageData> {
   onProgress?.("Initializing AI neural network...", 10);
 
+  // 1. Guard against SharedArrayBuffer crashes when crossOriginIsolated is false
+  if (typeof window !== "undefined" && (!window.crossOriginIsolated || typeof SharedArrayBuffer === "undefined")) {
+    try {
+      Object.defineProperty(navigator, "hardwareConcurrency", {
+        get: () => 1,
+        configurable: true
+      });
+    } catch {
+      // ignore
+    }
+  }
+
+  // 2. Detect WebGPU acceleration support
+  const hasWebGPU = typeof navigator !== "undefined" && "gpu" in navigator;
+  const preferredDevice: "gpu" | "cpu" = hasWebGPU ? "gpu" : "cpu";
+
   const imglyModule = await import("@imgly/background-removal");
-  const imglyRemoveBackground = (imglyModule.default || imglyModule.removeBackground || imglyModule) as unknown as (
+  const imglyRemoveBackground = (imglyModule.removeBackground || imglyModule.default || imglyModule) as unknown as (
     image: any,
     configuration?: any
   ) => Promise<Blob>;
 
-  const blob = await imglyRemoveBackground(source, {
-    progress: (key: string, current: number, total: number) => {
-      if (total > 0) {
-        const pct = Math.min(95, Math.max(10, Math.round((current / total) * 100)));
-        onProgress?.(`Processing AI neural matting: ${pct}%`, pct);
-      } else {
-        onProgress?.(`AI Segmenting edges: ${key}...`, 50);
+  const runWithConfig = async (modelType: "isnet_fp16" | "isnet_quint8", dev: "gpu" | "cpu") => {
+    return await imglyRemoveBackground(source, {
+      device: dev,
+      model: modelType,
+      progress: (key: string, current: number, total: number) => {
+        if (total > 0) {
+          const pct = Math.min(95, Math.max(10, Math.round((current / total) * 100)));
+          onProgress?.(`Processing AI neural matting: ${pct}%`, pct);
+        } else {
+          onProgress?.(`AI Segmenting contours & hair: ${key}...`, 50);
+        }
+      },
+      output: {
+        format: "image/png",
+        quality: 1.0,
+        type: "foreground"
       }
-    },
-    output: {
-      format: "image/png",
-      quality: 1.0,
-      type: "foreground"
-    }
-  });
+    });
+  };
 
-  onProgress?.("Rendering perfect cutout...", 98);
+  let blob: Blob;
+  try {
+    // Try primary preferred configuration (GPU if available, FP16)
+    blob = await runWithConfig("isnet_fp16", preferredDevice);
+  } catch (gpuOrFp16Err) {
+    console.warn("Retrying AI with quantized model on CPU...", gpuOrFp16Err);
+    onProgress?.("Optimizing neural network for device...", 30);
+    // Fallback to quantized model on CPU (works on any hardware/browser)
+    blob = await runWithConfig("isnet_quint8", "cpu");
+  }
+
+  onProgress?.("Refining hair strands & edge clarity...", 96);
 
   const img = new Image();
   const url = URL.createObjectURL(blob);
@@ -416,5 +523,15 @@ export async function removeBackgroundWithAI(
   if (!ctx) throw new Error("Canvas context is unavailable.");
   ctx.drawImage(img, 0, 0);
 
-  return ctx.getImageData(0, 0, canvas.width, canvas.height);
+  const rawCutout = ctx.getImageData(0, 0, canvas.width, canvas.height);
+
+  // 3. Apply Professional Matte Refinement (Despill, noise gate, solid core)
+  const refined = refineCutoutEdges(rawCutout, originalImageData, {
+    despill: true,
+    contrastBoost: true,
+    noiseGate: true,
+    sampleColor
+  });
+
+  return refined;
 }

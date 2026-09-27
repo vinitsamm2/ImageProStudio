@@ -62,11 +62,13 @@ if (typeof purgeTimer.unref === "function") {
   purgeTimer.unref();
 }
 
-// CORS & Middleware
+// CORS & Security Headers
 app.use((req, res, next) => {
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type, x-file-name, Range");
+  res.setHeader("Cross-Origin-Opener-Policy", "same-origin");
+  res.setHeader("Cross-Origin-Embedder-Policy", "credentialless");
   if (req.method === "OPTIONS") return res.sendStatus(204);
   next();
 });
