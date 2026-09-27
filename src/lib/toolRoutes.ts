@@ -670,6 +670,90 @@ export function updateLegalPageSeo(id: LegalRouteId): void {
 }
 
 /**
+ * Specific SEO definitions for popular search-intent URL aliases (e.g. /pdf-to-jpg, /pdf-to-png, /jpg-to-pdf, /png-to-pdf)
+ */
+export const SPECIAL_ALIAS_SEO: Record<string, { title: string; metaDescription: string; canonical: string; h1: string }> = {
+  "/pdf-to-jpg": {
+    title: "PDF to JPG - Convert PDF to JPG Online Free (HD Quality) | ImagePro Studio",
+    metaDescription: "Convert PDF pages to high-resolution JPG images online for free. Extract all pages or specific page ranges in HD quality with zero server upload.",
+    canonical: "/pdf-to-jpg",
+    h1: "Convert PDF to JPG Images Online"
+  },
+  "/pdf-to-png": {
+    title: "PDF to PNG - Convert PDF to Transparent PNG Online Free | ImagePro Studio",
+    metaDescription: "Convert PDF pages into lossless, crisp PNG images online for free. 100% private in-browser tool with zero server upload.",
+    canonical: "/pdf-to-png",
+    h1: "Convert PDF to PNG Images Online"
+  },
+  "/jpg-to-pdf": {
+    title: "JPG to PDF - Convert JPG Images to PDF Online Free | ImagePro Studio",
+    metaDescription: "Convert JPG photos and images into a single clean PDF document online for free. Reorder pages, set A4 margins, and download instantly.",
+    canonical: "/jpg-to-pdf",
+    h1: "Convert JPG Images to PDF Document"
+  },
+  "/png-to-pdf": {
+    title: "PNG to PDF - Convert PNG Images to PDF Online Free | ImagePro Studio",
+    metaDescription: "Convert PNG pictures and transparent scans into a clean PDF document online for free. 100% private in-browser conversion.",
+    canonical: "/png-to-pdf",
+    h1: "Convert PNG Images to PDF Document"
+  },
+  "/merge-pdf": {
+    title: "Merge PDF - Combine Multiple PDF Files Online Free | ImagePro Studio",
+    metaDescription: "Merge and join multiple PDF files into one single document in seconds. Drag and drop reordering, 100% private and free.",
+    canonical: "/merge-pdf",
+    h1: "Merge and Combine PDF Files Online"
+  },
+  "/split-pdf": {
+    title: "Split PDF - Separate & Extract PDF Pages Online Free | ImagePro Studio",
+    metaDescription: "Split large PDF documents into individual pages or extract specific page ranges online for free. 100% private.",
+    canonical: "/split-pdf",
+    h1: "Split PDF Pages and Extract Ranges Online"
+  },
+  "/compress-pdf": {
+    title: "Compress PDF - Reduce PDF File Size in KB Online Free | ImagePro Studio",
+    metaDescription: "Compress PDF files under 200KB or 100KB for government job portals, UPSC, SSC, and college admissions online for free.",
+    canonical: "/compress-pdf",
+    h1: "Compress PDF Files Online"
+  },
+  "/edit-pdf": {
+    title: "Edit PDF - Free Online PDF Editor & Annotation Tool | ImagePro Studio",
+    metaDescription: "Edit PDF documents online for free. Add text, draw, redact confidential information, highlight, and insert signatures.",
+    canonical: "/edit-pdf",
+    h1: "In-Browser PDF Editor & Annotation Tool"
+  },
+  "/remove-bg": {
+    title: "Remove BG - Free AI Photo Background Remover Online | ImagePro Studio",
+    metaDescription: "Remove image backgrounds in 1 click using AI neural matting. Replace with transparent PNG or passport white background instantly.",
+    canonical: "/remove-bg",
+    h1: "Remove Image Background Online"
+  },
+  "/png-to-jpg": {
+    title: "PNG to JPG - Convert PNG to JPG Online Free | ImagePro Studio",
+    metaDescription: "Convert PNG images to lightweight JPG format online for free. Fast batch conversion with custom quality control.",
+    canonical: "/png-to-jpg",
+    h1: "Convert PNG Images to JPG Online"
+  },
+  "/jpg-to-png": {
+    title: "JPG to PNG - Convert JPG to Lossless PNG Online Free | ImagePro Studio",
+    metaDescription: "Convert JPG photos into lossless PNG format online for free. Fast in-browser image format converter.",
+    canonical: "/jpg-to-png",
+    h1: "Convert JPG Images to PNG Online"
+  }
+};
+
+/**
+ * Returns true if the pathname is the canonical slug or any valid alias for the tool.
+ */
+export function isPathValidForTool(pathname: string, toolId: ToolId): boolean {
+  const clean = pathname.toLowerCase().replace(/\/$/, "");
+  const def = TOOL_ROUTES[toolId];
+  if (!def) return false;
+  if (def.slug.toLowerCase() === clean) return true;
+  if (def.aliases.some((a) => a.toLowerCase() === clean)) return true;
+  return false;
+}
+
+/**
  * Resolves a given URL pathname to its corresponding ToolId, checking slugs and aliases.
  */
 export function getToolIdFromPath(pathname: string): ToolId | null {
@@ -693,7 +777,7 @@ export function getPathFromToolId(toolId: ToolId): string {
 /**
  * Dynamically updates document.title, meta description, canonical link, and JSON-LD schema.
  */
-export function updatePageSeo(toolId: ToolId | null): void {
+export function updatePageSeo(toolId: ToolId | null, currentPath?: string): void {
   if (typeof document === "undefined") return;
 
   const origin = "https://www.imageprostudio.in";
@@ -724,20 +808,27 @@ export function updatePageSeo(toolId: ToolId | null): void {
   const seo = TOOL_ROUTES[toolId];
   if (!seo) return;
 
+  const cleanPath = (currentPath || "").toLowerCase().replace(/\/$/, "");
+  const specialSeo = SPECIAL_ALIAS_SEO[cleanPath];
+
+  const title = specialSeo?.title || seo.title;
+  const description = specialSeo?.metaDescription || seo.metaDescription;
+  const canonicalUrl = `${origin}${specialSeo?.canonical || seo.slug}`;
+
   // Title
-  document.title = seo.title;
+  document.title = title;
 
   // Meta Description & Social Tags
-  updateMetaTag("name", "description", seo.metaDescription);
-  updateMetaTag("property", "og:title", seo.title);
-  updateMetaTag("property", "og:description", seo.metaDescription);
-  updateMetaTag("property", "og:url", `${origin}${seo.slug}`);
-  updateMetaTag("name", "twitter:title", seo.title);
-  updateMetaTag("name", "twitter:description", seo.metaDescription);
-  updateMetaTag("name", "twitter:url", `${origin}${seo.slug}`);
+  updateMetaTag("name", "description", description);
+  updateMetaTag("property", "og:title", title);
+  updateMetaTag("property", "og:description", description);
+  updateMetaTag("property", "og:url", canonicalUrl);
+  updateMetaTag("name", "twitter:title", title);
+  updateMetaTag("name", "twitter:description", description);
+  updateMetaTag("name", "twitter:url", canonicalUrl);
 
   // Canonical Link
-  updateCanonicalLink(`${origin}${seo.slug}`);
+  updateCanonicalLink(canonicalUrl);
 
   // Dynamic Schema.org JSON-LD (SoftwareApplication + FAQPage)
   updateStructuredData(seo, origin);

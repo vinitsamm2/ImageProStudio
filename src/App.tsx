@@ -43,6 +43,7 @@ import { uid } from "./lib/files";
 import {
   getToolIdFromPath,
   getPathFromToolId,
+  isPathValidForTool,
   updatePageSeo,
   getLegalRouteFromPath,
   getPathFromLegalRoute,
@@ -131,11 +132,14 @@ export default function App() {
         window.history.pushState({ toolId: null, catalog: true }, "", "/");
       }
     } else {
-      updatePageSeo(activeTool);
+      const currentPath = typeof window !== "undefined" ? window.location.pathname : "";
+      updatePageSeo(activeTool, currentPath);
       if (typeof window !== "undefined") {
-        const targetPath = getPathFromToolId(activeTool);
-        if (window.location.pathname !== targetPath) {
-          window.history.pushState({ toolId: activeTool }, "", targetPath);
+        if (!isPathValidForTool(window.location.pathname, activeTool)) {
+          const targetPath = getPathFromToolId(activeTool);
+          if (window.location.pathname !== targetPath) {
+            window.history.pushState({ toolId: activeTool }, "", targetPath);
+          }
         }
       }
     }

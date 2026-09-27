@@ -167,7 +167,16 @@ export default function PdfToImageView({
 }) {
   const [info, setInfo] = useState<PdfFileInfo | null>(null);
   const [ranges, setRanges] = useState("1");
-  const [formatKey, setFormatKey] = useState<FormatKey>("jpg");
+  const [formatKey, setFormatKey] = useState<FormatKey>(() => {
+    if (typeof window !== "undefined") {
+      const p = window.location.pathname.toLowerCase();
+      if (p.includes("png")) return "png";
+      if (p.includes("webp")) return "webp";
+      if (p.includes("tiff")) return "tiff";
+      if (p.includes("avif")) return "avif";
+    }
+    return "jpg";
+  });
   const [categoryFilter, setCategoryFilter] = useState<FormatCategory>("all");
   const [quality, setQuality] = useState(80);
 
