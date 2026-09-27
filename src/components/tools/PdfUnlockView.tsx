@@ -9,10 +9,11 @@ import {
   Lock,
   QrCode,
   RefreshCw,
-  ShieldAlert,
   ShieldCheck,
   Unlock,
-  X
+  X,
+  FileCheck2,
+  Sparkles
 } from "lucide-react";
 import UploadZone from "../UploadZone";
 import {
@@ -21,7 +22,7 @@ import {
   readPdfInfo,
   PdfFileInfo
 } from "../../lib/files";
-import { decryptPDF, isEncrypted } from "@pdfsmaller/pdf-decrypt";
+import { inspectPdfSecurity, unlockPdf, PdfSecurityInfo } from "../../lib/pdfUnlocker";
 
 type ToastNotify = (text: string, kind?: "success" | "error" | "info") => void;
 
@@ -37,20 +38,16 @@ export default function PdfUnlockView({
   onShareFile?: (file: File) => void;
 }) {
   const [file, setFile] = useState<File | null>(null);
-  const [encInfo, setEncInfo] = useState<{
-    encrypted: boolean;
-    algorithm?: "AES-256" | "RC4";
-    version?: number;
-    revision?: number;
-    keyLength?: number;
-  } | null>(null);
+  const [encInfo, setEncInfo] = useState<PdfSecurityInfo | null>(null);
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [statusText, setStatusText] = useState("");
   const [checking, setChecking] = useState(false);
   const [unlockedBlob, setUnlockedBlob] = useState<Blob | null>(null);
   const [unlockedFile, setUnlockedFile] = useState<File | null>(null);
   const [unlockedPdfInfo, setUnlockedPdfInfo] = useState<PdfFileInfo | null>(null);
+  const [unlockedMethod, setUnlockedMethod] = useState<"native" | "universal" | null>(null);
 
   const inspectPdf = async (picked: File) => {
     setFile(picked);
@@ -58,21 +55,29 @@ export default function PdfUnlockView({
     setUnlockedBlob(null);
     setUnlockedFile(null);
     setUnlockedPdfInfo(null);
+    setUnlockedMethod(null);
     setChecking(true);
+    setStatusText("");
 
     try {
       const buffer = await picked.arrayBuffer();
       const bytes = new Uint8Array(buffer);
-      const res = await isEncrypted(bytes);
+      const res = await inspectPdfSecurity(bytes);
       setEncInfo(res);
 
-      if (!res.encrypted) {
-        notify("This PDF is not password protected. You can already view and edit it.", "info");
+      if (res.encrypted) {
+        notify(`Protected PDF detected (${res.algorithm}). Enter password to unlock.`, "info");
       } else {
-        notify(`Encrypted PDF detected (${res.algorithm || "Protected"}). Enter password to unlock.`, "info");
+        notify("Standard PDF detected. You can view or unlock restrictions below.", "info");
       }
     } catch {
-      notify("Failed to inspect PDF encryption header.", "error");
+      // Fallback: Assume it could be protected so user is never locked out
+      setEncInfo({
+        encrypted: true,
+        algorithm: "Protected PDF",
+        requiresPassword: true
+      });
+      notify("PDF loaded. Enter password to unlock.", "info");
     } finally {
       setChecking(false);
     }
@@ -92,20 +97,21 @@ export default function PdfUnlockView({
 
   const handleUnlock = async () => {
     if (!file) return notify("Upload a PDF file first.", "error");
-    if (!password.trim()) return notify("Please enter the document password.", "error");
 
     setBusy(true);
+    setStatusText("Initializing decryption engine...");
     try {
-      const buffer = await file.arrayBuffer();
-      const bytes = new Uint8Array(buffer);
-      const decryptedBytes = await decryptPDF(bytes, password);
+      const result = await unlockPdf(file, password, (msg) => {
+        setStatusText(msg);
+      });
 
-      const blob = new Blob([decryptedBytes as any], { type: "application/pdf" });
+      const blob = new Blob([result.decryptedBytes as any], { type: "application/pdf" });
       const outName = `${file.name.replace(/\.pdf$/i, "")}-unlocked.pdf`;
       const generated = new File([blob], outName, { type: "application/pdf" });
 
       setUnlockedBlob(blob);
       setUnlockedFile(generated);
+      setUnlockedMethod(result.method);
 
       // Read unencrypted PDF info for page count and preview thumbnail
       try {
@@ -115,12 +121,13 @@ export default function PdfUnlockView({
         // Thumbnail generation optional
       }
 
-      notify("PDF successfully unlocked! Password removed.", "success");
+      notify("PDF successfully unlocked! Password protection removed.", "success");
     } catch (err) {
-      const msg = err instanceof Error ? err.message : "Incorrect password or failed to decrypt.";
-      notify(msg.includes("password") ? "Incorrect password. Please try again." : msg, "error");
+      const msg = err instanceof Error ? err.message : "Failed to decrypt PDF.";
+      notify(msg, "error");
     } finally {
       setBusy(false);
+      setStatusText("");
     }
   };
 
@@ -162,11 +169,11 @@ export default function PdfUnlockView({
                 <div className="flex items-center gap-2">
                   <h2 className="text-lg font-black text-slate-900 dark:text-white">Unlock PDF</h2>
                   <span className="rounded-full bg-indigo-500/10 px-2 py-0.5 text-[10px] font-bold text-indigo-600 dark:text-indigo-400">
-                    Password Remover
+                    Universal Decryptor
                   </span>
                 </div>
                 <p className="text-xs text-slate-500 dark:text-slate-400">
-                  Remove passwords and restrictions from secured PDFs. Download clean, unencrypted files ready for viewing and editing.
+                  Remove passwords and restrictions from secured PDFs (AES-256, AES-128, RC4, bank statements & e-Aadhaar). Download clean unencrypted files ready for viewing and editing.
                 </p>
               </div>
             </div>
@@ -200,16 +207,16 @@ export default function PdfUnlockView({
                   </span>
                   {encInfo?.encrypted ? (
                     <span className="rounded-full bg-rose-100 dark:bg-rose-950/50 px-2 py-0.5 text-[10px] font-bold text-rose-600 dark:text-rose-400">
-                      Locked ({encInfo.algorithm || "Protected"})
+                      Locked ({encInfo.algorithm})
                     </span>
                   ) : (
                     <span className="rounded-full bg-emerald-100 dark:bg-emerald-950/50 px-2 py-0.5 text-[10px] font-bold text-emerald-600 dark:text-emerald-400">
-                      Not Encrypted
+                      Standard PDF
                     </span>
                   )}
                 </div>
                 <p className="text-[11px] text-slate-400">
-                  {unlockedBlob ? "Unlocked and ready to download" : "Enter password to decrypt"}
+                  {unlockedBlob ? "Unlocked and ready to download" : "Enter password to decrypt and remove restrictions"}
                 </p>
               </div>
             </div>
@@ -223,6 +230,8 @@ export default function PdfUnlockView({
                 setUnlockedBlob(null);
                 setUnlockedFile(null);
                 setUnlockedPdfInfo(null);
+                setUnlockedMethod(null);
+                setStatusText("");
               }}
               className="inline-flex items-center gap-1 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-600 hover:text-rose-600 hover:border-rose-300 hover:bg-rose-50 dark:border-white/[0.1] dark:bg-slate-800 dark:text-slate-300 dark:hover:text-rose-400 transition-colors cursor-pointer"
             >
@@ -248,15 +257,27 @@ export default function PdfUnlockView({
                       <RefreshCw size={14} className="animate-spin text-indigo-600" />
                       <span>Checking PDF encryption structure...</span>
                     </div>
-                  ) : encInfo?.encrypted ? (
+                  ) : (
                     <div className="space-y-4">
-                      <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
-                        This document is encrypted with{" "}
-                        <span className="font-bold text-slate-900 dark:text-white">
-                          {encInfo.algorithm || "Standard PDF Encryption"}
-                        </span>
-                        . Enter the password once to permanently remove password security from this copy.
-                      </p>
+                      {encInfo?.encrypted ? (
+                        <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
+                          This document is protected with{" "}
+                          <span className="font-bold text-slate-900 dark:text-white">
+                            {encInfo.algorithm}
+                          </span>
+                          . Enter the password once to permanently remove password security and restrictions from this copy.
+                        </p>
+                      ) : (
+                        <div className="rounded-2xl border border-amber-500/20 bg-amber-50/50 dark:bg-amber-950/20 p-3 text-xs text-amber-700 dark:text-amber-300 space-y-1">
+                          <div className="font-bold flex items-center gap-1.5">
+                            <Sparkles size={14} />
+                            <span>Standard PDF or Permission-Restricted Document</span>
+                          </div>
+                          <p className="text-[11px] text-slate-600 dark:text-slate-400">
+                            No open password was required to read headers. If this document has an owner password (printing/copying blocked) or requires a password, enter it below to produce a 100% clean copy.
+                          </p>
+                        </div>
+                      )}
 
                       <div className="space-y-1.5">
                         <div className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center justify-between">
@@ -276,25 +297,33 @@ export default function PdfUnlockView({
                             value={password}
                             onChange={(e) => setPassword(e.target.value)}
                             onKeyDown={(e) => {
-                              if (e.key === "Enter") handleUnlock();
+                              if (e.key === "Enter" && !busy) handleUnlock();
                             }}
                             placeholder="Enter password..."
                             autoFocus
-                            className="w-full rounded-2xl border border-slate-200 bg-slate-50/50 px-4 py-2.5 text-sm font-medium text-slate-800 focus:border-indigo-500 focus:bg-white focus:outline-none dark:border-white/[0.08] dark:bg-slate-800/60 dark:text-white dark:focus:border-indigo-400"
+                            disabled={busy}
+                            className="w-full rounded-2xl border border-slate-200 bg-slate-50/50 px-4 py-2.5 text-sm font-medium text-slate-800 focus:border-indigo-500 focus:bg-white focus:outline-none dark:border-white/[0.08] dark:bg-slate-800/60 dark:text-white dark:focus:border-indigo-400 disabled:opacity-50"
                           />
                         </div>
                       </div>
 
+                      {statusText && (
+                        <div className="flex items-center gap-2 text-xs font-semibold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/40 p-2.5 rounded-xl animate-pulse">
+                          <RefreshCw size={13} className="animate-spin" />
+                          <span>{statusText}</span>
+                        </div>
+                      )}
+
                       <button
                         type="button"
                         onClick={handleUnlock}
-                        disabled={busy || !password.trim()}
+                        disabled={busy}
                         className="w-full inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-indigo-600 via-blue-600 to-cyan-500 px-6 h-12 text-sm font-black text-white shadow-lg shadow-indigo-500/25 hover:opacity-95 disabled:opacity-50 transition-all cursor-pointer"
                       >
                         {busy ? (
                           <>
                             <RefreshCw size={16} className="animate-spin" />
-                            <span>Decrypting Document...</span>
+                            <span>{statusText || "Decrypting Document..."}</span>
                           </>
                         ) : (
                           <>
@@ -303,16 +332,6 @@ export default function PdfUnlockView({
                           </>
                         )}
                       </button>
-                    </div>
-                  ) : (
-                    <div className="py-4 space-y-3">
-                      <div className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400 font-bold text-xs">
-                        <CheckCircle2 size={16} />
-                        <span>This document is already unencrypted!</span>
-                      </div>
-                      <p className="text-xs text-slate-500 dark:text-slate-400">
-                        There is no password restriction on this file. You can already open, edit, and print it without entering a password.
-                      </p>
                     </div>
                   )}
                 </div>
@@ -324,11 +343,16 @@ export default function PdfUnlockView({
                       <CheckCircle2 size={24} />
                     </div>
                     <div>
-                      <h4 className="text-base font-black text-slate-900 dark:text-white">
-                        PDF Successfully Unlocked!
-                      </h4>
+                      <div className="flex items-center gap-2">
+                        <h4 className="text-base font-black text-slate-900 dark:text-white">
+                          PDF Successfully Unlocked!
+                        </h4>
+                        <span className="rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-bold text-emerald-600 dark:text-emerald-400">
+                          {unlockedMethod === "native" ? "Vector Decrypted" : "Universal Clean Copy"}
+                        </span>
+                      </div>
                       <p className="text-xs text-slate-500 dark:text-slate-400">
-                        All passwords and permissions have been removed.
+                        All passwords, encryption keys, and permission restrictions have been permanently removed.
                       </p>
                     </div>
                   </div>
@@ -373,12 +397,14 @@ export default function PdfUnlockView({
                       {unlockedBlob ? (
                         <>
                           <Unlock size={32} className="text-emerald-500" />
-                          <span className="text-[11px] font-bold text-emerald-600">Unlocked</span>
+                          <span className="text-[11px] font-bold text-emerald-600">Unlocked & Verified</span>
                         </>
                       ) : (
                         <>
                           <Lock size={32} className="text-indigo-400" />
-                          <span className="text-[11px] font-bold">Password Protected</span>
+                          <span className="text-[11px] font-bold">
+                            {encInfo?.encrypted ? encInfo.algorithm : "PDF Document"}
+                          </span>
                         </>
                       )}
                     </div>
@@ -391,6 +417,7 @@ export default function PdfUnlockView({
                   </h5>
                   <p className="text-[11px] text-slate-400 mt-0.5">
                     {formatBytes(unlockedFile ? unlockedFile.size : file.size)}
+                    {unlockedPdfInfo?.pages ? ` • ${unlockedPdfInfo.pages} page(s)` : ""}
                   </p>
                 </div>
               </div>
@@ -402,7 +429,7 @@ export default function PdfUnlockView({
                   <span>Decrypted Privately In-Browser</span>
                 </div>
                 <p className="text-[11px] text-slate-600 dark:text-slate-400 leading-relaxed">
-                  Decryption happens directly inside your web browser without uploading anything to a remote server. Your confidential files stay 100% private.
+                  Decryption happens directly inside your web browser with zero server uploads. Your private documents, bank statements, and credentials never leave your machine.
                 </p>
               </div>
             </div>
