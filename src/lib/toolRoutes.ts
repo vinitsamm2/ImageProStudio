@@ -539,6 +539,35 @@ export const TOOL_ROUTES: Record<ToolId, ToolSeoDefinition> = {
       }
     ],
     relatedToolIds: ["rotate-pdf", "pdf-splitter", "pdf-merger"]
+  },
+  "remove-background": {
+    toolId: "remove-background",
+    slug: "/remove-background",
+    aliases: ["/bg-remover", "/background-remover", "/image-background-remover", "/remove-bg"],
+    title: "Remove Background - Free Photo & Signature Background Remover | ImagePro Studio",
+    metaDescription: "Instantly remove backgrounds from photos, signatures, and portraits online for free. 1-click replace with transparent PNG, passport white (UPSC/SSC), visa blue, or custom colors. 100% private in-browser tool.",
+    h1: "Remove Background & Replace Photo Backdrops Online",
+    tagline: "Erase backgrounds in 1 click, isolate signatures with precision, and replace backdrops with official exam white or transparent PNG.",
+    howToSteps: [
+      { step: 1, title: "Upload Photo or Signature", description: "Select or drop your image into the background remover." },
+      { step: 2, title: "Adjust Matting or Pick Backdrop", description: "Use Smart Floodfill or Eyedropper to fine-tune edge tolerance, or pick instant Passport White, Sky Blue, or Transparent." },
+      { step: 3, title: "Download or Transfer", description: "Download as lossless transparent PNG, or transfer directly into the 35×45mm Image Resizer." }
+    ],
+    faqs: [
+      {
+        question: "Can I replace the background with official UPSC / SSC passport white?",
+        answer: "Yes! Click the 'Pure White' preset under Backdrop Studio to instantly apply the 100% white background required by government exam portals."
+      },
+      {
+        question: "How do I isolate my signature from paper?",
+        answer: "Select 'Global Color' mode, adjust the tolerance slider slightly, and download a transparent PNG signature ready to place onto documents."
+      },
+      {
+        question: "Are my photos uploaded to any AI cloud servers?",
+        answer: "No. Background segmentation runs 100% locally in your browser's memory using HTML5 Canvas and TypedArray processing. Zero bytes leave your machine."
+      }
+    ],
+    relatedToolIds: ["resizer", "compressor", "dimension-converter", "image-to-pdf"]
   }
 };
 

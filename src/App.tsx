@@ -31,6 +31,7 @@ import PdfPageNumberView from "./components/tools/PdfPageNumberView";
 import PdfTextExtractorView from "./components/tools/PdfTextExtractorView";
 import ImageExifCleanerView from "./components/tools/ImageExifCleanerView";
 import PdfCropView from "./components/tools/PdfCropView";
+import ImageBackgroundRemoverView from "./components/tools/ImageBackgroundRemoverView";
 import ShareQrModal, { ShareableFile } from "./components/ShareQrModal";
 import MobileDownloadView from "./components/MobileDownloadView";
 import ToolSeoSection from "./components/seo/ToolSeoSection";
@@ -342,6 +343,21 @@ export default function App() {
                   notify={notify}
                   initialFiles={toolInitialFiles}
                   onSwitchViceVersa={() => setActiveTool("pdf-compressor")}
+                  onShareFile={(file) => setShareModalFile(file)}
+                />
+              )}
+              {activeTool === "remove-background" && (
+                <ImageBackgroundRemoverView
+                  notify={notify}
+                  initialFiles={toolInitialFiles}
+                  onSwitchToResizer={(file) => {
+                    setToolInitialFiles([file]);
+                    setActiveTool("resizer");
+                  }}
+                  onSwitchToCompressor={(file) => {
+                    setToolInitialFiles([file]);
+                    setActiveTool("compressor");
+                  }}
                   onShareFile={(file) => setShareModalFile(file)}
                 />
               )}

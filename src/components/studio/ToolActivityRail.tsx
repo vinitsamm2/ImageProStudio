@@ -111,6 +111,17 @@ export const STUDIO_TOOLS: ToolItemDef[] = [
     viceVersaLabel: "PDF Compressor"
   },
   {
+    id: "remove-background",
+    name: "Remove Background",
+    shortName: "Remove BG",
+    shortcut: "B",
+    category: "image",
+    icon: Scissors,
+    badge: "AI",
+    viceVersaId: "resizer",
+    viceVersaLabel: "Image Resizer"
+  },
+  {
     id: "pdf-to-image",
     name: "PDF to Image / JPG / JPEG",
     shortName: "PDF➔JPG",

@@ -48,7 +48,8 @@ export type ToolId =
   | "page-number-pdf"
   | "pdf-text-extractor"
   | "exif-cleaner"
-  | "crop-pdf";
+  | "crop-pdf"
+  | "remove-background";
 
 export type ToolCategory = "all" | "image" | "pdf";
 
@@ -123,6 +124,16 @@ export const TOOLS: ToolDef[] = [
     icon: Archive,
     badge: "Popular",
     gradient: "from-emerald-500 to-teal-500"
+  },
+  {
+    id: "remove-background",
+    name: "Remove Background",
+    tagline: "Erase backdrop & apply passport white / transparent PNG",
+    description: "Instant 1-click background removal for photos, portraits, and signatures. Replace with transparent PNG, passport white, visa blue, or custom colors.",
+    category: "image",
+    icon: Scissors,
+    badge: "Smart AI",
+    gradient: "from-pink-500 via-rose-500 to-amber-500"
   },
   {
     id: "pdf-compressor",

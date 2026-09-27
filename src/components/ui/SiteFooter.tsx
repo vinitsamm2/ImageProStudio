@@ -111,6 +111,15 @@ export default function SiteFooter({
               </li>
               <li>
                 <a
+                  href="/remove-background"
+                  onClick={(e) => handleToolClick("remove-background", e)}
+                  className="hover:text-cyan-600 dark:hover:text-cyan-400 transition-colors font-semibold text-pink-600 dark:text-pink-400"
+                >
+                  Remove Background (AI / Matting)
+                </a>
+              </li>
+              <li>
+                <a
                   href="/image-to-pdf"
                   onClick={(e) => handleToolClick("image-to-pdf", e)}
                   className="hover:text-cyan-600 dark:hover:text-cyan-400 transition-colors"
