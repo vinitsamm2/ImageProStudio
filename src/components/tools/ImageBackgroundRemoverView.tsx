@@ -52,8 +52,10 @@ const BACKDROP_PRESETS: PresetColor[] = [
   { id: "offwhite", name: "Off-White", color: "#f3f4f6", badge: "Formal", textColor: "text-slate-800" },
   { id: "lightblue", name: "Sky Blue", color: "#e0f2fe", badge: "Visa", textColor: "text-blue-900" },
   { id: "visablue", name: "Royal Blue", color: "#0284c7", badge: "ID Card", textColor: "text-white" },
+  { id: "red", name: "Passport Red", color: "#dc2626", badge: "ID Photo", textColor: "text-white" },
   { id: "grey", name: "Studio Grey", color: "#475569", badge: "Portrait", textColor: "text-white" },
-  { id: "cream", name: "Soft Beige", color: "#fef3c7", textColor: "text-amber-900" }
+  { id: "cream", name: "Soft Beige", color: "#fef3c7", textColor: "text-amber-900" },
+  { id: "dark", name: "Midnight", color: "#0f172a", textColor: "text-white" }
 ];
 
 const GRADIENT_PRESETS = [
@@ -99,7 +101,7 @@ export default function ImageBackgroundRemoverView({
   const [isBrushing, setIsBrushing] = useState(false);
 
   // View state
-  const [viewMode, setViewMode] = useState<"split" | "side" | "result">("split");
+  const [viewMode, setViewMode] = useState<"split" | "side" | "result">("result");
   const [splitPos, setSplitPos] = useState(50);
   const [zoomLevel, setZoomLevel] = useState(1);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -539,6 +541,87 @@ export default function ImageBackgroundRemoverView({
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
             {/* Center Canvas Workspace (Col 8) */}
             <div className="lg:col-span-8 space-y-4">
+              {/* Quick Background Color Bar */}
+              <div className="flex flex-wrap items-center gap-2 p-3 rounded-2xl border border-slate-200/80 bg-white/90 dark:border-white/[0.08] dark:bg-slate-900/60 shadow-xs">
+                <span className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5 shrink-0 mr-1">
+                  <Palette size={14} className="text-pink-600 dark:text-pink-400" />
+                  <span>Choose Background:</span>
+                </span>
+
+                {/* Transparent Option */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setBackdropType("transparent");
+                    setViewMode("result");
+                  }}
+                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-bold transition-all cursor-pointer ${
+                    backdropType === "transparent"
+                      ? "border-pink-500 ring-2 ring-pink-500/20 bg-pink-50 dark:bg-pink-950/30 text-pink-700 dark:text-pink-300"
+                      : "border-slate-200 dark:border-white/[0.08] text-slate-600 dark:text-slate-400 hover:border-slate-300"
+                  }`}
+                >
+                  <div
+                    className="h-4 w-4 rounded-md border border-slate-300"
+                    style={{
+                      backgroundImage:
+                        "linear-gradient(45deg, #cbd5e1 25%, transparent 25%), linear-gradient(-45deg, #cbd5e1 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #cbd5e1 75%), linear-gradient(-45deg, transparent 75%, #cbd5e1 75%)",
+                      backgroundSize: "6px 6px"
+                    }}
+                  />
+                  <span>Transparent</span>
+                </button>
+
+                {/* Preset Solid Colors */}
+                {BACKDROP_PRESETS.map((preset) => (
+                  <button
+                    key={preset.id}
+                    type="button"
+                    onClick={() => {
+                      setBackdropType("color");
+                      setSelectedColor(preset.color);
+                      setCustomHex(preset.color);
+                      setViewMode("result");
+                    }}
+                    className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border text-xs font-bold transition-all cursor-pointer ${
+                      backdropType === "color" && selectedColor.toLowerCase() === preset.color.toLowerCase()
+                        ? "border-pink-500 ring-2 ring-pink-500/20 bg-pink-50 dark:bg-pink-950/30 text-pink-700 dark:text-pink-300"
+                        : "border-slate-200 dark:border-white/[0.08] text-slate-700 dark:text-slate-300 hover:border-slate-300"
+                    }`}
+                  >
+                    <div
+                      className="h-4 w-4 rounded-md border border-slate-300 shadow-2xs shrink-0"
+                      style={{ backgroundColor: preset.color }}
+                    />
+                    <span>{preset.name}</span>
+                    {preset.badge && (
+                      <span className="hidden sm:inline-block rounded-full bg-slate-100 dark:bg-slate-800 px-1.5 py-0.2 text-[9px] text-slate-500 dark:text-slate-400">
+                        {preset.badge}
+                      </span>
+                    )}
+                  </button>
+                ))}
+
+                {/* Custom Color Wheel Picker */}
+                <div className="flex items-center gap-1.5 pl-1">
+                  <input
+                    type="color"
+                    value={selectedColor}
+                    onChange={(e) => {
+                      setBackdropType("color");
+                      setSelectedColor(e.target.value);
+                      setCustomHex(e.target.value);
+                      setViewMode("result");
+                    }}
+                    title="Pick custom color"
+                    className="h-7 w-8 cursor-pointer rounded-lg border border-slate-200 bg-transparent p-0.5 dark:border-slate-700"
+                  />
+                  <span className="text-[11px] font-mono text-slate-400 uppercase hidden sm:inline">
+                    {backdropType === "color" ? selectedColor : "Custom"}
+                  </span>
+                </div>
+              </div>
+
               <div
                 ref={canvasContainerRef}
                 className="relative rounded-3xl border border-slate-200/80 bg-slate-100/80 p-4 shadow-sm backdrop-blur-md dark:border-white/[0.08] dark:bg-slate-900/60 min-h-[460px] flex items-center justify-center overflow-hidden"
@@ -1064,23 +1147,34 @@ export default function ImageBackgroundRemoverView({
                   Export Cutout
                 </h4>
 
-                <button
-                  type="button"
-                  onClick={downloadPng}
-                  className="w-full inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-pink-600 via-rose-600 to-amber-500 px-6 h-12 text-sm font-black text-white shadow-lg shadow-pink-500/25 hover:opacity-95 transition-all cursor-pointer"
-                >
-                  <Download size={16} />
-                  <span>Download Transparent PNG</span>
-                </button>
-
-                {backdropType !== "transparent" && (
+                {/* Download Buttons */}
+                {backdropType !== "transparent" ? (
+                  <>
+                    <button
+                      type="button"
+                      onClick={downloadJpgWithBackdrop}
+                      className="w-full inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-pink-600 via-rose-600 to-amber-500 px-6 h-12 text-sm font-black text-white shadow-lg shadow-pink-500/25 hover:opacity-95 transition-all cursor-pointer"
+                    >
+                      <Download size={16} />
+                      <span>Download with {selectedColor.toUpperCase()} Background</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={downloadPng}
+                      className="w-full inline-flex items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white dark:border-white/[0.08] dark:bg-slate-800 px-4 h-11 text-xs font-bold text-slate-800 dark:text-white hover:bg-slate-50 transition-all cursor-pointer"
+                    >
+                      <Download size={14} />
+                      <span>Download as Transparent PNG</span>
+                    </button>
+                  </>
+                ) : (
                   <button
                     type="button"
-                    onClick={downloadJpgWithBackdrop}
-                    className="w-full inline-flex items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white dark:border-white/[0.08] dark:bg-slate-800 px-4 h-11 text-xs font-bold text-slate-800 dark:text-white hover:bg-slate-50 transition-all cursor-pointer"
+                    onClick={downloadPng}
+                    className="w-full inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-pink-600 via-rose-600 to-amber-500 px-6 h-12 text-sm font-black text-white shadow-lg shadow-pink-500/25 hover:opacity-95 transition-all cursor-pointer"
                   >
-                    <Download size={14} />
-                    <span>Download JPG with Backdrop</span>
+                    <Download size={16} />
+                    <span>Download Transparent PNG</span>
                   </button>
                 )}
 
