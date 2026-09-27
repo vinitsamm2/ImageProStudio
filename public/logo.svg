@@ -1,48 +1,40 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%" fill="none">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" fill="none">
   <defs>
-    <!-- Background Gradient: Cyan to Teal to Indigo -->
+    <!-- Background Gradient: from-cyan-500 via-teal-500 to-indigo-500 (45deg / to top right) -->
     <linearGradient id="wandBgGrad" x1="0%" y1="100%" x2="100%" y2="0%">
       <stop offset="0%" stop-color="#06b6d4" />
-      <stop offset="50%" stop-color="#14b8a6" />
+      <stop offset="48%" stop-color="#14b8a6" />
       <stop offset="100%" stop-color="#6366f1" />
     </linearGradient>
 
-    <!-- Star Shimmer Gradient -->
-    <linearGradient id="starShimmer" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#ffffff" />
-      <stop offset="100%" stop-color="#cffafe" />
-    </linearGradient>
-
-    <!-- Ambient Shadow Filter -->
+    <!-- Subtle Soft Drop Shadow -->
     <filter id="wandShadow" x="-20%" y="-20%" width="140%" height="140%">
       <feDropShadow dx="0" dy="16" stdDeviation="20" flood-color="#06b6d4" flood-opacity="0.35" />
     </filter>
   </defs>
 
-  <!-- Base Rounded Squircle with Shadow -->
-  <rect x="36" y="36" width="440" height="440" rx="110" fill="url(#wandBgGrad)" filter="url(#wandShadow)" />
-  <rect x="36" y="36" width="440" height="440" rx="110" stroke="#ffffff" stroke-width="6" stroke-opacity="0.25" />
+  <!-- Base Rounded Squircle with Shadow (identical to rounded-2xl in BrandLogo) -->
+  <rect x="32" y="32" width="448" height="448" rx="112" fill="url(#wandBgGrad)" filter="url(#wandShadow)" />
+  <rect x="32" y="32" width="448" height="448" rx="112" stroke="#ffffff" stroke-width="6" stroke-opacity="0.25" />
 
-  <!-- Magic Wand & Stars (Lucide Wand2 Pure Vector Recreation) -->
-  <g stroke="#ffffff" stroke-linecap="round" stroke-linejoin="round">
-    <!-- Main Wand Shaft -->
-    <line x1="140" y1="372" x2="315" y2="197" stroke-width="32" />
-    <!-- Wand Handle Cap -->
-    <line x1="140" y1="372" x2="116" y2="396" stroke-width="36" />
-    <!-- Wand Luminous Tip -->
-    <line x1="285" y1="227" x2="345" y2="167" stroke-width="36" stroke="#ffffff" />
+  <!-- Lucide Wand2 (WandSparkles) Vector Emblem Centered -->
+  <g transform="translate(126, 126) scale(10.8333)" fill="none" stroke="#ffffff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+    <!-- Main Wand Shaft & Head -->
+    <path d="m21.64 3.64-1.28-1.28a1.21 1.21 0 0 0-1.72 0L2.36 18.64a1.21 1.21 0 0 0 0 1.72l1.28 1.28a1.2 1.2 0 0 0 1.72 0L21.64 5.36a1.2 1.2 0 0 0 0-1.72" />
+    <!-- Wand Tip Collar -->
+    <path d="m14 7 3 3" />
+    <!-- Ambient Magic Sparkles -->
+    <path d="M5 6v4" />
+    <path d="M19 14v4" />
+    <path d="M10 2v2" />
+    <path d="M7 8H3" />
+    <path d="M21 16h-4" />
+    <path d="M11 3H9" />
   </g>
 
-  <!-- Sparkling Magic Stars Bursting From Tip -->
-  <!-- Top Star -->
-  <path d="M365 82 L372 114 L404 121 L372 128 L365 160 L358 128 L326 121 L358 114 Z" fill="url(#starShimmer)" />
-  <!-- Upper Right Star -->
-  <path d="M424 176 L429 196 L449 201 L429 206 L424 226 L419 206 L399 201 L419 196 Z" fill="url(#starShimmer)" />
-  <!-- Left Sparkle Star -->
-  <path d="M250 120 L254 138 L272 142 L254 146 L250 164 L246 146 L228 142 L246 138 Z" fill="url(#starShimmer)" />
-
-  <!-- Tiny Sparkling Dots -->
-  <circle cx="206" cy="186" r="9" fill="#ffffff" opacity="0.9" />
-  <circle cx="346" cy="266" r="10" fill="#ffffff" opacity="0.9" />
-  <circle cx="436" cy="116" r="7" fill="#ffffff" opacity="0.85" />
+  <!-- Top-Right Cyan Glowing Ping Indicator (from BrandLogo.tsx) -->
+  <circle cx="448" cy="64" r="32" fill="#22d3ee" opacity="0.3" />
+  <circle cx="448" cy="64" r="22" fill="#22d3ee" opacity="0.6" />
+  <circle cx="448" cy="64" r="15" fill="#22d3ee" stroke="#ffffff" stroke-width="4" />
+  <circle cx="448" cy="64" r="6" fill="#ffffff" />
 </svg>

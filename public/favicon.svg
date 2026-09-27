@@ -1,20 +1,30 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" fill="none">
   <defs>
-    <linearGradient id="favGrad" x1="0%" y1="100%" x2="100%" y2="0%">
+    <linearGradient id="favBgGrad" x1="0%" y1="100%" x2="100%" y2="0%">
       <stop offset="0%" stop-color="#06b6d4" />
-      <stop offset="50%" stop-color="#14b8a6" />
+      <stop offset="48%" stop-color="#14b8a6" />
       <stop offset="100%" stop-color="#6366f1" />
     </linearGradient>
   </defs>
-  <rect width="64" height="64" rx="16" fill="url(#favGrad)" />
-  <rect width="64" height="64" rx="16" stroke="#ffffff" stroke-width="1.5" stroke-opacity="0.25" />
-  <!-- Magic Wand Shaft -->
-  <line x1="18" y1="46" x2="39" y2="25" stroke="#ffffff" stroke-width="4.5" stroke-linecap="round" />
-  <line x1="18" y1="46" x2="15" y2="49" stroke="#ffffff" stroke-width="5" stroke-linecap="round" />
-  <line x1="36" y1="28" x2="43" y2="21" stroke="#ffffff" stroke-width="5.5" stroke-linecap="round" />
-  <!-- Sparkling Stars -->
-  <path d="M46 10 L47.5 14.5 L52 16 L47.5 17.5 L46 22 L44.5 17.5 L40 16 L44.5 14.5 Z" fill="#ffffff" />
-  <path d="M53 22 L54 25 L57 26 L54 27 L53 30 L52 27 L49 26 L52 25 Z" fill="#ffffff" opacity="0.9" />
-  <circle cx="32" cy="16" r="1.5" fill="#ffffff" />
-  <circle cx="44" cy="33" r="1.5" fill="#ffffff" />
+
+  <!-- Squircle Emblem -->
+  <rect x="3" y="3" width="58" height="58" rx="15" fill="url(#favBgGrad)" />
+  <rect x="3" y="3" width="58" height="58" rx="15" stroke="#ffffff" stroke-width="1.2" stroke-opacity="0.3" />
+
+  <!-- Lucide Wand2 Centered -->
+  <g transform="translate(15, 15) scale(1.4166)" fill="none" stroke="#ffffff" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round">
+    <path d="m21.64 3.64-1.28-1.28a1.21 1.21 0 0 0-1.72 0L2.36 18.64a1.21 1.21 0 0 0 0 1.72l1.28 1.28a1.2 1.2 0 0 0 1.72 0L21.64 5.36a1.2 1.2 0 0 0 0-1.72" />
+    <path d="m14 7 3 3" />
+    <path d="M5 6v4" />
+    <path d="M19 14v4" />
+    <path d="M10 2v2" />
+    <path d="M7 8H3" />
+    <path d="M21 16h-4" />
+    <path d="M11 3H9" />
+  </g>
+
+  <!-- Glowing Cyan Dot at Top-Right Corner -->
+  <circle cx="56" cy="8" r="5" fill="#22d3ee" opacity="0.4" />
+  <circle cx="56" cy="8" r="3.2" fill="#22d3ee" stroke="#ffffff" stroke-width="1" />
+  <circle cx="56" cy="8" r="1.2" fill="#ffffff" />
 </svg>
